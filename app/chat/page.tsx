@@ -11,6 +11,7 @@ import VoipCallOverlay from "@/components/VoipCallOverlay";
 import ImageLightbox from "@/components/ImageLightbox";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
+import { renderChatText } from "@/lib/chat-markdown";
 
 // Reaction emoji facon WhatsApp : un emoji + l'identifiant du reacteur.
 type Reaction = { emoji: string; by: string };
@@ -217,19 +218,19 @@ function ChatMessage({
                   isLeft ? "text-slate-200" : "text-white"
                 }`}
               >
-                {image.caption}
+                {renderChatText(image.caption)}
               </p>
             )}
           </div>
         ) : (
-          <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+          <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
             isElara
               ? "bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 text-slate-200 rounded-bl-none"
               : isSupport
                 ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 text-slate-200 rounded-bl-none"
                 : "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-none shadow-lg shadow-blue-600/20"
           }`}>
-            {msg.content}
+            {renderChatText(msg.content)}
           </div>
         )}
         <div className={`flex items-center gap-1 mt-1 ${isLeft ? "ml-1 justify-start" : "mr-1 justify-end"}`}>

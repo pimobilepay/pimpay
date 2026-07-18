@@ -1,4 +1,7 @@
-import { generateText } from "ai";
+import { generateText, tool, stepCountIs } from "ai";
+import { z } from "zod";
+import { searchPlatformContent } from "@/lib/elara-platform-search";
+import { searchWeb, formatWebResults } from "@/lib/elara-web-search";
 
 // ---------------------------------------------------------------------------
 // Elara — Le cerveau IA de PimPay (Pi Mobile Pay)
@@ -35,6 +38,26 @@ export function detectLang(message: string): Lang {
 
 function normalize(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// ---------------------------------------------------------------------------
+// Correspondance de mot-clé « à bordures de mot ».
+// ---------------------------------------------------------------------------
+// PROBLÈME CORRIGÉ : une simple recherche de sous-chaîne (`includes`) faisait
+// matcher le mot-clé "mpay" à l'intérieur même du mot "PimPay" (piMPAYay),
+// ce qui déclenchait à tort la réponse MPAY sur n'importe quel message
+// mentionnant juste le nom de l'app (ex: "I'd like to talk to a PimPay
+// support agent", "does pimpay require KYC?"). Idem pour d'autres mots courts
+// ("pi", "map", "kyc"...) qui pouvaient apparaître à l'intérieur d'autres mots.
+// On exige désormais que le mot-clé soit isolé (bordure = début/fin de chaîne
+// ou caractère non alphanumérique). Les idéogrammes chinois n'ayant pas
+// d'espaces, ce garde-fou ne les affecte pas : ils continuent de matcher par
+// sous-chaîne comme avant.
+function containsKeyword(haystack: string, keyword: string): boolean {
+  if (!keyword) return false;
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, "i");
+  return re.test(` ${haystack} `);
 }
 
 // Sélectionne la variante dans la bonne langue (repli FR puis EN).
@@ -78,11 +101,11 @@ const PROBLEM_KEYWORDS = [
 
 function describesProblem(message: string): boolean {
   const m = normalize(message);
-  return PROBLEM_KEYWORDS.some((k) => m.includes(normalize(k)));
+  return PROBLEM_KEYWORDS.some((k) => containsKeyword(m, normalize(k)));
 }
 
 // ---------------------------------------------------------------------------
-// 3. DÉTECTION « PARLER À UN AGENT HUMAIN » (multilingue)
+// 3. DÉTECTION « PARLER À UN AGENT HUMAIN » (multilingue) + LIEN WHATSAPP
 // ---------------------------------------------------------------------------
 const SUPPORT_PHRASES = [
   // FR
@@ -90,38 +113,75 @@ const SUPPORT_PHRASES = [
   "agent du support", "agent humain", "un vrai agent", "contacter le support",
   "contacter un agent", "joindre le support", "joindre un agent", "assistance humaine",
   "support humain", "service client", "un conseiller", "une personne reelle",
+  "besoin d'aide", "besoin d aide", "elara aide moi", "parler a quelqu'un",
+  "je veux un humain", "reclamation", "plainte",
   // EN
   "speak to an agent", "talk to an agent", "talk to a human", "human agent",
   "real agent", "contact support", "customer service", "speak to support", "live agent",
+  "need help", "i need assistance", "complaint",
   // ZH
-  "与客服人员联系", "联系客服", "人工客服", "真人客服", "转人工",
+  "与客服人员联系", "联系客服", "人工客服", "真人客服", "转人工", "我需要帮助", "投诉",
 ];
 
 export function detectSupportIntent(message: string): boolean {
   const m = normalize(message);
-  // Les phrases chinoises ne sont pas affectées par normalize (pas d'accents).
-  return SUPPORT_PHRASES.some((p) => m.includes(normalize(p)));
+  // 1) Phrases exactes connues (bordures de mot pour éviter les faux positifs).
+  if (SUPPORT_PHRASES.some((p) => containsKeyword(m, normalize(p)))) return true;
+
+  // 2) Heuristique combinatoire : couvre les formulations non prévues dans la
+  //    liste ci-dessus (ex : "I'd like to talk to a PimPay support agent").
+  //    Un verbe de contact + un mot désignant un humain/support suffit.
+  const contactVerbs = [
+    "parler", "contacter", "joindre", "appeler", "discuter",
+    "speak", "talk", "contact", "call", "chat with",
+    "联系", "找",
+  ];
+  const humanNouns = [
+    "agent", "conseiller", "support", "humain", "personne", "quelqu'un", "assistance",
+    "human", "advisor", "representative", "someone",
+    "客服", "人工", "顾问",
+  ];
+  const hasContactVerb = contactVerbs.some((k) => containsKeyword(m, normalize(k)));
+  const hasHumanNoun = humanNouns.some((k) => containsKeyword(m, normalize(k)));
+  return hasContactVerb && hasHumanNoun;
+}
+
+// Numéro de support PimPay — jamais affiché en clair dans les réponses.
+// Il n'est utilisé que dans l'URL wa.me, dissimulé derrière un lien texte.
+const WHATSAPP_URL = "https://wa.me/242065540305";
+
+// Lien WhatsApp cliquable (format markdown [texte](url)), rendu par les bulles
+// de chat côté client — jamais le numéro brut n'est exposé à l'utilisateur.
+function getWhatsAppLink(lang: Lang): string {
+  return pick(lang, {
+    fr: `[💬 Discuter avec le support sur WhatsApp](${WHATSAPP_URL})`,
+    en: `[💬 Chat with support on WhatsApp](${WHATSAPP_URL})`,
+    zh: `[💬 通过 WhatsApp 联系客服](${WHATSAPP_URL})`,
+  });
 }
 
 // Réponse quand l'utilisateur demande EXPLICITEMENT un agent humain :
-// Elara collecte la préoccupation et rassure en attendant la prise en charge.
+// Elara collecte la préoccupation, rassure, et propose un lien direct vers WhatsApp.
 export function getSupportIntentReply(lang: Lang): string {
+  const wa = getWhatsAppLink(lang);
   return pick(lang, {
-    fr: "Bien sûr, je transmets votre demande à un agent du support PimPay. 📩\n\nPour qu'il vous aide efficacement, pouvez-vous décrire précisément **votre préoccupation** ? Donnez le maximum de détails (service concerné, montant, message d'erreur…). Un conseiller vous répondra ici dès que possible.\n\n💬 Vous pouvez aussi le joindre via 📱 **MENU** ➡️ 🤝 **Communauté & Support** ➡️ bouton **WhatsApp**.",
-    en: "Of course, I'm forwarding your request to a PimPay support agent. 📩\n\nSo they can help you efficiently, could you describe **your concern** precisely? Give as much detail as possible (the service involved, amount, any error message…). An advisor will reply here as soon as possible.\n\n💬 You can also reach them via 📱 **MENU** ➡️ 🤝 **Community & Support** ➡️ **WhatsApp** button.",
-    zh: "当然，我正在将您的请求转发给 PimPay 客服人员。📩\n\n为了让他们能高效地帮助您，请您详细描述**您的问题**（涉及的服务、金额、任何错误信息……）。顾问将尽快在此回复您。\n\n💬 您也可以通过 📱 **MENU** ➡️ 🤝 **社区与支持** ➡️ **WhatsApp** 按钮联系他们。",
+    fr: `Bien sûr, je transmets votre demande à un agent du support PimPay. 📩\n\nPour qu'il vous aide efficacement, pouvez-vous décrire précisément **votre préoccupation** ? Donnez le maximum de détails (service concerné, montant, message d'erreur…). Un conseiller vous répondra ici dès que possible.\n\nVous pouvez aussi obtenir une réponse plus rapide directement sur WhatsApp :\n${wa}`,
+    en: `Of course, I'm forwarding your request to a PimPay support agent. 📩\n\nSo they can help you efficiently, could you describe **your concern** precisely? Give as much detail as possible (the service involved, amount, any error message…). An advisor will reply here as soon as possible.\n\nYou can also get a faster answer directly on WhatsApp:\n${wa}`,
+    zh: `当然，我正在将您的请求转发给 PimPay 客服人员。📩\n\n为了让他们能高效地帮助您，请您详细描述**您的问题**（涉及的服务、金额、任何错误信息……）。顾问将尽快在此回复您。\n\n您也可以直接通过 WhatsApp 获得更快的回复：\n${wa}`,
   });
 }
 
 // Conservé pour rétro-compatibilité (valeur FR par défaut).
 export const SUPPORT_INTENT_REPLY = getSupportIntentReply("fr");
 
-// Message de repli (section M) : aucune correspondance trouvée.
+// Message de repli (section M) : aucune correspondance trouvée. Propose
+// systématiquement le lien WhatsApp pour ne jamais laisser l'utilisateur bloqué.
 function getFallbackReply(lang: Lang): string {
+  const wa = getWhatsAppLink(lang);
   return pick(lang, {
-    fr: "Je n'ai pas trouvé de réponse précise à votre question dans ma base de connaissances. 🤔\n\nReformulez votre demande ou écrivez **« parler à un agent du support »** (ou passez par WhatsApp via le 📱 **MENU**) pour qu'un conseiller prenne le relais.",
-    en: "I couldn't find a specific answer to your question in my knowledge base. 🤔\n\nPlease rephrase your request or type **\"speak to an agent\"** (or use WhatsApp via the 📱 **MENU**) so an advisor can take over.",
-    zh: "抱歉，未在我的知识库中找到确切答案。🤔\n\n请尝试重新表述您的请求，或者直接输入 **“与客服人员联系”**，或通过底部菜单 📱 **MENU** ➡️ 🤝 **社区与支持** 找到 💬 **WhatsApp** 按钮转接人工服务。",
+    fr: `Je n'ai pas trouvé de réponse précise à votre question dans ma base de connaissances. 🤔\n\nReformulez votre demande, ou parlez directement à un conseiller PimPay ici :\n${wa}`,
+    en: `I couldn't find a specific answer to your question in my knowledge base. 🤔\n\nPlease rephrase your request, or talk directly to a PimPay advisor here:\n${wa}`,
+    zh: `抱歉，未在我的知识库中找到确切答案。🤔\n\n请尝试重新表述您的请求，或直接在此联系 PimPay 顾问：\n${wa}`,
   });
 }
 
@@ -140,12 +200,12 @@ interface KBEntry {
 
 // --- Détection dynamique d'actifs (pour Wallet & Swap) ---
 const ASSETS: { id: string; label: string; kw: string[] }[] = [
-  { id: "PI", label: "🥧 Pi Network (PI)", kw: ["pi network", "pi coin", " pi ", "pi)"] },
+  { id: "PI", label: "🥧 Pi Network (PI)", kw: ["pi network", "pi coin", "pi"] },
   { id: "SDA", label: "🌙 Sidra Chain (SDA)", kw: ["sidra", "sda"] },
   { id: "USDT", label: "🟢 Tether USD (USDT)", kw: ["usdt", "tether"] },
   { id: "TRX", label: "🪙 Tron (TRX)", kw: ["trx", "tron"] },
   { id: "BNB", label: "⚡ Binance Coin (BNB)", kw: ["bnb", "binance"] },
-  { id: "SOL", label: "☀️ Solana (SOL)", kw: ["solana", "sol "] },
+  { id: "SOL", label: "☀️ Solana (SOL)", kw: ["solana", "sol"] },
   { id: "XRP", label: "💥 Ripple (XRP)", kw: ["xrp", "ripple"] },
   { id: "XLM", label: "🚀 Stellar Lumens (XLM)", kw: ["xlm", "stellar", "lumens"] },
   { id: "BTC", label: "🌍 Bitcoin (BTC)", kw: ["btc", "bitcoin"] },
@@ -153,8 +213,8 @@ const ASSETS: { id: string; label: string; kw: string[] }[] = [
 ];
 
 function detectAssets(message: string): string[] {
-  const m = ` ${normalize(message)} `;
-  return ASSETS.filter((a) => a.kw.some((k) => m.includes(normalize(k)))).map((a) => a.id);
+  const m = normalize(message);
+  return ASSETS.filter((a) => a.kw.some((k) => containsKeyword(m, normalize(k)))).map((a) => a.id);
 }
 
 const KNOWLEDGE_BASE: KBEntry[] = [
@@ -259,6 +319,67 @@ const KNOWLEDGE_BASE: KBEntry[] = [
       });
     },
   },
+
+  // F2. MOBILE MONEY (général) & DISPONIBILITÉ PAR PAYS.
+  {
+    keywords: [
+      "mobile money", "mobile mony", "mobil money", "momo", "paiement mobile", "mobile payment",
+      "disponible dans mon pays", "disponible dans quel pays", "quel pays", "quels pays",
+      "pays disponible", "pays couverts", "which countries", "available in my country",
+      "available in", "not available in", "n'es pas disponible", "n'est pas disponible",
+      "pas disponible dans", "geniuspay", "pawapay",
+      "mali", "senegal", "cote d'ivoire", "cameroun", "gabon", "benin", "togo",
+      "niger", "burkina", "guinee", "nigeria", "ghana", "kenya", "tchad",
+      "centrafrique", "congo brazzaville", "rdc", "congo kinshasa",
+      "afrique du sud", "maroc", "algerie", "tunisie", "egypte", "rwanda", "burundi",
+      "tanzanie", "tanzania", "ouganda", "uganda", "zambie", "zambia", "ethiopie", "ethiopia",
+      "mozambique", "malawi", "lesotho", "sierra leone", "guinee-bissau",
+      "移动支付", "哪些国家", "国家",
+    ],
+    respond: (lang, message) => {
+      const m = normalize(message);
+      // Pays actuellement actifs pour le Mobile Money : couverts par l'agrégateur
+      // GeniusPay (zone UEMOA/XOF native) et/ou PawaPay, ET activés côté app.
+      const ACTIVE_COUNTRIES: Record<Lang, string> = {
+        fr: "🇳🇬 Nigeria, 🇬🇭 Ghana, 🇬🇦 Gabon, 🇨🇲 Cameroun, 🇲🇱 Mali, 🇧🇫 Burkina Faso, 🇧🇯 Bénin, 🇨🇬 Congo-Brazzaville, 🇨🇩 RDC, 🇨🇮 Côte d'Ivoire, 🇸🇳 Sénégal, 🇰🇪 Kenya, 🇹🇿 Tanzanie, 🇺🇬 Ouganda, 🇷🇼 Rwanda, 🇪🇹 Éthiopie, 🇿🇲 Zambie, 🇲🇿 Mozambique",
+        en: "🇳🇬 Nigeria, 🇬🇭 Ghana, 🇬🇦 Gabon, 🇨🇲 Cameroon, 🇲🇱 Mali, 🇧🇫 Burkina Faso, 🇧🇯 Benin, 🇨🇬 Congo-Brazzaville, 🇨🇩 DRC, 🇨🇮 Côte d'Ivoire, 🇸🇳 Senegal, 🇰🇪 Kenya, 🇹🇿 Tanzania, 🇺🇬 Uganda, 🇷🇼 Rwanda, 🇪🇹 Ethiopia, 🇿🇲 Zambia, 🇲🇿 Mozambique",
+        zh: "🇳🇬 尼日利亚, 🇬🇭 加纳, 🇬🇦 加蓬, 🇨🇲 喀麦隆, 🇲🇱 马里, 🇧🇫 布基纳法索, 🇧🇯 贝宁, 🇨🇬 刚果（布）, 🇨🇩 刚果（金）, 🇨🇮 科特迪瓦, 🇸🇳 塞内加尔, 🇰🇪 肯尼亚, 🇹🇿 坦桑尼亚, 🇺🇬 乌干达, 🇷🇼 卢旺达, 🇪🇹 埃塞俄比亚, 🇿🇲 赞比亚, 🇲🇿 莫桑比克",
+      };
+      const COMING_SOON: Record<Lang, string> = {
+        fr: "Malawi, Lesotho, Sierra Leone, Togo, Niger, Guinée-Bissau",
+        en: "Malawi, Lesotho, Sierra Leone, Togo, Niger, Guinea-Bissau",
+        zh: "马拉维、莱索托、塞拉利昂、多哥、尼日尔、几内亚比绍",
+      };
+      const NAMED_COUNTRIES = ["mali", "senegal", "cote d'ivoire", "cameroun", "gabon", "benin",
+        "burkina", "nigeria", "ghana", "kenya", "rwanda", "tanzanie", "tanzania", "ouganda",
+        "uganda", "zambie", "zambia", "ethiopie", "ethiopia", "mozambique",
+        "congo brazzaville", "rdc", "congo kinshasa"];
+      const COMING_SOON_COUNTRIES = ["togo", "niger", "malawi", "lesotho", "sierra leone", "guinee-bissau", "guinee bissau"];
+      const namedActive = NAMED_COUNTRIES.some((k) => containsKeyword(m, k));
+      const namedComingSoon = COMING_SOON_COUNTRIES.some((k) => containsKeyword(m, k));
+
+      const countryNote = namedActive
+        ? pick(lang, {
+            fr: "\n\n✅ Bonne nouvelle : ce pays fait partie des pays actuellement pris en charge pour le Mobile Money.",
+            en: "\n\n✅ Good news: this country is among those currently supported for Mobile Money.",
+            zh: "\n\n✅ 好消息：该国家目前支持移动支付。",
+          })
+        : namedComingSoon
+        ? pick(lang, {
+            fr: "\n\n🔜 Ce pays est déjà couvert techniquement par nos agrégateurs mais n'est pas encore activé dans l'application — son ouverture est prévue prochainement.",
+            en: "\n\n🔜 This country is already technically covered by our aggregators but not yet enabled in the app — it's scheduled to open soon.",
+            zh: "\n\n🔜 该国家已在我们的支付聚合商技术覆盖范围内，但尚未在应用中开放，即将上线。",
+          })
+        : "";
+
+      return pick(lang, {
+        fr: `Le **Mobile Money** sur PimPay est traité via deux agrégateurs de paiement : **GeniusPay** (prioritaire) et **PawaPay** (en secours) 📲.\n\n✅ **Pays actuellement pris en charge** (dépôt & retrait) :\n${ACTIVE_COUNTRIES.fr}.\n\n🔜 **Bientôt disponibles** (déjà couverts techniquement, activation prochaine) : ${COMING_SOON.fr}.\n\nSi votre pays n'apparaît pas encore, l'ouverture se poursuit progressivement. Pour toute question ou demande d'extension, contactez le support :\n${getWhatsAppLink(lang)}${countryNote}`,
+        en: `**Mobile Money** on PimPay is processed through two payment aggregators: **GeniusPay** (primary) and **PawaPay** (fallback) 📲.\n\n✅ **Currently supported countries** (deposit & withdrawal):\n${ACTIVE_COUNTRIES.en}.\n\n🔜 **Coming soon** (already covered technically, activation pending): ${COMING_SOON.en}.\n\nIf your country isn't listed yet, coverage keeps expanding. For any question or request, contact support:\n${getWhatsAppLink(lang)}${countryNote}`,
+        zh: `PimPay 上的**移动支付**通过两个支付聚合商处理：**GeniusPay**（主要）和 **PawaPay**（备用）📲。\n\n✅ **当前支持的国家**（充值与提现）：\n${ACTIVE_COUNTRIES.zh}。\n\n🔜 **即将开放**（已获技术覆盖，等待启用）：${COMING_SOON.zh}。\n\n如果您的国家尚未上线，覆盖范围仍在持续扩展。如有任何问题，请联系客服：\n${getWhatsAppLink(lang)}${countryNote}`,
+      });
+    },
+  },
+
 
   // G. AIRTIME (recharge télécom).
   {
@@ -366,12 +487,14 @@ const KNOWLEDGE_BASE: KBEntry[] = [
       "whatsapp", "communaute", "community", "support externe", "conseiller humain",
       "社区", "外部支持",
     ],
-    respond: (lang) =>
-      pick(lang, {
-        fr: "Si vous souhaitez parler à un conseiller humain sur WhatsApp, suivez ce chemin :\n\n📱 **MENU** ➡️ 🤝 **Communauté & Support** ➡️ bouton 💬 **WhatsApp**.\n\nCela ouvre instantanément une discussion privée cryptée 🔒 avec notre service client humain.",
-        en: "If you'd like to talk to a human advisor on WhatsApp, follow this path:\n\n📱 **MENU** ➡️ 🤝 **Community & Support** ➡️ 💬 **WhatsApp** button.\n\nThis instantly opens a private encrypted chat 🔒 with our human customer service.",
-        zh: "如果您想在 WhatsApp 上与人工顾问交谈，请按以下路径操作：\n\n📱 **MENU** ➡️ 🤝 **Communauté & Support（社区与支持）** ➡️ 💬 **WhatsApp** 按钮。\n\n这将立即开启与我们人工客服的私密加密聊天 🔒。",
-      }),
+    respond: (lang) => {
+      const wa = getWhatsAppLink(lang);
+      return pick(lang, {
+        fr: `Vous pouvez discuter directement avec notre équipe support sur WhatsApp 🔒 :\n${wa}\n\nVous pouvez aussi y accéder depuis l'app : 📱 **MENU** ➡️ 🤝 **Communauté & Support** ➡️ bouton 💬 **WhatsApp**.`,
+        en: `You can chat directly with our support team on WhatsApp 🔒:\n${wa}\n\nYou can also reach it from within the app: 📱 **MENU** ➡️ 🤝 **Community & Support** ➡️ 💬 **WhatsApp** button.`,
+        zh: `您可以直接在 WhatsApp 🔒 上与我们的客服团队沟通：\n${wa}\n\n您也可以在应用内访问：📱 **MENU** ➡️ 🤝 **社区与支持** ➡️ 💬 **WhatsApp** 按钮。`,
+      });
+    },
   },
 
   // L. SÉCURITÉ, PARAMÈTRES & HISTORIQUE DES SESSIONS.
@@ -386,6 +509,124 @@ const KNOWLEDGE_BASE: KBEntry[] = [
         fr: "Pour sécuriser votre compte, allez dans 📱 **MENU** ➡️ ⚙️ **Paramètres** ➡️ 🔒 **Sécurité**.\n\n• Activez **Google Authenticator** (statut `ACTIF` ✅).\n• Configurez votre **Code PIN transactionnel** 🔢 (obligatoire pour valider chaque retrait).\n• Consultez l'**Historique des sessions** : appareils connectés, adresses IP et localisations (ex : *Android 10 • Brazzaville, CG*) 📍.",
         en: "To secure your account, go to 📱 **MENU** ➡️ ⚙️ **Settings** ➡️ 🔒 **Security**.\n\n• Enable **Google Authenticator** (status `ACTIVE` ✅).\n• Set up your **transactional PIN code** 🔢 (required to validate every withdrawal).\n• Review the **Session History**: connected devices, IP addresses and locations (e.g. *Android 10 • Brazzaville, CG*) 📍.",
         zh: "要保护您的账户安全，请前往 📱 **MENU** ➡️ ⚙️ **Paramètres（设置）** ➡️ 🔒 **Sécurité（安全）**。\n\n• 启用 **Google Authenticator**（状态 `ACTIF（已激活）` ✅）。\n• 设置您的**交易 PIN 码** 🔢（验证每笔提现时必需）。\n• 查看**会话历史**：已连接的设备、IP 地址和位置（如 *Android 10 • Brazzaville, CG*）📍。",
+      }),
+  },
+
+  // N. KYC / VÉRIFICATION D'IDENTITÉ.
+  {
+    keywords: [
+      "kyc", "verification", "verifier mon compte", "verifier identite", "identite",
+      "piece d'identite", "carte d'identite", "passeport", "permis de conduire",
+      "carte d'electeur", "selfie", "document recto verso", "compte non verifie",
+      "身份验证", "护照", "身份证", "自拍",
+    ],
+    respond: (lang) =>
+      pick(lang, {
+        fr: "Pour vérifier votre identité (KYC), allez dans 📱 **MENU** ➡️ ⚙️ **Paramètres** ➡️ ✅ **Vérification KYC**.\n\nLe parcours se fait en 5 étapes :\n• 🪪 Choisissez votre **type de document** (Carte d'identité, Passeport, Carte d'électeur ou Permis de conduire).\n• 📝 Renseignez vos **informations personnelles**.\n• 📄 Téléversez le **recto** puis le **verso** de votre document.\n• 🤳 Prenez un **selfie en direct** (détection de vivacité, compte à rebours à l'écran).\n\n⏳ Une fois soumis, votre dossier passe au statut **EN ATTENTE** puis **VÉRIFIÉ** ✅ après examen.",
+        en: "To verify your identity (KYC), go to 📱 **MENU** ➡️ ⚙️ **Settings** ➡️ ✅ **KYC Verification**.\n\nThe process has 5 steps:\n• 🪪 Choose your **document type** (ID Card, Passport, Voter Card or Driver's License).\n• 📝 Fill in your **personal information**.\n• 📄 Upload the **front** then the **back** of your document.\n• 🤳 Take a **live selfie** (liveness detection with an on-screen countdown).\n\n⏳ Once submitted, your file moves to **PENDING** status then **VERIFIED** ✅ after review.",
+        zh: "要验证您的身份（KYC），请前往 📱 **MENU** ➡️ ⚙️ **Paramètres（设置）** ➡️ ✅ **KYC 验证**。\n\n流程共 5 步：\n• 🪪 选择您的**证件类型**（身份证、护照、选民证或驾照）。\n• 📝 填写**个人信息**。\n• 📄 上传证件的**正面**及**背面**。\n• 🤳 进行**实时自拍**（活体检测，屏幕倒计时）。\n\n⏳ 提交后，您的资料状态将变为**待审核**，审核通过后变为**已验证** ✅。",
+      }),
+  },
+
+  // O. MOT DE PASSE / PIN OUBLIÉ, OTP, COMPTE BLOQUÉ.
+  {
+    keywords: [
+      "mot de passe oublie", "j'ai oublie mon mot de passe", "reinitialiser mot de passe",
+      "code otp", "code de verification", "sms de verification", "pin oublie",
+      "j'ai oublie mon pin", "changer mon pin", "compte bloque", "compte suspendu",
+      "compte verrouille", "je ne peux pas me connecter", "impossible de me connecter",
+      "forgot password", "reset password", "otp code", "verification code",
+      "forgot my pin", "change my pin", "account locked", "account blocked",
+      "can't log in", "cannot log in", "忘记密码", "重置密码", "验证码", "忘记密码pin", "账户被锁",
+    ],
+    respond: (lang, message) => {
+      const m = normalize(message);
+      const isPin = ["pin"].some((k) => m.includes(k)) && !m.includes("otp") && !m.includes("mot de passe") && !m.includes("password");
+      if (isPin) {
+        return pick(lang, {
+          fr: `Pour réinitialiser votre **Code PIN transactionnel** 🔢, allez dans 👤 **PROFIL** ➡️ **Changer mon PIN**.\n\n• Vous devrez confirmer votre identité (mot de passe et/ou code OTP reçu par SMS/email).\n• Ce PIN est obligatoire pour valider chaque retrait.\n\nSi vous n'y avez plus du tout accès, contactez le support :\n${getWhatsAppLink(lang)}`,
+          en: `To reset your **transactional PIN code** 🔢, go to 👤 **PROFILE** ➡️ **Change my PIN**.\n\n• You'll need to confirm your identity (password and/or an OTP code sent by SMS/email).\n• This PIN is required to validate every withdrawal.\n\nIf you no longer have any access at all, contact support:\n${getWhatsAppLink(lang)}`,
+          zh: `要重置您的**交易 PIN 码** 🔢，请前往 👤 **PROFIL（个人资料）** ➡️ **更改我的 PIN**。\n\n• 您需要确认身份（密码和/或通过短信/邮件收到的 OTP 验证码）。\n• 此 PIN 码为每次提现验证所必需。\n\n如果您完全无法访问账户，请联系客服：\n${getWhatsAppLink(lang)}`,
+        });
+      }
+      return pick(lang, {
+        fr: `Pour un **mot de passe oublié**, utilisez le lien **« Mot de passe oublié »** sur l'écran de connexion : un **code OTP** vous sera envoyé par SMS ou email pour créer un nouveau mot de passe.\n\n🔒 Si votre compte semble **bloqué ou suspendu** après plusieurs tentatives, c'est une mesure de sécurité automatique. Contactez directement un agent pour le débloquer :\n${getWhatsAppLink(lang)}`,
+        en: `For a **forgotten password**, use the **"Forgot password"** link on the login screen: an **OTP code** will be sent to you by SMS or email so you can set a new password.\n\n🔒 If your account appears **locked or suspended** after several attempts, this is an automatic security measure. Contact an agent directly to unlock it:\n${getWhatsAppLink(lang)}`,
+        zh: `如果您**忘记了密码**，请在登录页面使用**「忘记密码」**链接：系统会通过短信或邮件向您发送 **OTP 验证码**，以便设置新密码。\n\n🔒 如果您的账户在多次尝试后显示**被锁定或暂停**，这是自动安全措施。请直接联系客服解锁：\n${getWhatsAppLink(lang)}`,
+      });
+    },
+  },
+
+  // P. NOTIFICATIONS.
+  {
+    keywords: [
+      "notification", "notifications", "alerte", "alertes", "je ne recois pas de notification",
+      "push", "通知", "推送",
+    ],
+    respond: (lang) =>
+      pick(lang, {
+        fr: "Vos notifications (dépôts, retraits, swaps, connexions) sont visibles dans 🔔 **NOTIFICATIONS**, accessible depuis l'icône cloche en haut de l'écran d'accueil.\n\nSi vous ne recevez pas les alertes push, vérifiez que les notifications de l'application sont **autorisées** dans les paramètres de votre téléphone.",
+        en: "Your notifications (deposits, withdrawals, swaps, logins) are visible in 🔔 **NOTIFICATIONS**, accessible from the bell icon at the top of the Home screen.\n\nIf you're not receiving push alerts, check that app notifications are **allowed** in your phone's settings.",
+        zh: "您的通知（充值、提现、兑换、登录）可在 🔔 **NOTIFICATIONS（通知）** 中查看，位于首页顶部的铃铛图标处。\n\n如果您未收到推送提醒，请检查手机设置中是否已**允许**该应用发送通知。",
+      }),
+  },
+
+  // Q. PIM COINS (programme de fidélité).
+  {
+    keywords: [
+      "pim coin", "pim coins", "points de fidelite", "recompense", "recompenses",
+      "airdrop", "programme de fidelite", "积分", "奖励", "忠诚度",
+    ],
+    respond: (lang) =>
+      pick(lang, {
+        fr: "**PIM Coins** 🪙 est le programme de fidélité PimPay, accessible via 📱 **MENU** ➡️ **PIM Coins**.\n\nEn accumulant des PIM Coins, vous débloquez :\n• 🎨 **Thèmes Premium** pour personnaliser l'app\n• ⚡ **Transferts Express** (priorité sur les transactions)\n• 🎁 **Récompenses exclusives** (accès aux airdrops spéciaux)\n• 🛡️ **Limites augmentées** (plafonds journaliers relevés)",
+        en: "**PIM Coins** 🪙 is PimPay's loyalty program, accessible via 📱 **MENU** ➡️ **PIM Coins**.\n\nBy earning PIM Coins, you unlock:\n• 🎨 **Premium Themes** to customize the app\n• ⚡ **Express Transfers** (priority on transactions)\n• 🎁 **Exclusive Rewards** (access to special airdrops)\n• 🛡️ **Increased Limits** (higher daily caps)",
+        zh: "**PIM Coins** 🪙 是 PimPay 的忠诚度计划，可通过 📱 **MENU** ➡️ **PIM Coins** 访问。\n\n累积 PIM Coins 可解锁：\n• 🎨 **高级主题**，个性化您的应用\n• ⚡ **极速转账**（交易优先处理）\n• 🎁 **专属奖励**（获得特别空投资格）\n• 🛡️ **更高限额**（提高每日额度）",
+      }),
+  },
+
+  // R. FRAIS & LIMITES GÉNÉRALES.
+  {
+    keywords: [
+      "frais", "combien ca coute", "cout de la transaction", "limite journaliere",
+      "plafond", "montant maximum", "montant minimum",
+      "fees", "how much does it cost", "daily limit", "maximum amount", "minimum amount",
+      "手续费", "费用", "每日限额", "最高金额", "最低金额",
+    ],
+    respond: (lang) =>
+      pick(lang, {
+        fr: "Les frais varient selon le service :\n\n• 🔄 **MSwap** : frais réseau fixes de **0.01 USDT** par échange.\n• ✈️ **Transfert Interne (P2P)** : **gratuit** et instantané.\n• ✈️ **Transfert Externe / Retrait** : frais réseau selon la blockchain ou l'opérateur Mobile Money utilisé.\n\n📊 Les **plafonds journaliers** dépendent de votre niveau de vérification KYC — plus votre compte est vérifié, plus vos limites sont élevées. Le programme 🪙 **PIM Coins** permet aussi d'augmenter ces limites.",
+        en: "Fees vary by service:\n\n• 🔄 **MSwap**: fixed network fee of **0.01 USDT** per swap.\n• ✈️ **Internal Transfer (P2P)**: **free** and instant.\n• ✈️ **External Transfer / Withdrawal**: network fees depend on the blockchain or Mobile Money operator used.\n\n📊 Your **daily limits** depend on your KYC verification level — the more verified your account, the higher your limits. The 🪙 **PIM Coins** program can also raise these limits.",
+        zh: "费用因服务而异：\n\n• 🔄 **MSwap**：每次兑换固定网络费 **0.01 USDT**。\n• ✈️ **内部转账（P2P）**：**免费**且即时到账。\n• ✈️ **外部转账/提现**：网络费用取决于所用区块链或移动支付运营商。\n\n📊 您的**每日限额**取决于 KYC 验证等级——账户验证程度越高，限额越高。🪙 **PIM Coins** 计划也可以提高这些限额。",
+      }),
+  },
+
+  // S. À PROPOS DE PIMPAY.
+  {
+    keywords: [
+      "c'est quoi pimpay", "qu'est-ce que pimpay", "pimpay c'est quoi", "presentation de pimpay",
+      "what is pimpay", "about pimpay", "什么是pimpay", "pimpay介绍",
+      "testnet", "mainnet", "pi network testnet",
+    ],
+    respond: (lang) =>
+      pick(lang, {
+        fr: "**PimPay (Pi Mobile Pay)** est un portefeuille mobile et une banque virtuelle Web3/FinTech bâtie autour de l'écosystème **Pi Network** 🥧.\n\nElle permet de gérer plusieurs cryptomonnaies, d'échanger (MSwap), d'envoyer/recevoir des fonds (ENVOI), de payer des marchands (MPay) et de disposer d'une carte virtuelle internationale (M-Card).\n\n⚠️ La plateforme est actuellement en phase de **TESTNET mondial** : certaines fonctions (dépôts Mobile Money/carte, retraits) seront pleinement activées au passage en **Mainnet**.",
+        en: "**PimPay (Pi Mobile Pay)** is a mobile wallet and virtual Web3/FinTech bank built around the **Pi Network** 🥧 ecosystem.\n\nIt lets you manage several cryptocurrencies, swap assets (MSwap), send/receive funds (SEND), pay merchants (MPay), and hold an international virtual card (M-Card).\n\n⚠️ The platform is currently in a global **Testnet** phase: some features (Mobile Money/card deposits, withdrawals) will be fully activated once it moves to **Mainnet**.",
+        zh: "**PimPay（Pi Mobile Pay）** 是围绕 **Pi Network** 🥧 生态系统构建的移动钱包及 Web3/金融科技虚拟银行。\n\n它可让您管理多种加密货币、兑换资产（MSwap）、收发资金（ENVOI）、向商家付款（MPay），并拥有一张国际虚拟卡（M-Card）。\n\n⚠️ 该平台目前处于全球**测试网（Testnet）**阶段：部分功能（移动支付/银行卡充值、提现）将在正式上线**主网（Mainnet）**后全面开放。",
+      }),
+  },
+
+  // T. COMPTE BUSINESS / ENTREPRISE.
+  {
+    keywords: [
+      "compte business", "compte entreprise", "compte professionnel", "pimpay business",
+      "business account", "corporate account", "企业账户", "商业账户",
+    ],
+    respond: (lang) =>
+      pick(lang, {
+        fr: "PimPay propose un espace **Business** dédié aux entreprises : gestion des employés, factures, fournisseurs, paiements et rapports financiers.\n\nPour y accéder ou créer un compte professionnel, utilisez l'inscription **Business** depuis l'écran de connexion, ou rendez-vous dans l'espace **Business** de l'application si vous êtes déjà inscrit.",
+        en: "PimPay offers a dedicated **Business** space for companies: employee management, invoices, suppliers, payments and financial reports.\n\nTo access it or create a business account, use the **Business** sign-up on the login screen, or open the **Business** space in the app if you're already registered.",
+        zh: "PimPay 为企业提供专属的 **Business（商业）**空间：员工管理、发票、供应商、付款及财务报表。\n\n如需访问或创建企业账户，请在登录页面使用 **Business** 注册入口，若您已注册，可直接进入应用内的 **Business** 空间。",
       }),
   },
 
@@ -418,7 +659,7 @@ function knowledgeMatch(message: string, lang: Lang): string | null {
   for (const entry of KNOWLEDGE_BASE) {
     for (const keyword of entry.keywords) {
       const k = normalize(keyword);
-      if (k && low.includes(k)) {
+      if (k && containsKeyword(low, k)) {
         return entry.respond(lang, message);
       }
     }
@@ -464,9 +705,24 @@ export const ELARA_SYSTEM_PROMPT = `Tu es **Elara**, l'assistante IA native et e
 ## 🌐 LANGUES : MENU ➡️ Paramètres ➡️ Langues (FR, EN, 中文).
 ## 💬 WHATSAPP : MENU ➡️ Communauté & Support ➡️ bouton WhatsApp (chat humain crypté).
 ## ⚙️ SÉCURITÉ : MENU ➡️ Paramètres ➡️ Sécurité. Google Authenticator (ACTIF), Code PIN transactionnel (obligatoire pour les retraits), Historique des sessions (appareils, IP, localisation ex: Android 10 • Brazzaville, CG).
+## ✅ KYC : Paramètres ➡️ Vérification KYC. 5 étapes : type de document (CNI/Passeport/Carte d'électeur/Permis), infos personnelles, recto, verso, selfie live (détection de vivacité). Statuts : EN ATTENTE puis VÉRIFIÉ.
+## 🔑 MOT DE PASSE / PIN / COMPTE BLOQUÉ : lien « Mot de passe oublié » sur l'écran de connexion (code OTP par SMS/email) ; PIN : Profil ➡️ Changer mon PIN ; un blocage après plusieurs tentatives est une mesure de sécurité automatique, orienter vers un agent.
+## 🔔 NOTIFICATIONS : icône cloche en haut de l'Accueil ; vérifier l'autorisation des notifications push dans les paramètres du téléphone si besoin.
+## 🪙 PIM COINS : MENU ➡️ PIM Coins. Programme de fidélité : thèmes premium, transferts express, récompenses/airdrops exclusifs, limites augmentées.
+## 💵 FRAIS & LIMITES : MSwap 0.01 USDT fixe ; P2P interne gratuit ; externe/retrait selon blockchain/opérateur ; plafonds journaliers liés au niveau KYC et aux PIM Coins.
+## 🏢 BUSINESS : espace dédié aux entreprises (employés, factures, fournisseurs, paiements, rapports), inscription via le mode Business sur l'écran de connexion.
+
+# Contact humain / WhatsApp
+- Ne JAMAIS écrire le numéro de téléphone du support en clair dans une réponse.
+- Pour orienter vers WhatsApp, insère toujours un lien markdown de la forme [💬 Discuter avec le support sur WhatsApp](https://wa.me/242065540305) — jamais le numéro seul, jamais dans un autre format.
+
+# Outils à ta disposition
+- \`search_platform\` : recherche dans le contenu réel de l'application PimPay (libellés d'écrans, aides). Utilise-le en PREMIER si la question porte sur une fonctionnalité précise de PimPay que tu ne connais pas déjà avec certitude.
+- \`search_web\` : recherche sur internet. Utilise-le UNIQUEMENT pour des questions générales hors de PimPay (ex : cours d'une cryptomonnaie, actualité Pi Network, définition d'un terme technique). Cite toujours la source (URL) si tu t'en sers. Ne l'utilise jamais pour des questions sur les fonctionnalités internes de PimPay — pour cela, utilise \`search_platform\` ou la base de connaissances ci-dessus.
+- Si les deux outils ne renvoient rien d'utile, explique ce que tu sais puis propose le lien WhatsApp.
 
 # Repli
-Si une demande sort de cette base ou nécessite une action humaine, explique ce que tu sais puis invite l'utilisateur à écrire « parler à un agent du support » ou à passer par WhatsApp.`;
+Si une demande sort de cette base ou nécessite une action humaine, explique ce que tu sais puis propose le lien WhatsApp ci-dessus.`;
 
 // ---------------------------------------------------------------------------
 // 6. GÉNÉRATION DE LA RÉPONSE D'ELARA (base de connaissances → IA → repli)
@@ -494,12 +750,48 @@ export async function generateElaraReply(opts: {
     return getScreenshotPrompt(lang);
   }
 
-  // 3) Sans clé AI Gateway, on retombe sur le repli localisé.
+  // 3) ALGORITHME N°2 — Recherche interne sur le contenu de la plateforme
+  //    (lib/elara-platform-search.ts). Fonctionne sans clé API : c'est une
+  //    recherche locale sur les libellés réels de l'app. Si un libellé
+  //    pertinent est trouvé, on construit une réponse dessus plutôt que de
+  //    tomber directement sur le message de repli générique.
+  const platformHits = searchPlatformContent(message, lang);
+  const wa = getWhatsAppLink(lang);
+  if (platformHits && platformHits.length > 0) {
+    const lines = platformHits.map((h) => `• ${h.text}`).join("\n");
+    const platformReply = pick(lang, {
+      fr: `Voici ce que j'ai trouvé dans PimPay en lien avec votre question :\n\n${lines}\n\nSi ce n'est pas exactement ce que vous cherchiez, reformulez votre question ou parlez à un conseiller :\n${wa}`,
+      en: `Here's what I found in PimPay related to your question:\n\n${lines}\n\nIf this isn't quite what you were looking for, please rephrase or talk to an advisor:\n${wa}`,
+      zh: `以下是我在 PimPay 中找到的与您问题相关的内容：\n\n${lines}\n\n如果这不完全是您想要的信息，请重新表述您的问题，或联系客服：\n${wa}`,
+    });
+    // On ne renvoie ce résultat directement que si l'IA générative n'est pas
+    // disponible ; sinon on laisse l'IA (étape 4, ci-dessous) décider — elle
+    // dispose du même outil `search_platform` et peut le combiner avec le
+    // reste de la conversation pour une réponse plus naturelle.
+    if (!process.env.AI_GATEWAY_API_KEY) return platformReply;
+  }
+
+  // 4) Sans clé AI Gateway : on tente encore l'ALGORITHME N°1 — recherche web
+  //    (lib/elara-web-search.ts, nécessite TAVILY_API_KEY) — avant le repli final.
   if (!process.env.AI_GATEWAY_API_KEY) {
+    const webResults = await searchWeb(message);
+    if (webResults && webResults.length > 0) {
+      const lines = webResults
+        .slice(0, 3)
+        .map((r) => `• ${r.title} — ${r.snippet}\n${r.url}`)
+        .join("\n\n");
+      return pick(lang, {
+        fr: `Je n'ai pas trouvé cette information dans PimPay, mais voici ce que j'ai trouvé sur le web :\n\n${lines}\n\n⚠️ Vérifiez ces informations : elles viennent de sites externes, pas de PimPay. Pour une réponse officielle, contactez le support :\n${wa}`,
+        en: `I couldn't find this in PimPay, but here's what I found on the web:\n\n${lines}\n\n⚠️ Please verify this information: it comes from external sites, not PimPay. For an official answer, contact support:\n${wa}`,
+        zh: `我在 PimPay 中没有找到相关信息，但在网络上找到了以下内容：\n\n${lines}\n\n⚠️ 请核实这些信息：它们来自外部网站，并非 PimPay 官方内容。如需官方答复，请联系客服：\n${wa}`,
+      });
+    }
     return getFallbackReply(lang);
   }
 
-  // 4) Réponse IA enrichie par le système prompt complet.
+  // 5) Réponse IA enrichie par le système prompt complet, avec accès aux deux
+  //    outils de recherche (plateforme + web) qu'elle peut appeler elle-même
+  //    selon la nature de la question (voir instructions dans le prompt).
   try {
     const recent = history.slice(-10);
     const { text } = await generateText({
@@ -509,12 +801,54 @@ export async function generateElaraReply(opts: {
         ...recent.map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: message },
       ],
+      tools: {
+        // ALGORITHME N°2 : recherche dans le contenu réel de l'application.
+        search_platform: tool({
+          description:
+            "Recherche dans le contenu réel de l'application PimPay (libellés d'écrans, aides contextuelles) pour trouver une information précise sur une fonctionnalité.",
+          inputSchema: z.object({
+            query: z.string().describe("Les mots-clés de la question de l'utilisateur"),
+          }),
+          execute: async ({ query }) => {
+            const hits = searchPlatformContent(query, lang);
+            if (!hits || hits.length === 0) {
+              return { found: false, results: [] };
+            }
+            return { found: true, results: hits.map((h) => h.text) };
+          },
+        }),
+        // ALGORITHME N°1 : recherche sur d'autres plateformes / le web.
+        search_web: tool({
+          description:
+            "Recherche sur internet une information générale qui ne concerne pas directement une fonctionnalité interne de PimPay (ex : actualité, définition, cours d'une cryptomonnaie).",
+          inputSchema: z.object({
+            query: z.string().describe("La requête à rechercher sur le web"),
+          }),
+          execute: async ({ query }) => {
+            const results = await searchWeb(query);
+            if (!results || results.length === 0) {
+              return { found: false, results: [] };
+            }
+            return { found: true, results: results.map((r) => ({ title: r.title, snippet: r.snippet, url: r.url })) };
+          },
+        }),
+      },
+      stopWhen: stepCountIs(4),
       temperature: 0.5,
       maxOutputTokens: 700,
     });
 
     const reply = text?.trim();
-    return reply && reply.length > 0 ? reply : getFallbackReply(lang);
+    if (reply && reply.length > 0) return reply;
+    // L'IA n'a rien produit malgré les outils : on retombe sur le meilleur
+    // résultat local déjà calculé à l'étape 3, sinon le repli générique.
+    return platformHits && platformHits.length > 0
+      ? pick(lang, {
+          fr: `Voici ce que j'ai trouvé dans PimPay en lien avec votre question :\n\n${platformHits.map((h) => `• ${h.text}`).join("\n")}\n\nSi ce n'est pas exactement ce que vous cherchiez, parlez à un conseiller :\n${wa}`,
+          en: `Here's what I found in PimPay related to your question:\n\n${platformHits.map((h) => `• ${h.text}`).join("\n")}\n\nIf this isn't quite what you were looking for, talk to an advisor:\n${wa}`,
+          zh: `以下是我在 PimPay 中找到的与您问题相关的内容：\n\n${platformHits.map((h) => `• ${h.text}`).join("\n")}\n\n如果这不完全是您想要的信息，请联系客服：\n${wa}`,
+        })
+      : getFallbackReply(lang);
   } catch (error) {
     console.error("[v0] Elara AI error, fallback:", error);
     return getFallbackReply(lang);

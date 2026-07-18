@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Send, Loader2, Headphones, Bot, User, Sparkles,
 } from "lucide-react";
+import { renderChatText } from "@/lib/chat-markdown";
 
 interface Message {
   id: string;
@@ -84,7 +85,7 @@ function ChatBubbleRow({ msg }: { msg: Message }) {
                 : "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-none shadow-lg shadow-blue-600/20"
           }`}
         >
-          {msg.content}
+          {renderChatText(msg.content)}
         </div>
         <p className={`text-[9px] text-slate-600 mt-1 ${isLeft ? "ml-1" : "mr-1 text-right"}`}>
           {new Date(msg.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
