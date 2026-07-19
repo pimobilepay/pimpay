@@ -244,7 +244,7 @@ export default async function GlobalCardsPage({
 
   const recentTx = (user as any).transactionsFrom?.slice(0, 5) || [];
 
-  // ── Rendu principal ───────────────────────────────��────────────────────
+  // ── Rendu principal ───────────────────────────────���────────────────────
   return (
     <div className="min-h-screen bg-[#080C14] text-white pb-32 relative overflow-hidden">
       {/* ── Background texture ── */}
@@ -274,9 +274,9 @@ export default async function GlobalCardsPage({
               </div>
               <div className="min-w-0">
                 <h1 className="text-xl font-black tracking-tight truncate">
-                  Pim
+                  {"M-"}
                   <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
-                    Cards
+                    CARD
                   </span>
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
