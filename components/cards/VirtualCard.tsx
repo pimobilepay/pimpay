@@ -17,30 +17,60 @@ type CardStyle = {
   accent: string; // hex used for contactless icon + subtle highlights
 };
 
-// Unified navy base used by standard tiers.
-const NAVY: CardStyle = {
+// Each tier carries its own on-brand color identity.
+const BLUE: CardStyle = {
   gradient: "bg-[linear-gradient(135deg,#12235a_0%,#0c1a44_45%,#060e26_100%)]",
   glow: "shadow-[0_20px_45px_-15px_rgba(37,99,235,0.55)]",
   accent: "#3b82f6",
 };
 
+const TEAL: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#0a3b3a_0%,#07292b_45%,#03161a_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(20,184,166,0.5)]",
+  accent: "#2dd4bf",
+};
+
+const INDIGO: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#1e2a6e_0%,#131d52_45%,#080f2e_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(99,102,241,0.5)]",
+  accent: "#818cf8",
+};
+
+const PURPLE: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#3b1d6e_0%,#271050_45%,#12082e_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(168,85,247,0.5)]",
+  accent: "#a855f7",
+};
+
+const GOLD: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#5c4318_0%,#3d2c0e_45%,#1c1406_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(245,158,11,0.5)]",
+  accent: "#f59e0b",
+};
+
+const PLATINUM: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#3a4152_0%,#262c3a_45%,#12151f_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(148,163,184,0.5)]",
+  accent: "#cbd5e1",
+};
+
 // Darker "black" identity for the top premium tiers, still on brand.
 const NIGHT: CardStyle = {
   gradient: "bg-[linear-gradient(135deg,#1b2337_0%,#0d1220_50%,#04070f_100%)]",
-  glow: "shadow-[0_20px_45px_-15px_rgba(59,130,246,0.4)]",
-  accent: "#60a5fa",
+  glow: "shadow-[0_20px_45px_-15px_rgba(148,163,184,0.4)]",
+  accent: "#e2e8f0",
 };
 
 const CARD_STYLES: Record<string, CardStyle> = {
   // MASTERCARD tiers
-  PLATINIUM: NAVY,
-  PREMIUM: NAVY,
-  GOLD: NAVY,
+  PLATINIUM: BLUE,
+  PREMIUM: TEAL,
+  GOLD: INDIGO,
   ULTRA: NIGHT,
   // VISA tiers
-  VISA_CLASSIC: NAVY,
-  VISA_GOLD: NAVY,
-  VISA_PLATINUM: NAVY,
+  VISA_CLASSIC: PURPLE,
+  VISA_GOLD: GOLD,
+  VISA_PLATINUM: PLATINUM,
   VISA_INFINITE: NIGHT,
 };
 
@@ -210,8 +240,8 @@ export function CardFace({
               {isVisa ? <VisaLogo /> : isMasterCard ? <MastercardLogo /> : <span className="text-xl font-black">{card.brand}</span>}
             </div>
 
-            {/* Contactless (NFC) */}
-            <div className="flex items-center">
+            {/* Contactless (NFC) — right aligned */}
+            <div className="flex items-center justify-end">
               <Wifi size={22} className="rotate-90 text-white/70" />
             </div>
 

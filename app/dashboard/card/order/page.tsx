@@ -42,6 +42,7 @@ const CARD_TIERS = [
     monthlyLimit: "5,000",
     gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "mastercard-blue",
+    patternRGB: "59,130,246",
     border: "border-[#3b82f6]/30",
     accent: "text-[#3b82f6]",
     accentBg: "bg-[#3b82f6]/20",
@@ -57,11 +58,12 @@ const CARD_TIERS = [
     price: 25,
     limit: "2,500",
     monthlyLimit: "50,000",
-    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
+    gradient: "from-[#0a3b3a] via-[#07292b] to-[#03161a]",
     pattern: "mastercard-teal",
-    border: "border-[#3b82f6]/40",
-    accent: "text-[#60a5fa]",
-    accentBg: "bg-[#3b82f6]/20",
+    patternRGB: "45,212,191",
+    border: "border-[#2dd4bf]/40",
+    accent: "text-[#2dd4bf]",
+    accentBg: "bg-[#2dd4bf]/20",
     features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
     maintenance: "$2/mois",
     rechargeRate: "1.5%",
@@ -74,11 +76,12 @@ const CARD_TIERS = [
     price: 50,
     limit: "5,000",
     monthlyLimit: "200,000",
-    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
+    gradient: "from-[#1e2a6e] via-[#131d52] to-[#080f2e]",
     pattern: "mastercard-navy",
-    border: "border-[#3b82f6]/40",
-    accent: "text-[#93b8ff]",
-    accentBg: "bg-[#3b82f6]/20",
+    patternRGB: "99,102,241",
+    border: "border-[#818cf8]/40",
+    accent: "text-[#818cf8]",
+    accentBg: "bg-[#818cf8]/20",
     features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
     maintenance: "$5/mois",
     rechargeRate: "1%",
@@ -93,6 +96,7 @@ const CARD_TIERS = [
     monthlyLimit: "Illimite",
     gradient: "from-[#1b2337] via-[#0d1220] to-[#04070f]",
     pattern: "mastercard-black",
+    patternRGB: "148,163,184",
     border: "border-white/20",
     accent: "text-white",
     accentBg: "bg-white/10",
@@ -109,11 +113,12 @@ const CARD_TIERS = [
     price: 15,
     limit: "1,500",
     monthlyLimit: "10,000",
-    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
+    gradient: "from-[#3b1d6e] via-[#271050] to-[#12082e]",
     pattern: "visa-purple",
-    border: "border-[#3b82f6]/30",
-    accent: "text-[#3b82f6]",
-    accentBg: "bg-[#3b82f6]/20",
+    patternRGB: "168,85,247",
+    border: "border-[#a855f7]/30",
+    accent: "text-[#a855f7]",
+    accentBg: "bg-[#a855f7]/20",
     features: ["Paiements Web", "Validite 3 ans", "Support 24/7"],
     maintenance: "$1.5/mois",
     rechargeRate: "2%",
@@ -126,11 +131,12 @@ const CARD_TIERS = [
     price: 35,
     limit: "3,000",
     monthlyLimit: "75,000",
-    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
+    gradient: "from-[#5c4318] via-[#3d2c0e] to-[#1c1406]",
     pattern: "visa-gold",
-    border: "border-[#3b82f6]/40",
-    accent: "text-[#60a5fa]",
-    accentBg: "bg-[#3b82f6]/20",
+    patternRGB: "245,158,11",
+    border: "border-[#f59e0b]/40",
+    accent: "text-[#f59e0b]",
+    accentBg: "bg-[#f59e0b]/20",
     features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
     maintenance: "$3/mois",
     rechargeRate: "1.5%",
@@ -143,11 +149,12 @@ const CARD_TIERS = [
     price: 75,
     limit: "10,000",
     monthlyLimit: "300,000",
-    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
+    gradient: "from-[#3a4152] via-[#262c3a] to-[#12151f]",
     pattern: "visa-platinum",
-    border: "border-[#3b82f6]/40",
-    accent: "text-[#93b8ff]",
-    accentBg: "bg-[#3b82f6]/20",
+    patternRGB: "203,213,225",
+    border: "border-[#cbd5e1]/40",
+    accent: "text-[#cbd5e1]",
+    accentBg: "bg-[#cbd5e1]/20",
     features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
     maintenance: "$7/mois",
     rechargeRate: "1%",
@@ -162,6 +169,7 @@ const CARD_TIERS = [
     monthlyLimit: "Illimite",
     gradient: "from-[#1b2337] via-[#0d1220] to-[#04070f]",
     pattern: "visa-black",
+    patternRGB: "148,163,184",
     border: "border-white/30",
     accent: "text-white",
     accentBg: "bg-white/10",
@@ -400,13 +408,13 @@ export default function CardOrderPage() {
                   {/* VISA Pattern - Deep Navy with blue accents */}
                   {selectedCard.brand === "VISA" && (
                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-                      <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
-                      <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
-                      <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
-                      <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
-                      <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
-                      <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
-                      <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
+                      <ellipse cx="70" cy="100" rx="50" ry="45" fill={`rgba(${selectedCard.patternRGB},0.4)`} />
+                      <ellipse cx="45" cy="110" rx="30" ry="50" fill={`rgba(${selectedCard.patternRGB},0.35)`} />
+                      <path d="M 130 80 Q 150 95 130 110" stroke={`rgba(${selectedCard.patternRGB},0.5)`} strokeWidth="3" fill="none" />
+                      <path d="M 140 75 Q 165 95 140 115" stroke={`rgba(${selectedCard.patternRGB},0.4)`} strokeWidth="3" fill="none" />
+                      <path d="M 150 70 Q 180 95 150 120" stroke={`rgba(${selectedCard.patternRGB},0.3)`} strokeWidth="3" fill="none" />
+                      <ellipse cx="360" cy="180" rx="35" ry="35" fill={`rgba(${selectedCard.patternRGB},0.3)`} />
+                      <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke={`rgba(${selectedCard.patternRGB},0.4)`} strokeWidth="2" fill="none" />
                     </svg>
                   )}
                   {/* MasterCard Pattern */}
@@ -443,14 +451,14 @@ export default function CardOrderPage() {
 
                   {/* Middle - Contactless icon */}
                   <div className="flex-1 flex items-end justify-end py-2">
-                    <Wifi size={24} className={`rotate-90 ${selectedCard.brand === "VISA" ? "text-[#3b5bdb]" : "text-[#3b82f6]"}`} />
+                    <Wifi size={24} className="rotate-90" style={{ color: `rgb(${selectedCard.patternRGB})` }} />
                   </div>
 
                   {/* Card Number */}
                   <div className="mb-2">
                     <p className="text-base font-mono tracking-[0.15em] text-white whitespace-nowrap">
                       {"•••• •••• •••• "}
-                      <span className={selectedCard.brand === "VISA" ? "text-[#3b5bdb]" : "text-[#3b82f6]"}>••••</span>
+                      <span style={{ color: `rgb(${selectedCard.patternRGB})` }}>••••</span>
                     </p>
                   </div>
 
