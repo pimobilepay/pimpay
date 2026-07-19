@@ -39,11 +39,11 @@ const CARD_TIERS = [
     price: 10,
     limit: "1,000",
     monthlyLimit: "5,000",
-    gradient: "from-[#0288d1] via-[#0277bd] to-[#01579b]",
+    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "mastercard-blue",
-    border: "border-cyan-500/30",
-    accent: "text-cyan-400",
-    accentBg: "bg-cyan-500/20",
+    border: "border-[#3b82f6]/30",
+    accent: "text-[#3b82f6]",
+    accentBg: "bg-[#3b82f6]/20",
     features: ["Paiements Web", "Validite 3 ans", "Support 24/7"],
     maintenance: "$1/mois",
     rechargeRate: "2.5%",
@@ -56,11 +56,11 @@ const CARD_TIERS = [
     price: 25,
     limit: "2,500",
     monthlyLimit: "50,000",
-    gradient: "from-[#00897b] via-[#00796b] to-[#004d40]",
+    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "mastercard-teal",
-    border: "border-teal-500/40",
-    accent: "text-teal-400",
-    accentBg: "bg-teal-500/20",
+    border: "border-[#3b82f6]/40",
+    accent: "text-[#60a5fa]",
+    accentBg: "bg-[#3b82f6]/20",
     features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
     maintenance: "$2/mois",
     rechargeRate: "1.5%",
@@ -73,11 +73,11 @@ const CARD_TIERS = [
     price: 50,
     limit: "5,000",
     monthlyLimit: "200,000",
-    gradient: "from-[#1a237e] via-[#283593] to-[#0d1b4c]",
+    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "mastercard-navy",
-    border: "border-indigo-400/40",
-    accent: "text-indigo-300",
-    accentBg: "bg-indigo-400/20",
+    border: "border-[#3b82f6]/40",
+    accent: "text-[#93b8ff]",
+    accentBg: "bg-[#3b82f6]/20",
     features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
     maintenance: "$5/mois",
     rechargeRate: "1%",
@@ -90,7 +90,7 @@ const CARD_TIERS = [
     price: 100,
     limit: "Illimite",
     monthlyLimit: "Illimite",
-    gradient: "from-[#212121] via-[#424242] to-[#0a0a0a]",
+    gradient: "from-[#1b2337] via-[#0d1220] to-[#04070f]",
     pattern: "mastercard-black",
     border: "border-white/20",
     accent: "text-white",
@@ -108,11 +108,11 @@ const CARD_TIERS = [
     price: 15,
     limit: "1,500",
     monthlyLimit: "10,000",
-    gradient: "from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
+    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "visa-purple",
-    border: "border-[#3b5bdb]/30",
-    accent: "text-[#3b5bdb]",
-    accentBg: "bg-[#3b5bdb]/20",
+    border: "border-[#3b82f6]/30",
+    accent: "text-[#3b82f6]",
+    accentBg: "bg-[#3b82f6]/20",
     features: ["Paiements Web", "Validite 3 ans", "Support 24/7"],
     maintenance: "$1.5/mois",
     rechargeRate: "2%",
@@ -125,11 +125,11 @@ const CARD_TIERS = [
     price: 35,
     limit: "3,000",
     monthlyLimit: "75,000",
-    gradient: "from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
+    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "visa-gold",
-    border: "border-amber-400/40",
-    accent: "text-amber-300",
-    accentBg: "bg-amber-400/20",
+    border: "border-[#3b82f6]/40",
+    accent: "text-[#60a5fa]",
+    accentBg: "bg-[#3b82f6]/20",
     features: ["Cashback 2%", "3DS Secured", "Assurance voyage"],
     maintenance: "$3/mois",
     rechargeRate: "1.5%",
@@ -142,11 +142,11 @@ const CARD_TIERS = [
     price: 75,
     limit: "10,000",
     monthlyLimit: "300,000",
-    gradient: "from-[#546e7a] via-[#607d8b] to-[#37474f]",
+    gradient: "from-[#12235a] via-[#0c1a44] to-[#060e26]",
     pattern: "visa-platinum",
-    border: "border-slate-400/40",
-    accent: "text-slate-300",
-    accentBg: "bg-slate-400/20",
+    border: "border-[#3b82f6]/40",
+    accent: "text-[#93b8ff]",
+    accentBg: "bg-[#3b82f6]/20",
     features: ["Cashback 5%", "Conciergerie", "Lounge aeroport"],
     maintenance: "$7/mois",
     rechargeRate: "1%",
@@ -159,7 +159,7 @@ const CARD_TIERS = [
     price: 150,
     limit: "Illimite",
     monthlyLimit: "Illimite",
-    gradient: "from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
+    gradient: "from-[#1b2337] via-[#0d1220] to-[#04070f]",
     pattern: "visa-black",
     border: "border-white/30",
     accent: "text-white",
@@ -312,9 +312,14 @@ export default function CardOrderPage() {
               <div className="relative h-full p-6 flex flex-col justify-between z-10">
                 {/* Header - PIMOBIPAY VIRTUAL in gold + Brand logo */}
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-[#FFD700]" />
-                    <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
+                  <div className="flex items-center gap-2">
+                    <svg width="22" height="22" viewBox="0 0 40 48" fill="none" aria-hidden="true">
+                      <path d="M8 44 V7 H24 a11 11 0 0 1 0 22 H8" stroke="#4c8dff" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="leading-none">
+                      <p className="text-[13px] font-black tracking-tight text-white">PIMOBIPAY</p>
+                      <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-[#5b8def]">Technologies</p>
+                    </div>
                   </div>
                   {selectedCard.brand === "VISA" ? (
                     <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
@@ -343,11 +348,11 @@ export default function CardOrderPage() {
                 <div className="space-y-1">
                   <div className="flex gap-6">
                     <div>
-                      <p className={`text-[8px] font-bold uppercase tracking-wider ${selectedCard.brand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
+                      <p className={`text-[8px] font-semibold uppercase tracking-wider text-white/50`}>EXPIRE</p>
                       <p className="text-xs font-bold tracking-widest text-white">{"••/••"}</p>
                     </div>
                     <div>
-                      <p className={`text-[8px] font-bold uppercase tracking-wider ${selectedCard.brand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
+                      <p className={`text-[8px] font-semibold uppercase tracking-wider text-white/50`}>CVV</p>
                       <p className="text-xs font-bold tracking-widest text-white">{"•••"}</p>
                     </div>
                   </div>
@@ -485,9 +490,14 @@ export default function CardOrderPage() {
                 <div className="relative h-full p-6 flex flex-col justify-between z-10">
                   {/* Header */}
                   <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck size={14} className="text-[#FFD700]" />
-                      <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
+                    <div className="flex items-center gap-2">
+                      <svg width="22" height="22" viewBox="0 0 40 48" fill="none" aria-hidden="true">
+                        <path d="M8 44 V7 H24 a11 11 0 0 1 0 22 H8" stroke="#4c8dff" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <div className="leading-none">
+                        <p className="text-[13px] font-black tracking-tight text-white">PIMOBIPAY</p>
+                        <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-[#5b8def]">Technologies</p>
+                      </div>
                     </div>
                     {selectedCard.brand === "VISA" ? (
                       <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
@@ -516,11 +526,11 @@ export default function CardOrderPage() {
                   <div className="space-y-1">
                     <div className="flex gap-6">
                       <div>
-                        <p className={`text-[8px] font-bold uppercase tracking-wider ${selectedCard.brand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
+                        <p className={`text-[8px] font-semibold uppercase tracking-wider text-white/50`}>EXPIRE</p>
                         <p className="text-xs font-bold tracking-widest text-white">{"••/••"}</p>
                       </div>
                       <div>
-                        <p className={`text-[8px] font-bold uppercase tracking-wider ${selectedCard.brand === "VISA" ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
+                        <p className={`text-[8px] font-semibold uppercase tracking-wider text-white/50`}>CVV</p>
                         <p className="text-xs font-bold tracking-widest text-white">{"•••"}</p>
                       </div>
                     </div>

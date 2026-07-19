@@ -1,140 +1,161 @@
 "use client";
 import React, { useState } from "react";
-import { Eye, EyeOff, ShieldCheck, Wifi, RotateCcw } from "lucide-react";
+import { Eye, EyeOff, Wifi, RotateCcw } from "lucide-react";
 
-// Card style configurations matching the order page - ALL labels are "PIMOBIPAY VIRTUAL"
-const CARD_STYLES: Record<string, {
+// ============================================================================
+// PIMOBIPAY brand identity for virtual cards.
+// All cards share the same deep-navy PimPay design; only a subtle accent glow
+// differentiates the tiers. Name used on every card: PIMOBIPAY.
+// ============================================================================
+
+type CardStyle = {
   gradient: string;
-  shadow: string;
-  label: string;
-  labelColor: string;
-  pattern: string;
-  accentColor: string;
-  brand: string;
-}> = {
-  // MASTERCARD Types
-  PLATINIUM: {
-    gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
-    shadow: "shadow-2xl shadow-cyan-600/30",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "mastercard",
-    accentColor: "text-cyan-400",
-    brand: "MASTERCARD",
-  },
-  PREMIUM: {
-    gradient: "bg-gradient-to-br from-[#00897b] via-[#00796b] to-[#004d40]",
-    shadow: "shadow-2xl shadow-teal-600/30",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "mastercard",
-    accentColor: "text-teal-400",
-    brand: "MASTERCARD",
-  },
-  GOLD: {
-    gradient: "bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#0d1b4c]",
-    shadow: "shadow-2xl shadow-indigo-600/30",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "mastercard",
-    accentColor: "text-indigo-300",
-    brand: "MASTERCARD",
-  },
-  ULTRA: {
-    gradient: "bg-gradient-to-br from-[#212121] via-[#424242] to-[#0a0a0a]",
-    shadow: "shadow-2xl shadow-white/10",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "mastercard",
-    accentColor: "text-white",
-    brand: "MASTERCARD",
-  },
-  // VISA Types
-  VISA_CLASSIC: {
-    gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
-    shadow: "shadow-2xl shadow-indigo-900/30",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "visa",
-    accentColor: "text-[#3b5bdb]",
-    brand: "VISA",
-  },
-  VISA_GOLD: {
-    gradient: "bg-gradient-to-br from-[#c9a227] via-[#d4af37] to-[#aa8c2c]",
-    shadow: "shadow-2xl shadow-amber-600/30",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#1a1a1a]",
-    pattern: "visa",
-    accentColor: "text-amber-300",
-    brand: "VISA",
-  },
-  VISA_PLATINUM: {
-    gradient: "bg-gradient-to-br from-[#546e7a] via-[#607d8b] to-[#37474f]",
-    shadow: "shadow-2xl shadow-slate-500/30",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "visa",
-    accentColor: "text-slate-300",
-    brand: "VISA",
-  },
-  VISA_INFINITE: {
-    gradient: "bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#0a0a0a]",
-    shadow: "shadow-2xl shadow-white/10",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "visa",
-    accentColor: "text-white",
-    brand: "VISA",
-  },
+  glow: string;
+  accent: string; // hex used for contactless icon + subtle highlights
 };
 
-// Default styles based on brand
-const getDefaultStyle = (brand: string) => {
-  if (brand?.toUpperCase() === "VISA") {
-    return {
-      gradient: "bg-gradient-to-br from-[#1a1f4e] via-[#252d6a] to-[#1a1f4e]",
-      shadow: "shadow-2xl shadow-indigo-900/30",
-      label: "PIMOBIPAY VIRTUAL",
-      labelColor: "text-[#FFD700]",
-      pattern: "visa",
-      accentColor: "text-[#3b5bdb]",
-      brand: "VISA",
-    };
-  }
-  return {
-    gradient: "bg-gradient-to-br from-[#0288d1] via-[#0277bd] to-[#01579b]",
-    shadow: "shadow-2xl shadow-blue-600/20",
-    label: "PIMOBIPAY VIRTUAL",
-    labelColor: "text-[#FFD700]",
-    pattern: "mastercard",
-    accentColor: "text-blue-400",
-    brand: "MASTERCARD",
-  };
+// Unified navy base used by standard tiers.
+const NAVY: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#12235a_0%,#0c1a44_45%,#060e26_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(37,99,235,0.55)]",
+  accent: "#3b82f6",
 };
 
-// VISA Pattern SVG - matching the order page design
-function VisaPattern() {
+// Darker "black" identity for the top premium tiers, still on brand.
+const NIGHT: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#1b2337_0%,#0d1220_50%,#04070f_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(59,130,246,0.4)]",
+  accent: "#60a5fa",
+};
+
+const CARD_STYLES: Record<string, CardStyle> = {
+  // MASTERCARD tiers
+  PLATINIUM: NAVY,
+  PREMIUM: NAVY,
+  GOLD: NAVY,
+  ULTRA: NIGHT,
+  // VISA tiers
+  VISA_CLASSIC: NAVY,
+  VISA_GOLD: NAVY,
+  VISA_PLATINUM: NAVY,
+  VISA_INFINITE: NIGHT,
+};
+
+const getStyle = (type: string): CardStyle => CARD_STYLES[type] || NAVY;
+
+// PimPay "P" logo mark (stroked, rounded — matching the brand identity).
+function PimpayLogo({ size = 26 }: { size?: number }) {
   return (
-    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-      <ellipse cx="70" cy="100" rx="50" ry="45" fill="rgba(59,91,219,0.4)" />
-      <ellipse cx="45" cy="110" rx="30" ry="50" fill="rgba(59,91,219,0.35)" />
-      <path d="M 130 80 Q 150 95 130 110" stroke="rgba(59,91,219,0.5)" strokeWidth="3" fill="none" />
-      <path d="M 140 75 Q 165 95 140 115" stroke="rgba(59,91,219,0.4)" strokeWidth="3" fill="none" />
-      <path d="M 150 70 Q 180 95 150 120" stroke="rgba(59,91,219,0.3)" strokeWidth="3" fill="none" />
-      <ellipse cx="360" cy="180" rx="35" ry="35" fill="rgba(59,91,219,0.3)" />
-      <path d="M 340 180 Q 360 150 380 180 Q 360 210 340 180" stroke="rgba(59,91,219,0.4)" strokeWidth="2" fill="none" />
+    <svg width={size} height={size} viewBox="0 0 40 48" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="pimpayP" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#4c8dff" />
+          <stop offset="100%" stopColor="#1d5fe0" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M8 44 V7 H24 a11 11 0 0 1 0 22 H8"
+        stroke="url(#pimpayP)"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-// MasterCard Pattern SVG - matching the order page design
-function MasterCardPattern() {
+// Brand wordmark: P logo + PIMOBIPAY / Technologies.
+function BrandMark() {
   return (
-    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
-      <text x="-20" y="200" fontSize="180" fontWeight="bold" fill="rgba(255,255,255,0.08)" fontFamily="Arial, sans-serif">100</text>
-      <path d="M 350 0 Q 280 80 350 160 Q 420 240 350 320" stroke="rgba(255,255,255,0.1)" strokeWidth="60" fill="none" />
-      <path d="M 380 -20 Q 310 60 380 140 Q 450 220 380 300" stroke="rgba(255,255,255,0.05)" strokeWidth="40" fill="none" />
+    <div className="flex items-center gap-2">
+      <PimpayLogo size={24} />
+      <div className="leading-none">
+        <p className="text-[13px] font-black tracking-tight text-white">PIMOBIPAY</p>
+        <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-[#5b8def]">Technologies</p>
+      </div>
+    </div>
+  );
+}
+
+// Subtle tech / network background (dots + connecting lines + globe arc),
+// echoing the PimPay marketing visuals.
+function TechPattern({ accent }: { accent: string }) {
+  return (
+    <svg
+      className="absolute inset-0 h-full w-full opacity-60"
+      viewBox="0 0 400 252"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+    >
+      {/* soft glow top-right */}
+      <defs>
+        <radialGradient id="cardGlow" cx="80%" cy="18%" r="60%">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="400" height="252" fill="url(#cardGlow)" />
+      {/* network lines */}
+      <g stroke={accent} strokeOpacity="0.28" strokeWidth="1">
+        <line x1="300" y1="30" x2="360" y2="70" />
+        <line x1="360" y1="70" x2="320" y2="120" />
+        <line x1="320" y1="120" x2="380" y2="150" />
+        <line x1="300" y1="30" x2="340" y2="15" />
+        <line x1="30" y1="210" x2="90" y2="235" />
+        <line x1="90" y1="235" x2="60" y2="185" />
+      </g>
+      {/* network nodes */}
+      <g fill={accent} fillOpacity="0.55">
+        <circle cx="300" cy="30" r="2.5" />
+        <circle cx="360" cy="70" r="2" />
+        <circle cx="320" cy="120" r="2" />
+        <circle cx="380" cy="150" r="2.5" />
+        <circle cx="340" cy="15" r="1.6" />
+        <circle cx="30" cy="210" r="2" />
+        <circle cx="90" cy="235" r="2" />
+        <circle cx="60" cy="185" r="1.6" />
+      </g>
+      {/* faint globe arc bottom-right */}
+      <path
+        d="M 250 260 A 130 130 0 0 1 400 130"
+        stroke={accent}
+        strokeOpacity="0.15"
+        strokeWidth="1.2"
+        fill="none"
+      />
     </svg>
+  );
+}
+
+// Gold EMV chip.
+function Chip() {
+  return (
+    <div className="relative h-8 w-11 overflow-hidden rounded-md bg-[linear-gradient(135deg,#f6d78a,#c99a3a)] shadow-inner">
+      <div className="absolute inset-[3px] rounded-[3px] border border-[#9a7423]/40" />
+      <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[#9a7423]/40" />
+      <div className="absolute top-1/2 left-0 h-px w-full -translate-y-1/2 bg-[#9a7423]/40" />
+    </div>
+  );
+}
+
+// VISA / Mastercard brand logos.
+function VisaLogo() {
+  return (
+    <span
+      className="text-2xl font-black italic tracking-tight text-white drop-shadow"
+      style={{ fontFamily: "Arial, sans-serif" }}
+    >
+      VISA
+    </span>
+  );
+}
+
+function MastercardLogo() {
+  return (
+    <div className="flex items-center">
+      <div className="h-7 w-7 rounded-full bg-[#eb001b]" />
+      <div className="-ml-3 h-7 w-7 rounded-full bg-[#f79e1b] mix-blend-hard-light" />
+    </div>
   );
 }
 
@@ -144,14 +165,9 @@ export default function VirtualCard({ card }: { card: any }) {
 
   const last4 = card.number?.slice(-4) || "0000";
   const cardType = card.type?.toUpperCase() || "CLASSIC";
-  
-  // IMPORTANT: Determine brand from card.brand first, then fallback to cardStyles
   const cardBrand = card.brand?.toUpperCase() || "VISA";
-  
-  // Get card styles based on type, but override brand detection
-  const cardStyles = CARD_STYLES[cardType] || getDefaultStyle(card.brand);
-  
-  // Use actual card brand for logo/pattern, not the style's brand
+
+  const style = getStyle(cardType);
   const isVisa = cardBrand === "VISA";
   const isMasterCard = cardBrand === "MASTERCARD";
 
@@ -162,110 +178,104 @@ export default function VirtualCard({ card }: { card: any }) {
     <div className="space-y-3">
       <div className="relative w-full aspect-[1.586/1]" style={{ perspective: "1000px" }}>
         <div
-          className="relative w-full h-full transition-transform duration-700 ease-in-out"
+          className="relative h-full w-full transition-transform duration-700 ease-in-out"
           style={{
             transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
           }}
         >
-          {/* Face avant de la carte */}
+          {/* ---------- FRONT ---------- */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-[1.5rem] p-6 md:p-8 text-white shadow-2xl overflow-hidden ${
-              card.isFrozen ? "grayscale" : ""
-            } ${cardStyles.gradient}`}
+            className={`absolute inset-0 h-full w-full overflow-hidden rounded-[1.5rem] p-6 text-white ring-1 ring-white/10 md:p-7 ${
+              card.isFrozen ? "grayscale" : `${style.gradient} ${style.glow}`
+            }`}
             style={{ backfaceVisibility: "hidden" }}
           >
-            {isVisa && !card.isFrozen && <VisaPattern />}
-            {isMasterCard && !card.isFrozen && <MasterCardPattern />}
+            {!card.isFrozen && <TechPattern accent={style.accent} />}
 
-            <div className="relative h-full flex flex-col justify-between z-10">
-              {/* Header - PIMOBIPAY VIRTUAL in gold + Brand logo */}
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-[#FFD700]" />
-                  <span className="text-[11px] font-black text-[#FFD700] uppercase tracking-widest">PIMOBIPAY VIRTUAL</span>
-                </div>
-                {isVisa ? (
-                  <span className="text-2xl font-black italic text-white tracking-tight" style={{ fontFamily: "Arial, sans-serif" }}>VISA</span>
-                ) : isMasterCard ? (
-                  <div className="flex items-center">
-                    <div className="w-7 h-7 rounded-full bg-[#eb001b]" />
-                    <div className="w-7 h-7 rounded-full bg-[#f79e1b] -ml-3" />
-                  </div>
-                ) : (
-                  <span className="text-xl font-black">{card.brand}</span>
-                )}
+            <div className="relative z-10 flex h-full flex-col justify-between">
+              {/* Header: brand + card scheme */}
+              <div className="flex items-start justify-between">
+                <BrandMark />
+                {isVisa ? <VisaLogo /> : isMasterCard ? <MastercardLogo /> : <span className="text-xl font-black">{card.brand}</span>}
               </div>
 
-              {/* Middle Section - Contactless icon on right */}
-              <div className="flex-1 flex items-end justify-end py-2">
-                <Wifi size={24} className={`rotate-90 ${isVisa ? "text-[#3b5bdb]" : "text-[#3b82f6]"}`} />
+              {/* Chip + contactless */}
+              <div className="flex items-center gap-3">
+                <Chip />
+                <Wifi size={22} className="rotate-90 text-white/70" />
               </div>
 
-              {/* Card Number - stays on one line */}
-              <div className="mb-2">
-                <p className="text-lg md:text-xl font-black tracking-[0.12em] font-mono text-white whitespace-nowrap">
-                  {showInfo 
-                    ? card.number?.replace(/(\d{4})/g, "$1 ").trim() 
-                    : `•••• •••• •••• ${last4}`}
+              {/* Card number */}
+              <div>
+                <p className="whitespace-nowrap font-mono text-lg font-bold tracking-[0.14em] text-white md:text-xl">
+                  {showInfo ? card.number?.replace(/(\d{4})/g, "$1 ").trim() : `•••• •••• •••• ${last4}`}
                 </p>
               </div>
 
-              {/* Bottom Section - EXPIRE, CVV labels in gold for Visa, gray for others */}
-              <div className="space-y-1">
-                <div className="flex gap-8">
+              {/* Footer: valid thru / cvv / holder */}
+              <div className="flex items-end justify-between">
+                <div className="flex gap-6">
                   <div>
-                    <p className={`text-[9px] font-bold uppercase tracking-wider ${isVisa ? "text-[#d4a827]" : "text-gray-400"}`}>EXPIRE</p>
+                    <p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-white/50">Valid Thru</p>
                     <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.exp : "••/••"}</p>
                   </div>
                   <div>
-                    <p className={`text-[9px] font-bold uppercase tracking-wider ${isVisa ? "text-[#d4a827]" : "text-gray-400"}`}>CVV</p>
+                    <p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-white/50">CVV</p>
                     <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.cvv || "***" : "•••"}</p>
                   </div>
                 </div>
-                <p className="text-sm font-black uppercase tracking-widest text-white pt-1">{card.holder}</p>
+                <p className="max-w-[55%] truncate text-right text-sm font-black uppercase tracking-wider text-white">
+                  {card.holder}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Face arriere de la carte (CVV) */}
+          {/* ---------- BACK ---------- */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-[1.5rem] text-white shadow-2xl overflow-hidden ${
-              card.isFrozen ? "grayscale bg-gray-800" : cardStyles.gradient
+            className={`absolute inset-0 h-full w-full overflow-hidden rounded-[1.5rem] text-white ring-1 ring-white/10 ${
+              card.isFrozen ? "bg-gray-800 grayscale" : style.gradient
             }`}
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <div className="w-full h-14 bg-black/80 mt-6"></div>
+            <div className="mt-6 h-14 w-full bg-black/80" />
 
-            <div className="p-6 md:p-8 h-[calc(100%-3.5rem)] flex flex-col justify-between">
-              {/* CVV signature strip */}
-              <div className="space-y-2 mt-2">
+            <div className="flex h-[calc(100%-3.5rem)] flex-col justify-between p-6 md:p-7">
+              <div className="mt-2 space-y-2">
                 <div className="flex items-center">
-                  <div className="flex-1 h-12 bg-white rounded flex items-center justify-end">
+                  <div className="flex h-12 flex-1 items-center justify-end rounded bg-white">
                     <div className="px-4 py-2">
-                      <span className="text-slate-900 font-mono font-black text-xl tracking-widest">{card.cvv || "***"}</span>
+                      <span className="font-mono text-xl font-black tracking-widest text-slate-900">{card.cvv || "***"}</span>
                     </div>
                   </div>
                 </div>
-                <p className="text-[10px] font-bold text-[#ec4899] uppercase tracking-widest">CODE DE SECURITE (CVV)</p>
-                <p className="text-[10px] text-gray-400">
-                  Numero complet: <span className="font-mono text-white/80 ml-2">{card.number?.replace(/(\d{4})/g, "$1 ").trim()}</span>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#5b8def]">Code de securite (CVV)</p>
+                <p className="text-[10px] text-white/50">
+                  Numero complet:
+                  <span className="ml-2 font-mono text-white/80">{card.number?.replace(/(\d{4})/g, "$1 ").trim()}</span>
                 </p>
               </div>
 
-              {/* Legal text */}
-              <p className="text-[8px] text-white/30">{"Cette carte est la propriete de PIMOBIPAY. Usage personnel uniquement."}</p>
+              <div className="flex items-end justify-between">
+                <p className="max-w-[70%] text-[8px] text-white/30">
+                  {"Cette carte est la propriete de PIMOBIPAY Technologies. Usage personnel uniquement."}
+                </p>
+                <PimpayLogo size={22} />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action buttons */}
       <div className="flex gap-3">
         <button
           onClick={toggleShowInfo}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all border ${
-            showInfo ? "bg-purple-500/20 border-purple-500/40 text-purple-300" : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+          className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-xs font-bold uppercase tracking-wider transition-all ${
+            showInfo
+              ? "border-[#3b82f6]/40 bg-[#3b82f6]/20 text-[#93b8ff]"
+              : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
           }`}
         >
           {showInfo ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -273,7 +283,7 @@ export default function VirtualCard({ card }: { card: any }) {
         </button>
         <button
           onClick={handleFlip}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all border bg-white/5 border-white/10 text-white/70 hover:bg-cyan-500/10 hover:border-cyan-500/30 hover:text-cyan-300"
+          className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-bold uppercase tracking-wider text-white/70 transition-all hover:border-[#3b82f6]/30 hover:bg-[#3b82f6]/10 hover:text-[#93b8ff]"
         >
           <RotateCcw size={16} />
           <span>{isFlipped ? "Voir recto" : "Voir verso"}</span>
