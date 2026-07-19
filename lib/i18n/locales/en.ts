@@ -598,6 +598,7 @@ export const en: TranslationKeys = {
     cardLimit: "Card limit",
     spendingLimit: "Spending limit",
     orderSuccess: "Card ordered!",
+    loadingCard: "Loading card...",
   },
 
   profile: {

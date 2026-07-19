@@ -601,6 +601,7 @@ export const zh: TranslationKeys = {
     cardLimit: "Card limit",
     spendingLimit: "Spending limit",
     orderSuccess: "Card ordered!",
+    loadingCard: "正在加载卡片...",
   },
 
   profile: {

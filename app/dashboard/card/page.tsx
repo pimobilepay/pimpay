@@ -14,6 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CardFace } from "@/components/cards/VirtualCard";
+import { useLanguage } from "@/context/LanguageContext";
 
 // Fixed rate for USD->EUR conversion display
 const USD_TO_EUR = 0.92;
@@ -54,6 +55,7 @@ function formatCardNumber(num: string): string {
 
 export default function McardPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [showDetails, setShowDetails] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -454,7 +456,7 @@ export default function McardPage() {
       <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 size={32} className="animate-spin text-blue-500" />
-          <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Chargement de la carte...</p>
+          <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{t("cards.loadingCard")}</p>
         </div>
       </div>
     );

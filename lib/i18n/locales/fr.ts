@@ -596,6 +596,7 @@ export const fr = {
     cardLimit: "Limite de carte",
     spendingLimit: "Limite de depenses",
     orderSuccess: "Carte commandee !",
+    loadingCard: "Chargement de la carte...",
   },
 
   profile: {
