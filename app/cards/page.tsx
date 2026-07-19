@@ -244,7 +244,7 @@ export default async function GlobalCardsPage({
 
   const recentTx = (user as any).transactionsFrom?.slice(0, 5) || [];
 
-  // ── Rendu principal ────────────────────────────────────────────────────
+  // ── Rendu principal ───────────────────────────────��────────────────────
   return (
     <div className="min-h-screen bg-[#080C14] text-white pb-32 relative overflow-hidden">
       {/* ── Background texture ── */}
@@ -263,25 +263,25 @@ export default async function GlobalCardsPage({
       <div className="relative z-10 max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* ── HEADER ── */}
         <header className="pt-8 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-center justify-between gap-3">
             {/* Logo + title */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative shrink-0">
                 <div className="absolute inset-0 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-2xl blur-xl opacity-40" />
-                <div className="relative w-12 h-12 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                  <CreditCard size={22} className="text-white" />
+                <div className="relative w-11 h-11 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <CreditCard size={20} className="text-white" />
                 </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-black tracking-tight">
+              <div className="min-w-0">
+                <h1 className="text-xl font-black tracking-tight truncate">
                   Pim
                   <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
                     Cards
                   </span>
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest truncate">
                     Pi Network · Web3 Finance
                   </span>
                 </div>
@@ -289,28 +289,28 @@ export default async function GlobalCardsPage({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Link
                 href="/statements"
                 title="Relevés"
-                className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06] hover:border-white/[0.12] text-white/50 hover:text-white transition-all"
+                className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 text-white/50 hover:text-white transition-all"
               >
                 <History size={18} />
               </Link>
               <Link
                 href="/notifications"
                 title="Notifications"
-                className="relative p-3 bg-white/[0.04] rounded-xl border border-white/[0.06] hover:border-white/[0.12] text-white/50 hover:text-white transition-all"
+                className="relative p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 text-white/50 hover:text-white transition-all"
               >
                 <Bell size={18} />
                 <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-sky-400 rounded-full animate-pulse" />
               </Link>
               <Link
                 href="/dashboard/card/order"
-                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-sky-500 to-indigo-500 rounded-xl text-white font-bold text-xs uppercase tracking-widest shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 hover:opacity-90 transition-all active:scale-95"
+                title="Nouvelle carte"
+                className="p-3 bg-gradient-to-r from-sky-500 to-indigo-500 rounded-2xl text-white shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 hover:opacity-90 transition-all active:scale-95"
               >
-                <Plus size={15} />
-                <span className="hidden sm:inline">Nouvelle carte</span>
+                <Plus size={18} />
               </Link>
             </div>
           </div>
