@@ -25,7 +25,9 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-const PI_RATE_GCV = 314159;
+// Valeur de repli si /api/pi-price est injoignable. Le vrai taux vient de
+// Admin → Réglages → Politique Monétaire (SystemConfig.consensusPrice).
+const FALLBACK_PI_RATE = 314159;
 
 // Tier IDs must match the API CARD_CONFIG keys: PLATINIUM, PREMIUM, GOLD, ULTRA, VISA_CLASSIC, VISA_GOLD, VISA_PLATINUM, VISA_INFINITE
 const CARD_TIERS = [
@@ -175,10 +177,11 @@ export default function CardOrderPage() {
   const [loading, setLoading] = useState(false);
   const [wallets, setWallets] = useState<any[]>([]);
   const [userMainBalance, setUserMainBalance] = useState<number>(0);
+  const [piRate, setPiRate] = useState<number>(FALLBACK_PI_RATE);
   const router = useRouter();
 
   const selectedCard = CARD_TIERS.find((c) => c.id === selectedId)!;
-  const priceInPi = selectedCard.price / PI_RATE_GCV;
+  const priceInPi = selectedCard.price / piRate;
   const availableUSD = userMainBalance;
   const availableEUR = userMainBalance * 0.92;
   const isBalanceInsufficient = availableUSD < selectedCard.price;
@@ -204,7 +207,23 @@ export default function CardOrderPage() {
         console.error("Erreur solde:", err);
       }
     };
+
+    // Récupère le taux Pi défini par l'admin (Réglages → Politique Monétaire),
+    // source unique partagée par tout le reste de la plateforme.
+    const fetchPiRate = async () => {
+      try {
+        const res = await fetch("/api/pi-price", { cache: "no-store" });
+        const data = await res.json();
+        if (data?.success && typeof data.price === "number" && data.price > 0) {
+          setPiRate(data.price);
+        }
+      } catch (err) {
+        console.error("Erreur taux Pi:", err);
+      }
+    };
+
     fetchBalance();
+    fetchPiRate();
   }, []);
 
   const handleFinalConfirm = async () => {
@@ -582,7 +601,7 @@ export default function CardOrderPage() {
                 <Info size={16} className="text-blue-400" />
               </div>
               <p className="text-[11px] leading-relaxed text-slate-400 font-bold">
-                {"L'emission de votre"} <span className="text-white">{selectedCard.tier}</span> {"sera effectuee au taux GCV de"} <span className="text-amber-400">$314,159/Pi</span> {"si vous utilisez vos Pi."}
+                {"L'emission de votre"} <span className="text-white">{selectedCard.tier}</span> {"sera effectuee au taux GCV de"} <span className="text-amber-400">${piRate.toLocaleString("fr-FR")}/Pi</span> {"si vous utilisez vos Pi."}
               </p>
             </div>
 
