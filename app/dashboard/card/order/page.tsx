@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { CardFace } from "@/components/cards/VirtualCard";
 
 // Valeur de repli si /api/pi-price est injoignable. Le vrai taux vient de
 // Admin → Réglages → Politique Monétaire (SystemConfig.consensusPrice).
@@ -286,7 +287,7 @@ export default function CardOrderPage() {
               <CardFace
                 card={{
                   brand: selectedCard.brand,
-                  type: selectedCard.type,
+                  type: selectedCard.id,
                   holder: selectedCard.tier,
                 }}
               />
