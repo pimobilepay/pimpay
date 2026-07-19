@@ -6,6 +6,9 @@ import { Eye, EyeOff, Wifi, RotateCcw } from "lucide-react";
 // PIMOBIPAY brand identity for virtual cards.
 // All cards share the same deep-navy PimPay design; only a subtle accent glow
 // differentiates the tiers. Name used on every card: PIMOBIPAY.
+//
+// The visual (front + back + 3D flip) lives in the exported <CardFace/> so the
+// exact same design can be reused on /cards, /dashboard/card and the order page.
 // ============================================================================
 
 type CardStyle = {
@@ -44,7 +47,7 @@ const CARD_STYLES: Record<string, CardStyle> = {
 const getStyle = (type: string): CardStyle => CARD_STYLES[type] || NAVY;
 
 // PimPay "P" logo mark (stroked, rounded — matching the brand identity).
-function PimpayLogo({ size = 26 }: { size?: number }) {
+export function PimpayLogo({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 48" fill="none" aria-hidden="true">
       <defs>
@@ -159,113 +162,146 @@ function MastercardLogo() {
   );
 }
 
-export default function VirtualCard({ card }: { card: any }) {
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
+export type CardFaceData = {
+  number?: string;
+  exp?: string;
+  cvv?: string;
+  holder?: string;
+  brand?: string;
+  type?: string;
+  isFrozen?: boolean;
+};
 
-  const last4 = card.number?.slice(-4) || "0000";
+// ---------------------------------------------------------------------------
+// <CardFace/> — the shared PIMOBIPAY card visual (front + back + 3D flip).
+// Controlled via `isFlipped` / `showInfo`. Renders its own 1.586:1 wrapper, so
+// callers just drop it into a width-constrained container.
+// ---------------------------------------------------------------------------
+export function CardFace({
+  card,
+  isFlipped = false,
+  showInfo = false,
+}: {
+  card: CardFaceData;
+  isFlipped?: boolean;
+  showInfo?: boolean;
+}) {
   const cardType = card.type?.toUpperCase() || "CLASSIC";
   const cardBrand = card.brand?.toUpperCase() || "VISA";
-
   const style = getStyle(cardType);
   const isVisa = cardBrand === "VISA";
   const isMasterCard = cardBrand === "MASTERCARD";
+
+  const digits = (card.number || "").replace(/\s/g, "");
+  const last4 = digits.slice(-4) || "0000";
+  const fullNumber = digits.replace(/(\d{4})/g, "$1 ").trim();
+
+  return (
+    <div className="relative h-full w-full" style={{ perspective: "1000px" }}>
+      <div
+        className="relative h-full w-full transition-transform duration-700 ease-in-out"
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+        }}
+      >
+        {/* ---------- FRONT ---------- */}
+        <div
+          className={`absolute inset-0 h-full w-full overflow-hidden rounded-[1.5rem] p-6 text-white ring-1 ring-white/10 md:p-7 ${
+            card.isFrozen ? "grayscale" : `${style.gradient} ${style.glow}`
+          }`}
+          style={{ backfaceVisibility: "hidden" }}
+        >
+          {!card.isFrozen && <TechPattern accent={style.accent} />}
+
+          <div className="relative z-10 flex h-full flex-col justify-between">
+            {/* Header: brand + card scheme */}
+            <div className="flex items-start justify-between">
+              <BrandMark />
+              {isVisa ? <VisaLogo /> : isMasterCard ? <MastercardLogo /> : <span className="text-xl font-black">{card.brand}</span>}
+            </div>
+
+            {/* Chip + contactless */}
+            <div className="flex items-center gap-3">
+              <Chip />
+              <Wifi size={22} className="rotate-90 text-white/70" />
+            </div>
+
+            {/* Card number */}
+            <div>
+              <p className="whitespace-nowrap font-mono text-lg font-bold tracking-[0.14em] text-white md:text-xl">
+                {showInfo && fullNumber ? fullNumber : `•••• •••• •••• ${last4}`}
+              </p>
+            </div>
+
+            {/* Footer: valid thru / cvv / holder */}
+            <div className="flex items-end justify-between">
+              <div className="flex gap-6">
+                <div>
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-white/50">Valid Thru</p>
+                  <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.exp || "••/••" : "••/••"}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-white/50">CVV</p>
+                  <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.cvv || "***" : "•••"}</p>
+                </div>
+              </div>
+              <p className="max-w-[55%] truncate text-right text-sm font-black uppercase tracking-wider text-white">
+                {card.holder}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ---------- BACK ---------- */}
+        <div
+          className={`absolute inset-0 h-full w-full overflow-hidden rounded-[1.5rem] text-white ring-1 ring-white/10 ${
+            card.isFrozen ? "bg-gray-800 grayscale" : style.gradient
+          }`}
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          <div className="mt-6 h-14 w-full bg-black/80" />
+
+          <div className="flex h-[calc(100%-3.5rem)] flex-col justify-between p-6 md:p-7">
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center">
+                <div className="flex h-12 flex-1 items-center justify-end rounded bg-white">
+                  <div className="px-4 py-2">
+                    <span className="font-mono text-xl font-black tracking-widest text-slate-900">{showInfo ? card.cvv || "***" : "***"}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#5b8def]">Code de securite (CVV)</p>
+              <p className="text-[10px] text-white/50">
+                Numero complet:
+                <span className="ml-2 font-mono text-white/80">{showInfo && fullNumber ? fullNumber : `•••• •••• •••• ${last4}`}</span>
+              </p>
+            </div>
+
+            <div className="flex items-end justify-between">
+              <p className="max-w-[70%] text-[8px] text-white/30">
+                {"Cette carte est la propriete de PIMOBIPAY Technologies. Usage personnel uniquement."}
+              </p>
+              <PimpayLogo size={22} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function VirtualCard({ card }: { card: any }) {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const handleFlip = () => setIsFlipped(!isFlipped);
   const toggleShowInfo = () => setShowInfo(!showInfo);
 
   return (
     <div className="space-y-3">
-      <div className="relative w-full aspect-[1.586/1]" style={{ perspective: "1000px" }}>
-        <div
-          className="relative h-full w-full transition-transform duration-700 ease-in-out"
-          style={{
-            transformStyle: "preserve-3d",
-            transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-          }}
-        >
-          {/* ---------- FRONT ---------- */}
-          <div
-            className={`absolute inset-0 h-full w-full overflow-hidden rounded-[1.5rem] p-6 text-white ring-1 ring-white/10 md:p-7 ${
-              card.isFrozen ? "grayscale" : `${style.gradient} ${style.glow}`
-            }`}
-            style={{ backfaceVisibility: "hidden" }}
-          >
-            {!card.isFrozen && <TechPattern accent={style.accent} />}
-
-            <div className="relative z-10 flex h-full flex-col justify-between">
-              {/* Header: brand + card scheme */}
-              <div className="flex items-start justify-between">
-                <BrandMark />
-                {isVisa ? <VisaLogo /> : isMasterCard ? <MastercardLogo /> : <span className="text-xl font-black">{card.brand}</span>}
-              </div>
-
-              {/* Chip + contactless */}
-              <div className="flex items-center gap-3">
-                <Chip />
-                <Wifi size={22} className="rotate-90 text-white/70" />
-              </div>
-
-              {/* Card number */}
-              <div>
-                <p className="whitespace-nowrap font-mono text-lg font-bold tracking-[0.14em] text-white md:text-xl">
-                  {showInfo ? card.number?.replace(/(\d{4})/g, "$1 ").trim() : `•••• •••• •••• ${last4}`}
-                </p>
-              </div>
-
-              {/* Footer: valid thru / cvv / holder */}
-              <div className="flex items-end justify-between">
-                <div className="flex gap-6">
-                  <div>
-                    <p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-white/50">Valid Thru</p>
-                    <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.exp : "••/••"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-semibold uppercase tracking-[0.15em] text-white/50">CVV</p>
-                    <p className="text-sm font-bold tracking-widest text-white">{showInfo ? card.cvv || "***" : "•••"}</p>
-                  </div>
-                </div>
-                <p className="max-w-[55%] truncate text-right text-sm font-black uppercase tracking-wider text-white">
-                  {card.holder}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* ---------- BACK ---------- */}
-          <div
-            className={`absolute inset-0 h-full w-full overflow-hidden rounded-[1.5rem] text-white ring-1 ring-white/10 ${
-              card.isFrozen ? "bg-gray-800 grayscale" : style.gradient
-            }`}
-            style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
-          >
-            <div className="mt-6 h-14 w-full bg-black/80" />
-
-            <div className="flex h-[calc(100%-3.5rem)] flex-col justify-between p-6 md:p-7">
-              <div className="mt-2 space-y-2">
-                <div className="flex items-center">
-                  <div className="flex h-12 flex-1 items-center justify-end rounded bg-white">
-                    <div className="px-4 py-2">
-                      <span className="font-mono text-xl font-black tracking-widest text-slate-900">{card.cvv || "***"}</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#5b8def]">Code de securite (CVV)</p>
-                <p className="text-[10px] text-white/50">
-                  Numero complet:
-                  <span className="ml-2 font-mono text-white/80">{card.number?.replace(/(\d{4})/g, "$1 ").trim()}</span>
-                </p>
-              </div>
-
-              <div className="flex items-end justify-between">
-                <p className="max-w-[70%] text-[8px] text-white/30">
-                  {"Cette carte est la propriete de PIMOBIPAY Technologies. Usage personnel uniquement."}
-                </p>
-                <PimpayLogo size={22} />
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="relative w-full aspect-[1.586/1]">
+        <CardFace card={card} isFlipped={isFlipped} showInfo={showInfo} />
       </div>
 
       {/* Action buttons */}
