@@ -61,6 +61,21 @@ const NIGHT: CardStyle = {
   accent: "#e2e8f0",
 };
 
+// [FIX] Style de repli par défaut. `getStyle()` (ci-dessous) retombait sur
+// `NAVY` pour tout `type` de carte non reconnu (ex: "VIRTUAL", valeur par
+// défaut posée par app/dashboard/card/page.tsx quand le type n'est pas
+// renseigné) — mais `NAVY` n'était JAMAIS déclarée dans ce fichier. Résultat :
+// `ReferenceError: NAVY is not defined` dès qu'une carte avait un type hors
+// des 8 clés de CARD_STYLES, ce qui plantait le rendu de <VirtualCard/>
+// (donc /cards, /dashboard/card, la page de commande...) avec un écran
+// blanc / "This page couldn't load" côté navigateur. Couleur reprise du
+// design "deep-navy PimPay" mentionné dans l'en-tête de ce fichier.
+const NAVY: CardStyle = {
+  gradient: "bg-[linear-gradient(135deg,#0f1b3d_0%,#0a1330_45%,#050914_100%)]",
+  glow: "shadow-[0_20px_45px_-15px_rgba(59,130,246,0.45)]",
+  accent: "#60a5fa",
+};
+
 const CARD_STYLES: Record<string, CardStyle> = {
   // MASTERCARD tiers
   PLATINIUM: BLUE,
