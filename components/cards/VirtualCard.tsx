@@ -130,17 +130,6 @@ function TechPattern({ accent }: { accent: string }) {
   );
 }
 
-// Gold EMV chip.
-function Chip() {
-  return (
-    <div className="relative h-8 w-11 overflow-hidden rounded-md bg-[linear-gradient(135deg,#f6d78a,#c99a3a)] shadow-inner">
-      <div className="absolute inset-[3px] rounded-[3px] border border-[#9a7423]/40" />
-      <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[#9a7423]/40" />
-      <div className="absolute top-1/2 left-0 h-px w-full -translate-y-1/2 bg-[#9a7423]/40" />
-    </div>
-  );
-}
-
 // VISA / Mastercard brand logos.
 function VisaLogo() {
   return (
@@ -221,9 +210,8 @@ export function CardFace({
               {isVisa ? <VisaLogo /> : isMasterCard ? <MastercardLogo /> : <span className="text-xl font-black">{card.brand}</span>}
             </div>
 
-            {/* Chip + contactless */}
-            <div className="flex items-center gap-3">
-              <Chip />
+            {/* Contactless (NFC) */}
+            <div className="flex items-center">
               <Wifi size={22} className="rotate-90 text-white/70" />
             </div>
 
