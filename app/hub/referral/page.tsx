@@ -23,6 +23,38 @@ import {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+/** Paliers d'agent basés sur le nombre de filleuls inscrits. */
+const AGENT_TIERS = [
+  { name: "BRONZE AGENT", min: 0, target: 10, next: "SILVER AGENT" },
+  { name: "SILVER AGENT", min: 10, target: 25, next: "GOLD AGENT" },
+  { name: "GOLD AGENT", min: 25, target: 50, next: "PLATINUM AGENT" },
+  { name: "PLATINUM AGENT", min: 50, target: 100, next: "ELITE AGENT" },
+  { name: "ELITE AGENT", min: 100, target: null as number | null, next: null as string | null },
+];
+
+function getAgentTier(count: number) {
+  let current = AGENT_TIERS[0];
+  for (const t of AGENT_TIERS) {
+    if (count >= t.min) current = t;
+  }
+  if (current.target === null) {
+    return {
+      level: current.name,
+      levelSubtitle: "Niveau le plus élevé",
+      nextLevel: current.name,
+      progress: 100,
+    };
+  }
+  const span = current.target - current.min;
+  const progress = Math.min(100, Math.max(0, Math.round(((count - current.min) / span) * 100)));
+  return {
+    level: current.name,
+    levelSubtitle: `${count} filleul${count > 1 ? "s" : ""} recruté${count > 1 ? "s" : ""}`,
+    nextLevel: current.next || current.name,
+    progress,
+  };
+}
+
 export default function AgentReferralPage() {
   const { data, isLoading } = useSWR("/api/agent/referral", fetcher);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -37,6 +69,8 @@ export default function AgentReferralPage() {
   const joinDate = agent?.createdAt
     ? new Date(agent.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
     : "—";
+
+  const tier = getAgentTier(stats.totalReferred || 0);
 
   const shareText = `Rejoignez PIMOBIPAY avec mon code agent ${code} et commencez a envoyer/recevoir de l'argent facilement ! Inscription : ${referralLink}`;
 
@@ -230,6 +264,13 @@ export default function AgentReferralPage() {
               qrValue={qrValue}
               referralLink={referralLink}
               phone={agent.phone}
+              email={agent.email}
+              country={agent.country || undefined}
+              joinDate={joinDate}
+              level={tier.level}
+              levelSubtitle={tier.levelSubtitle}
+              nextLevel={tier.nextLevel}
+              progress={tier.progress}
             />
           </div>
         )}
