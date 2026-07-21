@@ -5,7 +5,6 @@ import useSWR from "swr";
 import { QRCodeSVG } from "qrcode.react";
 import { HubShell } from "@/components/hub/HubShell";
 import { AgentProfileCard } from "@/components/hub/AgentProfileCard";
-import { AgentIdBadge } from "@/components/hub/AgentIdBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -209,33 +208,6 @@ export default function AgentReferralPage() {
           </CardContent>
         </Card>
 
-        {/* Badge */}
-        <Card className="bg-slate-900/50 border-white/5 rounded-3xl lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg font-black text-white flex items-center gap-2">
-              <BadgeCheck className="h-5 w-5 text-emerald-500" />
-              Mon Badge Virtuel
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading || !agent ? (
-              <div className="flex justify-center gap-4">
-                <Skeleton className="h-[560px] w-[300px] rounded-[2rem] bg-slate-700" />
-                <Skeleton className="hidden h-[560px] w-[300px] rounded-[2rem] bg-slate-700 sm:block" />
-              </div>
-            ) : (
-              <AgentIdBadge
-                name={agent.name}
-                code={code}
-                avatar={agent.avatar}
-                qrValue={qrValue}
-                phone={agent.phone}
-                email={agent.email}
-                joinDate={joinDate}
-              />
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Full official profile card */}

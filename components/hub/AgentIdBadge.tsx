@@ -44,12 +44,42 @@ function CongoFlag({ className = "" }: { className?: string }) {
   );
 }
 
+/** Marque "P" PIMOBIPAY : deux P italiques superposes + pixels (accent tech). */
+function PimobiPMark({ className = "", mono = false }: { className?: string; mono?: boolean }) {
+  const back = mono ? "rgba(255,255,255,0.45)" : "#1d4ed8";
+  const front = mono ? "#ffffff" : "#ffffff";
+  const dot1 = mono ? "rgba(255,255,255,0.9)" : "#1d4ed8";
+  const dot2 = mono ? "rgba(255,255,255,0.7)" : "#2563eb";
+  const dot3 = mono ? "rgba(255,255,255,0.5)" : "#38bdf8";
+  return (
+    <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
+      <g transform="skewX(-6)">
+        {/* pixels */}
+        <rect x="6" y="9" width="9" height="9" rx="1.5" fill={dot1} />
+        <rect x="17" y="3" width="6" height="6" rx="1" fill={dot2} />
+        <rect x="1" y="20" width="5" height="5" rx="1" fill={dot3} />
+        {/* P arriere */}
+        <path
+          fillRule="evenodd"
+          fill={back}
+          d="M28 16 H60 A25 25 0 0 1 60 66 H45 V94 H28 Z M45 33 H56 A8 8 0 0 1 56 49 H45 Z"
+        />
+        {/* P avant */}
+        <path
+          fillRule="evenodd"
+          fill={front}
+          d="M23 13 H55 A25 25 0 0 1 55 63 H40 V91 H23 Z M40 30 H51 A8 8 0 0 1 51 46 H40 Z"
+        />
+      </g>
+    </svg>
+  );
+}
+
 function BrandHeader() {
   return (
     <div className="flex flex-col items-center">
       <div className="flex items-center gap-1.5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-pimpay.png" alt="PIMOBIPAY" className="h-10 w-10 object-contain" crossOrigin="anonymous" />
+        <PimobiPMark className="h-9 w-9" />
         <p className="text-2xl font-black tracking-tight">
           <span className="text-white">PIMOBI</span>
           <span className="text-sky-500">PAY</span>
@@ -181,8 +211,8 @@ export function AgentIdBadge({
               <BrandHeader />
 
               {/* Photo */}
-              <div className="relative mt-5">
-                <div className="h-28 w-28 overflow-hidden rounded-full border-4 border-emerald-500/70 bg-slate-700">
+              <div className="relative mt-4">
+                <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-emerald-500/70 bg-slate-700">
                   {avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={avatar || "/placeholder.svg"} alt={name} className="h-full w-full object-cover" crossOrigin="anonymous" />
@@ -213,10 +243,10 @@ export function AgentIdBadge({
               <div className="mt-4 rounded-xl bg-white p-2.5">
                 <QRCodeSVG
                   value={qrValue}
-                  size={120}
+                  size={108}
                   level="H"
                   includeMargin={false}
-                  imageSettings={{ src: "/logo-pimpay.png", height: 26, width: 26, excavate: true }}
+                  imageSettings={{ src: "/logo-pimpay.png", height: 24, width: 24, excavate: true }}
                 />
               </div>
               <p className="mt-2 text-center text-[10px] font-bold uppercase tracking-wide text-emerald-500 leading-tight">
@@ -233,7 +263,7 @@ export function AgentIdBadge({
               </div>
 
               {/* Footer */}
-              <div className="mt-4 -mx-5 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-sky-500 py-2.5">
+              <div className="mt-auto -mx-5 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-sky-500 py-2.5">
                 <p className="text-xs font-bold text-white">www.pimobipay.com</p>
               </div>
             </div>
@@ -295,7 +325,7 @@ export function AgentIdBadge({
               </div>
 
               {/* Footer */}
-              <div className="mt-4 -mx-5 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-sky-500 py-2.5">
+              <div className="mt-auto -mx-5 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-sky-500 py-2.5">
                 <p className="text-xs font-bold text-white">Support: support@pimobipay.com</p>
               </div>
             </div>
@@ -368,13 +398,12 @@ function BadgeLanyard({ children }: { children: React.ReactNode }) {
     <div className="flex w-[300px] flex-col items-center">
       {/* Lanyard strap */}
       <div className="relative z-10 flex h-16 w-16 items-start justify-center overflow-hidden rounded-b-md bg-gradient-to-b from-blue-700 to-blue-800 pt-2 shadow-lg">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-pimpay.png" alt="" className="h-7 w-7 object-contain" crossOrigin="anonymous" />
+        <PimobiPMark className="h-7 w-7" mono />
       </div>
       {/* Clip */}
       <div className="-mt-1 h-4 w-8 rounded-sm border border-slate-400/40 bg-slate-300/20" />
       {/* Card */}
-      <div className="-mt-1 h-[500px] w-full overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#050b16] p-1 shadow-2xl shadow-black/40">
+      <div className="-mt-1 h-[600px] w-full overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#050b16] p-1 shadow-2xl shadow-black/40">
         {children}
       </div>
     </div>
