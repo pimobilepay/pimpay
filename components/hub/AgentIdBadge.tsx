@@ -81,6 +81,7 @@ export function AgentIdBadge({
   const frontRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState<"png" | "pdf" | null>(null);
+  const [side, setSide] = useState<"both" | "recto" | "verso">("both");
 
   const initials = (name || "AG")
     .split(" ")
@@ -97,7 +98,12 @@ export function AgentIdBadge({
   const handleDownloadPng = async () => {
     try {
       setDownloading("png");
-      const [front, back] = await Promise.all([capture(frontRef.current), capture(backRef.current)]);
+      const wantFront = side !== "verso";
+      const wantBack = side !== "recto";
+      const [front, back] = await Promise.all([
+        wantFront ? capture(frontRef.current) : Promise.resolve(null),
+        wantBack ? capture(backRef.current) : Promise.resolve(null),
+      ]);
       [
         { data: front, suffix: "recto" },
         { data: back, suffix: "verso" },
@@ -118,7 +124,12 @@ export function AgentIdBadge({
   const handleDownloadPdf = async () => {
     try {
       setDownloading("pdf");
-      const [front, back] = await Promise.all([capture(frontRef.current), capture(backRef.current)]);
+      const wantFront = side !== "verso";
+      const wantBack = side !== "recto";
+      const [front, back] = await Promise.all([
+        wantFront ? capture(frontRef.current) : Promise.resolve(null),
+        wantBack ? capture(backRef.current) : Promise.resolve(null),
+      ]);
       const { jsPDF } = await import("jspdf");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -126,14 +137,17 @@ export function AgentIdBadge({
       const cardW = 80;
       const cardH = cardW * (1035 / 620); // ratio du badge
       const gap = 10;
-      const totalW = cardW * 2 + gap;
+      const cards = [front, back].filter(Boolean) as string[];
+      const totalW = cardW * cards.length + gap * (cards.length - 1);
       const startX = (pageWidth - totalW) / 2;
       const y = (pageHeight - cardH) / 2;
       pdf.setFillColor(2, 4, 10);
       pdf.rect(0, 0, pageWidth, pageHeight, "F");
-      if (front) pdf.addImage(front, "PNG", startX, y, cardW, cardH);
-      if (back) pdf.addImage(back, "PNG", startX + cardW + gap, y, cardW, cardH);
-      pdf.save(`badge-${agentId}.pdf`);
+      cards.forEach((data, i) => {
+        pdf.addImage(data, "PNG", startX + i * (cardW + gap), y, cardW, cardH);
+      });
+      const suffix = side === "both" ? "" : `-${side}`;
+      pdf.save(`badge-${agentId}${suffix}.pdf`);
     } catch (e) {
       console.error("[AgentIdBadge] PDF export failed", e);
     } finally {
@@ -295,6 +309,34 @@ export function AgentIdBadge({
         <PillarItem icon={QrPillar} label="Vérification" />
         <PillarItem icon={Handshake} label="Confiance" />
         <PillarItem icon={BarChart3} label="Performance" />
+      </div>
+
+      {/* Side selector */}
+      <div className="w-full max-w-[420px]">
+        <p className="mb-2 text-center text-[11px] font-black uppercase tracking-wider text-slate-400">
+          Choisir le côté à télécharger
+        </p>
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-white/10 bg-slate-900/60 p-1">
+          {([
+            { value: "recto", label: "Recto" },
+            { value: "verso", label: "Verso" },
+            { value: "both", label: "Recto-verso" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setSide(opt.value)}
+              aria-pressed={side === opt.value}
+              className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                side === opt.value
+                  ? "bg-emerald-600 text-white"
+                  : "text-slate-300 hover:bg-white/5"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Actions */}
