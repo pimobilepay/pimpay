@@ -364,18 +364,12 @@ export function AgentIdBadge({
               </div>
 
               {/* Signature */}
-              <div className="mt-3 flex flex-col items-center">
+              <div className="mt-3 mb-6 flex flex-col items-center">
                 <span className="font-serif text-2xl italic text-slate-300" style={{ fontFamily: "cursive" }}>
                   A.Swana
                 </span>
                 <p className="mt-1 text-xs font-black uppercase tracking-wide text-white">Pimobipay Technologies</p>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Directeur Général</p>
-              </div>
-
-              {/* Code agent */}
-              <div className="mt-3 mb-6 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
-                <p className="text-[10px] font-black uppercase tracking-[2px] text-emerald-500">Code Agent</p>
-                <p className="mt-0.5 break-all font-mono text-sm font-bold text-white">{code}</p>
               </div>
             </div>
           </BadgeLanyard>
@@ -452,7 +446,7 @@ function BadgeLanyard({ children }: { children: React.ReactNode }) {
       {/* Clip */}
       <div className="-mt-1 h-4 w-8 rounded-sm border border-slate-400/40 bg-slate-300/20" />
       {/* Card */}
-      <div className="-mt-1 min-h-[600px] w-full self-stretch overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#050b16] p-1 shadow-2xl shadow-black/40">
+      <div className="-mt-1 w-full self-stretch overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#050b16] p-1 shadow-2xl shadow-black/40">
         {children}
       </div>
     </div>
