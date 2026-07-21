@@ -78,18 +78,138 @@ function resolveCountry(input?: string | null): { label: string; iso: string } {
   return COUNTRY_MAP[key] || { label: input, iso: "" };
 }
 
-/** Drapeau du pays de l'agent (image flagcdn, compatible export PNG/PDF). */
+/** Petite étoile 5 branches réutilisable pour les drapeaux. */
+function Star({ cx, cy, r, fill }: { cx: number; cy: number; r: number; fill: string }) {
+  const pts: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const outer = (Math.PI / 180) * (i * 72 - 90);
+    const inner = (Math.PI / 180) * (i * 72 - 90 + 36);
+    pts.push(`${cx + r * Math.cos(outer)},${cy + r * Math.sin(outer)}`);
+    pts.push(`${cx + r * 0.4 * Math.cos(inner)},${cy + r * 0.4 * Math.sin(inner)}`);
+  }
+  return <polygon points={pts.join(" ")} fill={fill} />;
+}
+
+/** Drapeaux SVG inline (nets, sans CORS, compatibles export PNG/PDF). ViewBox 60x40. */
+const FLAG_SVGS: Record<string, React.ReactNode> = {
+  cg: (
+    <>
+      <rect width="60" height="40" fill="#FBDE4A" />
+      <polygon points="0,0 46,0 0,31" fill="#009543" />
+      <polygon points="60,40 14,40 60,9" fill="#DC241F" />
+    </>
+  ),
+  cd: (
+    <>
+      <rect width="60" height="40" fill="#007FFF" />
+      <polygon points="0,25 0,40 13,40 60,15 60,0 47,0" fill="#F7D618" />
+      <polygon points="0,29 0,40 9,40 60,11 60,0 51,0" fill="#CE1021" />
+      <Star cx={9} cy={8} r={5} fill="#F7D618" />
+    </>
+  ),
+  cm: (
+    <>
+      <rect width="20" height="40" fill="#007A5E" />
+      <rect x="20" width="20" height="40" fill="#CE1126" />
+      <rect x="40" width="20" height="40" fill="#FCD116" />
+      <Star cx={30} cy={20} r={6} fill="#FCD116" />
+    </>
+  ),
+  ga: (
+    <>
+      <rect width="60" height="13.34" fill="#009E60" />
+      <rect y="13.34" width="60" height="13.33" fill="#FCD116" />
+      <rect y="26.67" width="60" height="13.33" fill="#3A75C4" />
+    </>
+  ),
+  cf: (
+    <>
+      <rect width="60" height="10" fill="#003082" />
+      <rect y="10" width="60" height="10" fill="#fff" />
+      <rect y="20" width="60" height="10" fill="#289728" />
+      <rect y="30" width="60" height="10" fill="#FFCE00" />
+      <rect x="26" width="8" height="40" fill="#D21034" />
+      <Star cx={9} cy={7} r={4} fill="#FFCE00" />
+    </>
+  ),
+  td: (
+    <>
+      <rect width="20" height="40" fill="#002664" />
+      <rect x="20" width="20" height="40" fill="#FECB00" />
+      <rect x="40" width="20" height="40" fill="#C60C30" />
+    </>
+  ),
+  ci: (
+    <>
+      <rect width="20" height="40" fill="#F77F00" />
+      <rect x="20" width="20" height="40" fill="#fff" />
+      <rect x="40" width="20" height="40" fill="#009E60" />
+    </>
+  ),
+  sn: (
+    <>
+      <rect width="20" height="40" fill="#00853F" />
+      <rect x="20" width="20" height="40" fill="#FDEF42" />
+      <rect x="40" width="20" height="40" fill="#E31B23" />
+      <Star cx={30} cy={20} r={6} fill="#00853F" />
+    </>
+  ),
+  ml: (
+    <>
+      <rect width="20" height="40" fill="#14B53A" />
+      <rect x="20" width="20" height="40" fill="#FCD116" />
+      <rect x="40" width="20" height="40" fill="#CE1126" />
+    </>
+  ),
+  bf: (
+    <>
+      <rect width="60" height="20" fill="#EF2B2D" />
+      <rect y="20" width="60" height="20" fill="#009E49" />
+      <Star cx={30} cy={20} r={6} fill="#FCD116" />
+    </>
+  ),
+  bj: (
+    <>
+      <rect width="24" height="40" fill="#008751" />
+      <rect x="24" width="36" height="20" fill="#FCD116" />
+      <rect x="24" y="20" width="36" height="20" fill="#E8112D" />
+    </>
+  ),
+  tg: (
+    <>
+      <rect width="60" height="8" fill="#006A4E" />
+      <rect y="8" width="60" height="8" fill="#FFCE00" />
+      <rect y="16" width="60" height="8" fill="#006A4E" />
+      <rect y="24" width="60" height="8" fill="#FFCE00" />
+      <rect y="32" width="60" height="8" fill="#006A4E" />
+      <rect width="24" height="24" fill="#D21034" />
+      <Star cx={12} cy={12} r={7} fill="#fff" />
+    </>
+  ),
+  ng: (
+    <>
+      <rect width="20" height="40" fill="#008751" />
+      <rect x="20" width="20" height="40" fill="#fff" />
+      <rect x="40" width="20" height="40" fill="#008751" />
+    </>
+  ),
+  fr: (
+    <>
+      <rect width="20" height="40" fill="#0055A4" />
+      <rect x="20" width="20" height="40" fill="#fff" />
+      <rect x="40" width="20" height="40" fill="#EF4135" />
+    </>
+  ),
+};
+
+/** Drapeau du pays de l'agent (SVG inline). */
 function CountryFlag({ iso, className = "" }: { iso: string; className?: string }) {
-  if (!iso) return null;
+  const flag = FLAG_SVGS[iso];
+  if (!flag) return null;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`https://flagcdn.com/w80/${iso}.png`}
-      alt=""
-      aria-hidden="true"
-      crossOrigin="anonymous"
-      className={className}
-    />
+    <svg viewBox="0 0 60 40" className={className} aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+      {flag}
+    </svg>
   );
 }
 
@@ -345,7 +465,7 @@ export function AgentIdBadge({
                     {row.flag && (
                       <CountryFlag
                         iso={resolvedCountry.iso}
-                        className="h-6 w-9 shrink-0 rounded-sm border border-white/10 object-cover"
+                        className="h-6 w-9 shrink-0 rounded-sm border border-white/10"
                       />
                     )}
                     {row.shield && (
