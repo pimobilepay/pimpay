@@ -37,6 +37,7 @@ import {
   Loader2,
   Headphones,
 } from "lucide-react";
+import { resolveCountry } from "@/lib/country";
 
 interface AgentProfileCardProps {
   name: string;
@@ -252,7 +253,7 @@ export function AgentProfileCard({
         {/* Identity + level */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative shrink-0 p-1">
               <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-emerald-500/50 bg-white">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -262,7 +263,7 @@ export function AgentProfileCard({
                   crossOrigin="anonymous"
                 />
               </div>
-              <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#02040a] bg-emerald-500">
+              <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#02040a] bg-emerald-500">
                 <Check className="h-4 w-4 text-white" strokeWidth={3} />
               </span>
             </div>
@@ -329,7 +330,7 @@ export function AgentProfileCard({
 
           {/* Info items */}
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-            <InfoItem icon={MapPin} label="Pays" value={country} />
+            <InfoItem icon={MapPin} label="Pays" value={resolveCountry(country).label} flagIso={resolveCountry(country).iso} />
             <InfoItem
               icon={UserRound}
               label="Code Agent / Référent"
@@ -484,18 +485,31 @@ function InfoItem({
   value,
   onCopy,
   copied,
+  flagIso,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: React.ReactNode;
   onCopy?: () => void;
   copied?: boolean;
+  flagIso?: string;
 }) {
   return (
     <div className="flex items-start gap-2">
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
-        <Icon className="h-4 w-4 text-emerald-400" />
-      </div>
+      {flagIso ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`https://flagcdn.com/w80/${flagIso}.png`}
+          alt=""
+          aria-hidden="true"
+          crossOrigin="anonymous"
+          className="mt-0.5 h-8 w-8 shrink-0 rounded-lg border border-white/10 object-cover"
+        />
+      ) : (
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
+          <Icon className="h-4 w-4 text-emerald-400" />
+        </div>
+      )}
       <div className="min-w-0">
         <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</p>
         <div className="flex items-center gap-1.5 text-sm font-semibold text-white">

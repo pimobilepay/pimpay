@@ -42,6 +42,7 @@ export default function AgentBadgePage() {
           ) : (
             <AgentIdBadge
               name={agent.name}
+              agentId={agent.agentId || undefined}
               code={code}
               avatar={agent.avatar}
               qrValue={qrValue}

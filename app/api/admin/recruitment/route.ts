@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
           avatar: true,
           city: true,
           country: true,
+          agentId: true,
           status: true,
           kycStatus: true,
           createdAt: true,
@@ -120,22 +121,39 @@ export async function POST(req: NextRequest) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
+      // Attribue un identifiant agent séquentiel (PMB-AGT-000001) si l'utilisateur
+      // n'en possède pas déjà un. Le numéro suit le plus grand ID déjà attribué.
+      let nextAgentId = user.agentId;
+      if (!nextAgentId) {
+        const existing = await prisma.user.findMany({
+          where: { agentId: { not: null } },
+          select: { agentId: true },
+        });
+        let max = 0;
+        for (const a of existing) {
+          const n = parseInt((a.agentId || "").replace(/\D/g, ""), 10);
+          if (!Number.isNaN(n) && n > max) max = n;
+        }
+        nextAgentId = `PMB-AGT-${String(max + 1).padStart(6, "0")}`;
+      }
+
       const updated = await prisma.user.update({
         where: { id: userId },
         data: {
           role: UserRole.AGENT,
           status: UserStatus.ACTIVE,
+          agentId: nextAgentId,
         },
-        select: { id: true, name: true, email: true, role: true, status: true },
+        select: { id: true, name: true, email: true, role: true, status: true, agentId: true },
       });
 
       await logSystemEvent({
         level: "INFO",
         source: "RECRUITMENT",
         action: "AGENT_PROMOTED",
-        message: `Utilisateur ${user.email} promu agent par admin ${payload.id}`,
+        message: `Utilisateur ${user.email} promu agent (${nextAgentId}) par admin ${payload.id}`,
         userId: payload.id,
-        details: { targetUserId: userId, previousRole: user.role },
+        details: { targetUserId: userId, previousRole: user.role, agentId: nextAgentId },
       });
 
       return NextResponse.json({ success: true, user: updated });

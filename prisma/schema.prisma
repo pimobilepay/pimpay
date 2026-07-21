@@ -37,6 +37,7 @@ model User {
   kycVerifiedAt        DateTime?
   kycReason            String?
   referralCode         String?          @unique @default(cuid())
+  agentId              String?          @unique
   referredById         String?
   dailyLimit           Float            @default(1000)
   monthlyLimit         Float            @default(10000)

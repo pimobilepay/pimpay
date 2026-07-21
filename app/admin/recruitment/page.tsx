@@ -13,6 +13,7 @@ import {
   BarChart2, Activity, Calendar, Hash,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
+import { resolveCountry } from "@/lib/country";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ interface Agent {
   avatar: string | null;
   city: string | null;
   country: string | null;
+  agentId: string | null;
   status: AgentStatus;
   kycStatus: string;
   createdAt: string;
@@ -114,11 +116,16 @@ function AgentRow({ agent, onAction, onView }: {
     >
       {/* Avatar */}
       <div
-        className="w-10 h-10 rounded-2xl flex items-center justify-center text-[11px] font-black flex-shrink-0 cursor-pointer"
+        className="w-10 h-10 rounded-2xl overflow-hidden flex items-center justify-center text-[11px] font-black flex-shrink-0 cursor-pointer"
         style={{ background: `hsl(${(agent.name || agent.email || "").charCodeAt(0) * 17 % 360}, 50%, 20%)`, border: "1.5px solid rgba(255,255,255,0.08)" }}
         onClick={() => onView(agent)}
       >
-        {initials(agent.name, agent.email)}
+        {agent.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={agent.avatar} alt={agent.name || "Agent"} className="w-full h-full object-cover" />
+        ) : (
+          initials(agent.name, agent.email)
+        )}
       </div>
 
       {/* Info */}
@@ -235,39 +242,66 @@ function AgentDrawer({ agent, onClose, onAction }: {
             <div className="p-5 space-y-5">
               {/* Avatar + name */}
               <div className="flex items-center gap-4">
-                <div
-                  className="w-16 h-16 rounded-3xl flex items-center justify-center text-lg font-black"
-                  style={{ background: `hsl(${(agent.name || agent.email || "").charCodeAt(0) * 17 % 360}, 50%, 20%)`, border: "2px solid rgba(255,255,255,0.08)" }}
-                >
-                  {initials(agent.name, agent.email)}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-base font-black text-white">{agent.name || agent.username || "—"}</p>
-                    {agent.kycStatus === "VERIFIED" && <BadgeCheck size={14} className="text-blue-400" />}
+                <div className="relative flex-shrink-0">
+                  <div
+                    className="w-20 h-20 rounded-3xl overflow-hidden flex items-center justify-center text-2xl font-black"
+                    style={{ background: `hsl(${(agent.name || agent.email || "").charCodeAt(0) * 17 % 360}, 50%, 20%)`, border: "2px solid rgba(255,255,255,0.08)" }}
+                  >
+                    {agent.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={agent.avatar} alt={agent.name || "Agent"} className="w-full h-full object-cover" />
+                    ) : (
+                      initials(agent.name, agent.email)
+                    )}
                   </div>
-                  <div className={`mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${cfg.bg} ${cfg.color}`}>
+                  {agent.kycStatus === "VERIFIED" && (
+                    <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#070d1a] bg-blue-500">
+                      <BadgeCheck size={12} className="text-white" />
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-lg font-black text-white truncate">{agent.name || agent.username || "—"}</p>
+                  <div className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${cfg.bg} ${cfg.color}`}>
                     {cfg.icon} {cfg.label}
                   </div>
                 </div>
               </div>
 
+              {/* Agent ID */}
+              <div className="rounded-2xl border border-blue-500/25 bg-blue-500/[0.06] px-4 py-3 flex items-center gap-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-500/15">
+                  <BadgeCheck size={16} className="text-blue-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-black uppercase tracking-[2px] text-blue-400">ID Agent</p>
+                  <p className="font-mono text-base font-black text-white truncate">
+                    {agent.agentId || "Non attribué"}
+                  </p>
+                </div>
+              </div>
+
               {/* Info grid */}
-              <div className="space-y-2">
+              <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
                 {[
-                  { icon: <Mail size={12} />, label: "Email", value: agent.email },
-                  { icon: <Phone size={12} />, label: "Téléphone", value: agent.phone },
-                  { icon: <Hash size={12} />, label: "Username", value: agent.username ? `@${agent.username}` : null },
-                  { icon: <MapPin size={12} />, label: "Ville", value: agent.city },
-                  { icon: <Globe size={12} />, label: "Pays", value: agent.country },
-                  { icon: <Calendar size={12} />, label: "Inscription", value: new Date(agent.createdAt).toLocaleDateString("fr-FR") },
-                  { icon: <Activity size={12} />, label: "Dernière connexion", value: timeSince(agent.lastLoginAt) },
-                  { icon: <Wallet size={12} />, label: "Solde", value: agent.wallet?.balance !== undefined ? `${agent.wallet.balance.toLocaleString("fr")} FCFA` : "—" },
-                ].map(({ icon, label, value }) => value ? (
-                  <div key={label} className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                    <span className="text-slate-500 flex-shrink-0">{icon}</span>
-                    <span className="text-[10px] text-slate-500 w-24 flex-shrink-0">{label}</span>
-                    <span className="text-[11px] font-bold text-white truncate">{value}</span>
+                  { icon: <Mail size={13} />, label: "Email", value: agent.email },
+                  { icon: <Phone size={13} />, label: "Téléphone", value: agent.phone },
+                  { icon: <Hash size={13} />, label: "Username", value: agent.username ? `@${agent.username}` : null },
+                  { icon: <MapPin size={13} />, label: "Ville", value: agent.city },
+                  { icon: <Globe size={13} />, label: "Pays", value: resolveCountry(agent.country).label, flagIso: resolveCountry(agent.country).iso },
+                  { icon: <Calendar size={13} />, label: "Inscription", value: new Date(agent.createdAt).toLocaleDateString("fr-FR") },
+                  { icon: <Activity size={13} />, label: "Dernière connexion", value: timeSince(agent.lastLoginAt) },
+                  { icon: <Wallet size={13} />, label: "Solde", value: `${(agent.wallet?.balance ?? 0).toLocaleString("fr")} FCFA` },
+                ].map(({ icon, label, value, flagIso }) => value ? (
+                  <div key={label} className="flex items-center gap-3 px-3.5 py-3">
+                    {flagIso ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`https://flagcdn.com/w80/${flagIso}.png`} alt="" aria-hidden="true" className="h-6 w-6 flex-shrink-0 rounded-md border border-white/10 object-cover" />
+                    ) : (
+                      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-white/5 text-slate-400">{icon}</span>
+                    )}
+                    <span className="text-[10px] text-slate-500 flex-shrink-0">{label}</span>
+                    <span className="ml-auto text-right text-[11px] font-bold text-white truncate">{value}</span>
                   </div>
                 ) : null)}
               </div>

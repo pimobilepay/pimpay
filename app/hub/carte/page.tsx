@@ -80,6 +80,7 @@ export default function AgentCartePage() {
         <div className="flex justify-center">
           <AgentProfileCard
             name={agent.name}
+            agentId={agent.agentId || undefined}
             code={code}
             role={agent.agentRole}
             avatar={agent.avatar}

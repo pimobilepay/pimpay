@@ -276,7 +276,7 @@ export function AgentIdBadge({
                     </div>
                   )}
                 </div>
-                <span className="absolute -bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#050b16] bg-emerald-500 shadow-lg">
+                <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#050b16] bg-emerald-500 shadow-lg">
                   <ShieldCheck className="h-5 w-5 text-white" strokeWidth={2.5} />
                 </span>
               </div>
@@ -350,7 +350,7 @@ export function AgentIdBadge({
                     {row.flag && (
                       <CountryFlag
                         iso={resolvedCountry.iso}
-                        className="h-6 w-9 shrink-0 rounded-sm border border-white/10 object-cover"
+                        className="h-8 w-8 shrink-0 rounded-md border border-white/10 object-cover"
                       />
                     )}
                     {row.shield && (
