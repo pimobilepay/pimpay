@@ -93,29 +93,16 @@ function CountryFlag({ iso, className = "" }: { iso: string; className?: string 
   );
 }
 
-/** Marque "P" PIMOBIPAY : stem blanc + boucle bleue + pixels (accent tech). */
+/** Marque "P" PIMOBIPAY (extraite du logo officiel). */
 function PimobiPMark({ className = "", mono = false }: { className?: string; mono?: boolean }) {
-  const bowl = mono ? "#ffffff" : "#2563eb";
-  const stem = mono ? "#ffffff" : "#ffffff";
-  const dot1 = mono ? "rgba(255,255,255,0.95)" : "#2563eb";
-  const dot2 = mono ? "rgba(255,255,255,0.75)" : "#38bdf8";
-  const dot3 = mono ? "rgba(255,255,255,0.55)" : "#1d4ed8";
   return (
-    <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
-      <g transform="skewX(-11)">
-        {/* pixels (accent tech en haut a gauche) */}
-        <rect x="8" y="6" width="13" height="13" rx="2.5" fill={dot1} />
-        <rect x="24" y="1" width="8" height="8" rx="1.5" fill={dot2} />
-        <rect x="1" y="23" width="6" height="6" rx="1.5" fill={dot3} />
-        {/* Boucle bleue du P */}
-        <path
-          fill={bowl}
-          d="M42 24 H62 A23 23 0 0 1 62 70 H42 V54 H58 A7 7 0 0 0 58 40 H42 Z"
-        />
-        {/* Barre verticale blanche du P */}
-        <rect x="24" y="24" width="18" height="74" rx="2" fill={stem} />
-      </g>
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={mono ? "/pimpay-p-white.png" : "/pimpay-p.png"}
+      alt="PimobiPay"
+      crossOrigin="anonymous"
+      className={`${className} object-contain`}
+    />
   );
 }
 
@@ -241,7 +228,7 @@ export function AgentIdBadge({
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <div className="flex flex-wrap items-start justify-center gap-6">
+      <div className="flex flex-wrap items-stretch justify-center gap-6">
         {/* ============ FRONT ============ */}
         <div className="flex flex-col items-center gap-2">
           <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1 text-xs font-black uppercase tracking-widest text-emerald-400">
@@ -452,7 +439,7 @@ function BadgeLanyard({ children }: { children: React.ReactNode }) {
       {/* Clip */}
       <div className="-mt-1 h-4 w-8 rounded-sm border border-slate-400/40 bg-slate-300/20" />
       {/* Card */}
-      <div className="-mt-1 h-[600px] w-full overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#050b16] p-1 shadow-2xl shadow-black/40">
+      <div className="-mt-1 min-h-[600px] w-full self-stretch overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#050b16] p-1 shadow-2xl shadow-black/40">
         {children}
       </div>
     </div>
