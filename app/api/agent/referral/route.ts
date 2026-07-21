@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
         avatar: true,
         referralCode: true,
         agentRole: true,
+        createdAt: true,
       },
     });
 
@@ -97,9 +98,11 @@ export async function GET(req: NextRequest) {
         name: agent.name || agent.username,
         username: agent.username,
         phone: agent.phone,
+        email: agent.email,
         avatar: agent.avatar,
         agentRole: agent.agentRole,
         referralCode: code,
+        createdAt: agent.createdAt,
       },
       referralLink,
       stats: {
