@@ -19,12 +19,15 @@ import {
   History,
   UserCheck,
   PiggyBank,
+  Package,
 } from "lucide-react";
 
 const navItems = [
   { href: "/hub", label: "Tableau de bord", icon: LayoutDashboard },
   { href: "/hub/transactions", label: "Transactions", icon: ArrowRightLeft },
   { href: "/hub/customers", label: "Clients", icon: Users },
+  { href: "/hub/referral", label: "Parrainage & QR", icon: QrCode },
+  { href: "/hub/toolkit", label: "Kit Terrain", icon: Package },
   { href: "/hub/float", label: "Float & Liquidite", icon: PiggyBank },
   { href: "/hub/history", label: "Historique", icon: History },
   { href: "/hub/reports", label: "Rapports", icon: FileText },

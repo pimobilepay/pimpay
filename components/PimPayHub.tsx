@@ -32,8 +32,11 @@ import {
   BadgeCheck,
   ImageIcon,
   ChevronLeft,
-  Star
+  Star,
+  Package,
+  Share2
 } from 'lucide-react'
+import Link from 'next/link'
 import { AgentSidebar } from '@/components/hub/AgentSidebar'
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import useSWR from 'swr'
@@ -987,6 +990,36 @@ export default function PimPayHub() {
                   <span className="font-semibold">Scan Customer QR</span>
                 </Button>
               </motion.div>
+
+              {/* Quick access: Parrainage & Kit Terrain */}
+              <div className="grid grid-cols-2 gap-3">
+                <Link href="/hub/referral">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <GlassCard className="p-4 flex items-center gap-3 cursor-pointer hover:border-emerald-500/30 transition-colors">
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 shrink-0">
+                        <Share2 className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">Mon QR & Parrainage</p>
+                        <p className="text-xs text-muted-foreground truncate">Code & lien de partage</p>
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+                </Link>
+                <Link href="/hub/toolkit">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <GlassCard className="p-4 flex items-center gap-3 cursor-pointer hover:border-blue-500/30 transition-colors">
+                      <div className="p-2.5 rounded-xl bg-blue-500/10 shrink-0">
+                        <Package className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">Kit Terrain</p>
+                        <p className="text-xs text-muted-foreground truncate">Guides & visuels</p>
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+                </Link>
+              </div>
             </div>
 
             {/* Agent Analytics */}
