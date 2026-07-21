@@ -33,43 +33,87 @@ interface AgentIdBadgeProps {
   partnerLabel?: string;
 }
 
-/** Petit drapeau République du Congo (diagonale vert / jaune / rouge). */
-function CongoFlag({ className = "" }: { className?: string }) {
+/** Table de correspondance pays -> libellé + code ISO (drapeau). */
+const COUNTRY_MAP: Record<string, { label: string; iso: string }> = {
+  cg: { label: "République du Congo", iso: "cg" },
+  "republique du congo": { label: "République du Congo", iso: "cg" },
+  "congo": { label: "République du Congo", iso: "cg" },
+  "congo-brazzaville": { label: "République du Congo", iso: "cg" },
+  cd: { label: "RD Congo", iso: "cd" },
+  "rd congo": { label: "RD Congo", iso: "cd" },
+  "republique democratique du congo": { label: "RD Congo", iso: "cd" },
+  cm: { label: "Cameroun", iso: "cm" },
+  cameroun: { label: "Cameroun", iso: "cm" },
+  ga: { label: "Gabon", iso: "ga" },
+  gabon: { label: "Gabon", iso: "ga" },
+  cf: { label: "Centrafrique", iso: "cf" },
+  centrafrique: { label: "Centrafrique", iso: "cf" },
+  td: { label: "Tchad", iso: "td" },
+  tchad: { label: "Tchad", iso: "td" },
+  ci: { label: "Côte d'Ivoire", iso: "ci" },
+  "cote d'ivoire": { label: "Côte d'Ivoire", iso: "ci" },
+  sn: { label: "Sénégal", iso: "sn" },
+  senegal: { label: "Sénégal", iso: "sn" },
+  ml: { label: "Mali", iso: "ml" },
+  mali: { label: "Mali", iso: "ml" },
+  bf: { label: "Burkina Faso", iso: "bf" },
+  "burkina faso": { label: "Burkina Faso", iso: "bf" },
+  bj: { label: "Bénin", iso: "bj" },
+  benin: { label: "Bénin", iso: "bj" },
+  tg: { label: "Togo", iso: "tg" },
+  togo: { label: "Togo", iso: "tg" },
+  ng: { label: "Nigeria", iso: "ng" },
+  nigeria: { label: "Nigeria", iso: "ng" },
+  fr: { label: "France", iso: "fr" },
+  france: { label: "France", iso: "fr" },
+};
+
+function resolveCountry(input?: string | null): { label: string; iso: string } {
+  if (!input) return { label: "République du Congo", iso: "cg" };
+  const key = input
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return COUNTRY_MAP[key] || { label: input, iso: "" };
+}
+
+/** Drapeau du pays de l'agent (image flagcdn, compatible export PNG/PDF). */
+function CountryFlag({ iso, className = "" }: { iso: string; className?: string }) {
+  if (!iso) return null;
   return (
-    <svg viewBox="0 0 60 40" className={className} aria-hidden="true">
-      <polygon points="0,0 24,0 0,40" fill="#009543" />
-      <polygon points="24,0 60,0 0,40 36,40" fill="#FBDE4A" />
-      <polygon points="60,0 60,40 36,40" fill="#DC241F" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://flagcdn.com/w80/${iso}.png`}
+      alt=""
+      aria-hidden="true"
+      crossOrigin="anonymous"
+      className={className}
+    />
   );
 }
 
-/** Marque "P" PIMOBIPAY : deux P italiques superposes + pixels (accent tech). */
+/** Marque "P" PIMOBIPAY : stem blanc + boucle bleue + pixels (accent tech). */
 function PimobiPMark({ className = "", mono = false }: { className?: string; mono?: boolean }) {
-  const back = mono ? "rgba(255,255,255,0.45)" : "#1d4ed8";
-  const front = mono ? "#ffffff" : "#ffffff";
-  const dot1 = mono ? "rgba(255,255,255,0.9)" : "#1d4ed8";
-  const dot2 = mono ? "rgba(255,255,255,0.7)" : "#2563eb";
-  const dot3 = mono ? "rgba(255,255,255,0.5)" : "#38bdf8";
+  const bowl = mono ? "#ffffff" : "#2563eb";
+  const stem = mono ? "#ffffff" : "#ffffff";
+  const dot1 = mono ? "rgba(255,255,255,0.95)" : "#2563eb";
+  const dot2 = mono ? "rgba(255,255,255,0.75)" : "#38bdf8";
+  const dot3 = mono ? "rgba(255,255,255,0.55)" : "#1d4ed8";
   return (
     <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
-      <g transform="skewX(-6)">
-        {/* pixels */}
-        <rect x="6" y="9" width="9" height="9" rx="1.5" fill={dot1} />
-        <rect x="17" y="3" width="6" height="6" rx="1" fill={dot2} />
-        <rect x="1" y="20" width="5" height="5" rx="1" fill={dot3} />
-        {/* P arriere */}
+      <g transform="skewX(-11)">
+        {/* pixels (accent tech en haut a gauche) */}
+        <rect x="8" y="6" width="13" height="13" rx="2.5" fill={dot1} />
+        <rect x="24" y="1" width="8" height="8" rx="1.5" fill={dot2} />
+        <rect x="1" y="23" width="6" height="6" rx="1.5" fill={dot3} />
+        {/* Boucle bleue du P */}
         <path
-          fillRule="evenodd"
-          fill={back}
-          d="M28 16 H60 A25 25 0 0 1 60 66 H45 V94 H28 Z M45 33 H56 A8 8 0 0 1 56 49 H45 Z"
+          fill={bowl}
+          d="M42 24 H62 A23 23 0 0 1 62 70 H42 V54 H58 A7 7 0 0 0 58 40 H42 Z"
         />
-        {/* P avant */}
-        <path
-          fillRule="evenodd"
-          fill={front}
-          d="M23 13 H55 A25 25 0 0 1 55 63 H40 V91 H23 Z M40 30 H51 A8 8 0 0 1 51 46 H40 Z"
-        />
+        {/* Barre verticale blanche du P */}
+        <rect x="24" y="24" width="18" height="74" rx="2" fill={stem} />
       </g>
     </svg>
   );
@@ -78,13 +122,11 @@ function PimobiPMark({ className = "", mono = false }: { className?: string; mon
 function BrandHeader() {
   return (
     <div className="flex flex-col items-center">
-      <div className="flex items-center gap-1.5">
-        <PimobiPMark className="h-9 w-9" />
-        <p className="text-2xl font-black tracking-tight">
-          <span className="text-white">PIMOBI</span>
-          <span className="text-sky-500">PAY</span>
-        </p>
-      </div>
+      <PimobiPMark className="h-14 w-14" />
+      <p className="mt-1.5 text-2xl font-black tracking-tight leading-none">
+        <span className="text-white">PIMOBI</span>
+        <span className="text-sky-500">PAY</span>
+      </p>
       <div className="mt-1 flex w-full items-center justify-center gap-2">
         <span className="h-px w-6 bg-slate-600" />
         <p className="text-[9px] font-bold uppercase tracking-[4px] text-slate-400">Technologies</p>
@@ -103,7 +145,7 @@ export function AgentIdBadge({
   qrValue,
   phone = "+242 06 123 45 67",
   email = "aimard.swana@pimobipay.com",
-  country = "République du Congo",
+  country,
   joinDate = "15 / 07 / 2024",
   level = "Gold Agent",
   partnerLabel = "Official Partner",
@@ -185,11 +227,13 @@ export function AgentIdBadge({
     }
   };
 
+  const resolvedCountry = resolveCountry(country);
+
   const backRows = [
     { icon: UserRound, label: "Nom", value: name },
     { icon: Phone, label: "Téléphone", value: phone || "—" },
     { icon: Mail, label: "Email", value: email || "—", small: true },
-    { icon: Globe, label: "Pays", value: country, flag: true },
+    { icon: Globe, label: "Pays", value: resolvedCountry.label, flag: true },
     { icon: Calendar, label: "Date d'inscription", value: joinDate },
     { icon: Award, label: "Niveau Actuel", value: level, shield: true },
     { icon: BarChart3, label: "Statut", value: "ACTIF", dot: true },
@@ -298,7 +342,12 @@ export function AgentIdBadge({
                         {row.value}
                       </p>
                     </div>
-                    {row.flag && <CongoFlag className="h-6 w-9 shrink-0 rounded-sm border border-white/10" />}
+                    {row.flag && (
+                      <CountryFlag
+                        iso={resolvedCountry.iso}
+                        className="h-6 w-9 shrink-0 rounded-sm border border-white/10 object-cover"
+                      />
+                    )}
                     {row.shield && (
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15">
                         <ShieldCheck className="h-5 w-5 text-amber-400" />

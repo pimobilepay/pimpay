@@ -47,6 +47,7 @@ export default function AgentBadgePage() {
               qrValue={qrValue}
               phone={agent.phone}
               email={agent.email}
+              country={agent.country || undefined}
               joinDate={joinDate}
             />
           )}
