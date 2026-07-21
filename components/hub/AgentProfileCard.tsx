@@ -64,7 +64,31 @@ interface AgentProfileCardProps {
     countries: string;
     successRate: string;
   };
+  achievements?: { key: string; earned: boolean }[];
 }
+
+const ACHIEVEMENT_META: Record<
+  string,
+  { icon: React.ComponentType<{ className?: string }>; label: string; ring: string; bg: string; color: string }
+> = {
+  first_referral: { icon: Star, label: "Premier\nRéférent", ring: "border-emerald-500/60", bg: "bg-emerald-500/10", color: "text-emerald-400" },
+  referrals_100: { icon: Users, label: "100\nRéférences", ring: "border-sky-500/60", bg: "bg-sky-500/10", color: "text-sky-400" },
+  transactions_500: { icon: Award, label: "500\nTransactions", ring: "border-fuchsia-500/60", bg: "bg-fuchsia-500/10", color: "text-fuchsia-400" },
+  merchants_100: { icon: Store, label: "100\nCommerçants", ring: "border-amber-500/60", bg: "bg-amber-500/10", color: "text-amber-400" },
+  top_seller: { icon: Flame, label: "Top\nSeller", ring: "border-orange-500/60", bg: "bg-orange-500/10", color: "text-orange-400" },
+  regional_ambassador: { icon: Crown, label: "Ambassadeur\nRégional", ring: "border-rose-500/60", bg: "bg-rose-500/10", color: "text-rose-400" },
+  elite_partner: { icon: Gem, label: "Elite\nPartner", ring: "border-teal-500/60", bg: "bg-teal-500/10", color: "text-teal-400" },
+};
+
+const DEFAULT_ACHIEVEMENTS = [
+  { key: "first_referral", earned: false },
+  { key: "referrals_100", earned: false },
+  { key: "transactions_500", earned: false },
+  { key: "merchants_100", earned: false },
+  { key: "top_seller", earned: false },
+  { key: "regional_ambassador", earned: false },
+  { key: "elite_partner", earned: false },
+];
 
 const defaultStats = {
   references: "1,584",
@@ -94,6 +118,7 @@ export function AgentProfileCard({
   progress = 78,
   rank = "#12 Top Performer",
   stats = defaultStats,
+  achievements = DEFAULT_ACHIEVEMENTS,
 }: AgentProfileCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState<"png" | "pdf" | null>(null);
@@ -192,15 +217,10 @@ export function AgentProfileCard({
     { icon: Fingerprint, label: "Partenaire\nSécurisé" },
   ];
 
-  const achievements = [
-    { icon: Star, label: "Premier\nRéférent", ring: "border-emerald-500/60", bg: "bg-emerald-500/10", color: "text-emerald-400" },
-    { icon: Users, label: "100\nRéférences", ring: "border-sky-500/60", bg: "bg-sky-500/10", color: "text-sky-400" },
-    { icon: Award, label: "500\nTransactions", ring: "border-fuchsia-500/60", bg: "bg-fuchsia-500/10", color: "text-fuchsia-400" },
-    { icon: Store, label: "100\nCommerçants", ring: "border-amber-500/60", bg: "bg-amber-500/10", color: "text-amber-400" },
-    { icon: Flame, label: "Top\nSeller", ring: "border-orange-500/60", bg: "bg-orange-500/10", color: "text-orange-400" },
-    { icon: Crown, label: "Ambassadeur\nRégional", ring: "border-rose-500/60", bg: "bg-rose-500/10", color: "text-rose-400" },
-    { icon: Gem, label: "Elite\nPartner", ring: "border-teal-500/60", bg: "bg-teal-500/10", color: "text-teal-400" },
-  ];
+  const achievementItems = (achievements.length ? achievements : DEFAULT_ACHIEVEMENTS)
+    .map((a) => ({ ...ACHIEVEMENT_META[a.key], earned: a.earned }))
+    .filter((a) => a.icon);
+  const earnedCount = achievementItems.filter((a) => a.earned).length;
 
   return (
     <div className="flex flex-col items-center gap-5">
@@ -381,14 +401,38 @@ export function AgentProfileCard({
 
         {/* Achievements */}
         <div className="mt-4">
-          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-emerald-500">Vos Réalisations</p>
+          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-emerald-500">
+            Vos Réalisations
+            <span className="ml-2 text-slate-500">
+              {earnedCount}/{achievementItems.length}
+            </span>
+          </p>
           <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-7">
-            {achievements.map((a) => (
+            {achievementItems.map((a) => (
               <div key={a.label} className="flex flex-col items-center gap-1.5 text-center">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border-2 ${a.ring} ${a.bg}`}>
-                  <a.icon className={`h-6 w-6 ${a.color}`} />
+                <div
+                  className={`relative flex h-12 w-12 items-center justify-center rounded-2xl border-2 ${
+                    a.earned ? `${a.ring} ${a.bg}` : "border-white/5 bg-white/[0.02]"
+                  }`}
+                >
+                  <a.icon className={`h-6 w-6 ${a.earned ? a.color : "text-slate-600"}`} />
+                  {a.earned ? (
+                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500">
+                      <Check className="h-2.5 w-2.5 text-white" strokeWidth={4} />
+                    </span>
+                  ) : (
+                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-white/10 bg-slate-800">
+                      <Lock className="h-2 w-2 text-slate-500" />
+                    </span>
+                  )}
                 </div>
-                <p className="whitespace-pre-line text-[10px] font-bold leading-tight text-slate-300">{a.label}</p>
+                <p
+                  className={`whitespace-pre-line text-[10px] font-bold leading-tight ${
+                    a.earned ? "text-slate-300" : "text-slate-600"
+                  }`}
+                >
+                  {a.label}
+                </p>
               </div>
             ))}
           </div>

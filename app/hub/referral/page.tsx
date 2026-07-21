@@ -4,7 +4,6 @@ import { useState } from "react";
 import useSWR from "swr";
 import { QRCodeSVG } from "qrcode.react";
 import { HubShell } from "@/components/hub/HubShell";
-import { AgentProfileCard } from "@/components/hub/AgentProfileCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,42 +17,9 @@ import {
   Clock,
   QrCode,
   Link2,
-  BadgeCheck,
 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-/** Paliers d'agent basés sur le nombre de filleuls inscrits. */
-const AGENT_TIERS = [
-  { name: "BRONZE AGENT", min: 0, target: 10, next: "SILVER AGENT" },
-  { name: "SILVER AGENT", min: 10, target: 25, next: "GOLD AGENT" },
-  { name: "GOLD AGENT", min: 25, target: 50, next: "PLATINUM AGENT" },
-  { name: "PLATINUM AGENT", min: 50, target: 100, next: "ELITE AGENT" },
-  { name: "ELITE AGENT", min: 100, target: null as number | null, next: null as string | null },
-];
-
-function getAgentTier(count: number) {
-  let current = AGENT_TIERS[0];
-  for (const t of AGENT_TIERS) {
-    if (count >= t.min) current = t;
-  }
-  if (current.target === null) {
-    return {
-      level: current.name,
-      levelSubtitle: "Niveau le plus élevé",
-      nextLevel: current.name,
-      progress: 100,
-    };
-  }
-  const span = current.target - current.min;
-  const progress = Math.min(100, Math.max(0, Math.round(((count - current.min) / span) * 100)));
-  return {
-    level: current.name,
-    levelSubtitle: `${count} filleul${count > 1 ? "s" : ""} recruté${count > 1 ? "s" : ""}`,
-    nextLevel: current.next || current.name,
-    progress,
-  };
-}
 
 export default function AgentReferralPage() {
   const { data, isLoading } = useSWR("/api/agent/referral", fetcher);
@@ -65,12 +31,6 @@ export default function AgentReferralPage() {
   const code = agent?.referralCode || "";
   const referralLink = data?.referralLink || "";
   const qrValue = referralLink || code;
-
-  const joinDate = agent?.createdAt
-    ? new Date(agent.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : "—";
-
-  const tier = getAgentTier(stats.totalReferred || 0);
 
   const shareText = `Rejoignez PIMOBIPAY avec mon code agent ${code} et commencez a envoyer/recevoir de l'argent facilement ! Inscription : ${referralLink}`;
 
@@ -242,38 +202,6 @@ export default function AgentReferralPage() {
           </CardContent>
         </Card>
 
-      </div>
-
-      {/* Full official profile card */}
-      <div className="mt-6">
-        <CardTitle className="mb-4 flex items-center justify-center gap-2 text-lg font-black text-white">
-          <BadgeCheck className="h-5 w-5 text-emerald-500" />
-          Ma Carte Agent Officiel
-        </CardTitle>
-        {isLoading || !agent ? (
-          <div className="flex justify-center">
-            <Skeleton className="h-[900px] w-full max-w-[520px] rounded-[2rem] bg-slate-700" />
-          </div>
-        ) : (
-          <div className="flex justify-center">
-            <AgentProfileCard
-              name={agent.name}
-              code={code}
-              role={agent.agentRole}
-              avatar={agent.avatar}
-              qrValue={qrValue}
-              referralLink={referralLink}
-              phone={agent.phone}
-              email={agent.email}
-              country={agent.country || undefined}
-              joinDate={joinDate}
-              level={tier.level}
-              levelSubtitle={tier.levelSubtitle}
-              nextLevel={tier.nextLevel}
-              progress={tier.progress}
-            />
-          </div>
-        )}
       </div>
     </HubShell>
   );
