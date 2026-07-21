@@ -152,6 +152,7 @@
   },
   "pnpm": {
     "overrides": {
+      "axios": ">=1.18.0",
       "body-parser": ">=2.3.0",
       "secp256k1": ">=3.8.1",
       "valibot": ">=1.2.0",
