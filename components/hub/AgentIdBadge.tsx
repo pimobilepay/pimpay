@@ -154,6 +154,14 @@ export function AgentIdBadge({
       ? toPng(node, { cacheBust: true, pixelRatio: 3, backgroundColor: "#050b16" })
       : Promise.resolve(null);
 
+  const imageSize = (dataUrl: string) =>
+    new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+
   const handleDownloadPng = async () => {
     try {
       setDownloading("png");
@@ -193,10 +201,25 @@ export function AgentIdBadge({
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const cardW = 80;
-      const cardH = cardW * (1035 / 620); // ratio du badge
+      const margin = 12;
       const gap = 10;
       const cards = [front, back].filter(Boolean) as string[];
+
+      // Utilise le ratio réel de l'image capturée pour éviter toute déformation.
+      const sizes = await Promise.all(cards.map((d) => imageSize(d)));
+      const ratio = sizes[0] ? sizes[0].height / sizes[0].width : 1035 / 620;
+
+      // Largeur d'une carte : tient dans la page en tenant compte des marges et de l'écart.
+      const availableW = pageWidth - margin * 2 - gap * (cards.length - 1);
+      let cardW = availableW / cards.length;
+      let cardH = cardW * ratio;
+      // Si la hauteur dépasse la page, on borne par la hauteur.
+      const maxH = pageHeight - margin * 2;
+      if (cardH > maxH) {
+        cardH = maxH;
+        cardW = cardH / ratio;
+      }
+
       const totalW = cardW * cards.length + gap * (cards.length - 1);
       const startX = (pageWidth - totalW) / 2;
       const y = (pageHeight - cardH) / 2;
@@ -287,15 +310,10 @@ export function AgentIdBadge({
               </p>
 
               {/* Trust icons */}
-              <div className="mt-4 grid w-full grid-cols-3 gap-1 px-1">
+              <div className="mt-4 mb-6 grid w-full grid-cols-3 gap-1 px-1">
                 <TrustItem icon={ShieldCheck} label={"Verified\nAgent"} />
                 <TrustItem icon={Lock} label={"Secure\nTransactions"} />
                 <TrustItem icon={Handshake} label={"Trusted\nPartner"} />
-              </div>
-
-              {/* Footer */}
-              <div className="mt-auto -mx-5 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-sky-500 py-2.5">
-                <p className="text-xs font-bold text-white">www.pimobipay.com</p>
               </div>
             </div>
           </BadgeLanyard>
@@ -355,14 +373,9 @@ export function AgentIdBadge({
               </div>
 
               {/* Code agent */}
-              <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
+              <div className="mt-3 mb-6 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
                 <p className="text-[10px] font-black uppercase tracking-[2px] text-emerald-500">Code Agent</p>
                 <p className="mt-0.5 break-all font-mono text-sm font-bold text-white">{code}</p>
-              </div>
-
-              {/* Footer */}
-              <div className="mt-auto -mx-5 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-sky-500 py-2.5">
-                <p className="text-xs font-bold text-white">Support: support@pimobipay.com</p>
               </div>
             </div>
           </BadgeLanyard>
