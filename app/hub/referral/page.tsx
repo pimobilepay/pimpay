@@ -4,7 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { QRCodeSVG } from "qrcode.react";
 import { HubShell } from "@/components/hub/HubShell";
-import { AgentBadge } from "@/components/hub/AgentBadge";
+import { AgentProfileCard } from "@/components/hub/AgentProfileCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,25 +212,41 @@ export default function AgentReferralPage() {
               Mon Badge Virtuel
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {isLoading || !agent ? (
-              <div className="flex justify-center">
-                <Skeleton className="h-[420px] w-[280px] rounded-[2rem] bg-slate-700" />
-              </div>
-            ) : (
-              <AgentBadge
-                name={agent.name}
-                code={code}
-                role={agent.agentRole}
-                avatar={agent.avatar}
-                qrValue={qrValue}
-              />
-            )}
-            <p className="mt-4 text-center text-xs text-slate-500">
-              Telechargez votre badge officiel au format PNG ou PDF pour vous identifier sur le terrain.
-            </p>
+          <CardContent className="flex flex-col items-center justify-center text-center">
+            <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3">
+              <BadgeCheck className="h-12 w-12 text-emerald-500" />
+              <p className="max-w-xs text-sm text-slate-400">
+                Votre carte d&apos;agent officiel complète est disponible ci-dessous. Téléchargez-la en PNG ou PDF
+                pour vous identifier sur le terrain.
+              </p>
+            </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Full official profile card */}
+      <div className="mt-6">
+        <CardTitle className="mb-4 flex items-center justify-center gap-2 text-lg font-black text-white">
+          <BadgeCheck className="h-5 w-5 text-emerald-500" />
+          Ma Carte Agent Officiel
+        </CardTitle>
+        {isLoading || !agent ? (
+          <div className="flex justify-center">
+            <Skeleton className="h-[900px] w-full max-w-[520px] rounded-[2rem] bg-slate-700" />
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <AgentProfileCard
+              name={agent.name}
+              code={code}
+              role={agent.agentRole}
+              avatar={agent.avatar}
+              qrValue={qrValue}
+              referralLink={referralLink}
+              phone={agent.phone}
+            />
+          </div>
+        )}
       </div>
     </HubShell>
   );
