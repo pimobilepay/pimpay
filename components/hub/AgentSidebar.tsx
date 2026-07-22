@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import useSWR from "swr";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -21,7 +22,10 @@ import {
   UserCheck,
   PiggyBank,
   Package,
+  ShieldCheck,
 } from "lucide-react";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const navItems = [
   { href: "/hub", label: "Tableau de bord", icon: LayoutDashboard },
@@ -38,6 +42,9 @@ const navItems = [
   { href: "/hub/settings", label: "Parametres", icon: Settings },
 ];
 
+// Lien réservé aux superviseurs, inséré après "Clients"
+const supervisorNavItem = { href: "/hub/supervisor", label: "Supervision", icon: ShieldCheck };
+
 interface AgentSidebarProps {
   isMobile?: boolean;
 }
@@ -45,6 +52,19 @@ interface AgentSidebarProps {
 export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { data: dashboard } = useSWR("/api/agent/dashboard", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const isSupervisor = dashboard?.agent?.agentRole === "SUPERVISOR";
+
+  // Insère le lien "Supervision" juste après "Clients" pour les superviseurs
+  const items = isSupervisor
+    ? [
+        ...navItems.slice(0, 3),
+        supervisorNavItem,
+        ...navItems.slice(3),
+      ]
+    : navItems;
 
   // For mobile, we don't want the fixed positioning or collapse functionality
   if (isMobile) {
@@ -54,12 +74,16 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
         <div className="mx-4 mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 text-sm font-black text-emerald-500 uppercase">
-              AG
+              {isSupervisor ? "SV" : "AG"}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs font-bold text-white">Agent Partner</p>
-                <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+                <p className="text-xs font-bold text-white">{isSupervisor ? "Superviseur" : "Agent Partner"}</p>
+                {isSupervisor ? (
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+                )}
               </div>
               <p className="text-[9px] font-bold text-emerald-500/70 uppercase tracking-wider">Compte verifie</p>
             </div>
@@ -68,7 +92,7 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
 
         {/* Navigation */}
         <nav className="mt-6 space-y-1 px-3 flex-1">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -136,12 +160,16 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
         <div className="mx-4 mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 text-sm font-black text-emerald-500 uppercase">
-              AG
+              {isSupervisor ? "SV" : "AG"}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs font-bold text-white">Agent Partner</p>
-                <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+                <p className="text-xs font-bold text-white">{isSupervisor ? "Superviseur" : "Agent Partner"}</p>
+                {isSupervisor ? (
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+                )}
               </div>
               <p className="text-[9px] font-bold text-emerald-500/70 uppercase tracking-wider">Compte verifie</p>
             </div>
@@ -151,7 +179,7 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
 
       {/* Navigation */}
       <nav className="mt-6 space-y-1 px-3">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
