@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
     // Génère l'URL de parrainage publique
     const origin = req.nextUrl.origin;
     const code = agent.referralCode || agent.username || agent.id;
-    const referralLink = `${origin}/register?ref=${encodeURIComponent(code)}`;
+    const referralLink = `${origin}/auth/signup?ref=${encodeURIComponent(code)}`;
 
     return NextResponse.json({
       success: true,
