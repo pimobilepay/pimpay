@@ -24,6 +24,18 @@ const partners = [
     bgColor: "bg-black",
     wide: true,
   },
+  {
+    name: "PawaPay",
+    logo: "/pawapay.svg",
+    bgColor: "bg-white",
+    wide: true,
+  },
+  {
+    name: "GeniusPay",
+    logo: "/geniuspay.svg",
+    bgColor: "bg-black",
+    wide: true,
+  },
 ];
 
 // Duplicate list for seamless loop
