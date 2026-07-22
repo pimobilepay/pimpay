@@ -6,7 +6,7 @@ import {
   CheckCircle, XCircle, Eye, User,
   Calendar, MapPin, Shield, Search,
   Clock, AlertCircle, ArrowRight, Loader2, ArrowLeft, RefreshCw,
-  BadgeCheck, Ban, FileText, Phone, Mail, Globe, Briefcase
+  BadgeCheck, Ban, FileText, Phone, Mail, Globe, Briefcase, ShieldCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import ImageLightbox from "@/components/ImageLightbox";
@@ -44,6 +44,7 @@ interface KYCUser {
 interface KYCStats {
   total: number;
   pendingCount: number;
+  approvedCount: number;
   verifiedCount: number;
   rejectedCount: number;
 }
@@ -51,12 +52,13 @@ interface KYCStats {
 export default function AdminKYCPage() {
   const router = useRouter();
   const [pendingUsers, setPendingUsers] = useState<KYCUser[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<KYCUser[]>([]);
   const [verifiedUsers, setVerifiedUsers] = useState<KYCUser[]>([]);
   const [rejectedUsers, setRejectedUsers] = useState<KYCUser[]>([]);
   const [stats, setStats] = useState<KYCStats | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<KYCUser | null>(null);
-  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "rejected">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "verified" | "rejected">("pending");
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -84,6 +86,7 @@ export default function AdminKYCPage() {
       if (res.ok) {
         const data = await res.json();
         setPendingUsers(data.pending || []);
+        setApprovedUsers(data.approved || []);
         setVerifiedUsers(data.verified || []);
         setRejectedUsers(data.rejected || []);
         setStats(data.stats);
@@ -99,6 +102,7 @@ export default function AdminKYCPage() {
   const getCurrentList = () => {
     let list: KYCUser[] = [];
     if (activeTab === "pending") list = pendingUsers;
+    else if (activeTab === "approved") list = approvedUsers;
     else if (activeTab === "verified") list = verifiedUsers;
     else list = rejectedUsers;
 
@@ -184,9 +188,10 @@ export default function AdminKYCPage() {
       <div className="p-4 md:p-6 max-w-7xl mx-auto">
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             <StatCard icon={<FileText size={16} />} label="Total KYC" value={stats.total} color="blue" />
             <StatCard icon={<Clock size={16} />} label="En Attente" value={stats.pendingCount} color="amber" />
+            <StatCard icon={<ShieldCheck size={16} />} label="Pre-valides" value={stats.approvedCount ?? 0} color="sky" />
             <StatCard icon={<BadgeCheck size={16} />} label="Valides" value={stats.verifiedCount} color="emerald" />
             <StatCard icon={<Ban size={16} />} label="Rejetes" value={stats.rejectedCount} color="rose" />
           </div>
@@ -204,6 +209,17 @@ export default function AdminKYCPage() {
             label="En Attente"
             count={pendingUsers.length}
             color="amber"
+          />
+          <TabButton
+            active={activeTab === "approved"}
+            onClick={() => {
+              setActiveTab("approved");
+              setSelectedUser(null);
+            }}
+            icon={<ShieldCheck size={14} />}
+            label="Pre-valides"
+            count={approvedUsers.length}
+            color="sky"
           />
           <TabButton
             active={activeTab === "verified"}
@@ -246,9 +262,11 @@ export default function AdminKYCPage() {
           <div className="lg:col-span-1 space-y-4">
             <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
               {activeTab === "pending" && <Clock size={12} />}
+              {activeTab === "approved" && <ShieldCheck size={12} />}
               {activeTab === "verified" && <BadgeCheck size={12} />}
               {activeTab === "rejected" && <Ban size={12} />}
               {activeTab === "pending" && "Demandes en attente"}
+              {activeTab === "approved" && "Pre-valides par superviseur"}
               {activeTab === "verified" && "KYC Valides"}
               {activeTab === "rejected" && "KYC Rejetes"}
               <span className="ml-auto text-slate-600">({filteredList.length})</span>
@@ -321,8 +339,18 @@ export default function AdminKYCPage() {
                   </div>
                 </div>
 
-                {/* Actions - seulement pour les PENDING */}
-                {activeTab === "pending" && (
+                {/* Bandeau info pour les dossiers pré-validés par un superviseur */}
+                {activeTab === "approved" && (
+                  <div className="p-4 rounded-2xl border bg-sky-600/10 border-sky-600/30 text-sky-300 flex items-center gap-3">
+                    <ShieldCheck size={20} />
+                    <span className="text-xs font-black uppercase tracking-wider">
+                      Dossier pre-valide par un superviseur — validation finale requise
+                    </span>
+                  </div>
+                )}
+
+                {/* Actions - pour les dossiers PENDING et PRE-VALIDES (APPROVED) */}
+                {(activeTab === "pending" || activeTab === "approved") && (
                   <div className="bg-slate-900/50 p-6 rounded-3xl border border-white/5 flex flex-col md:flex-row gap-4 items-end">
                     <div className="flex-1 w-full space-y-2">
                       <label className="text-[9px] font-black text-rose-500 uppercase ml-2">Motif du rejet (obligatoire si rejet)</label>
@@ -347,14 +375,14 @@ export default function AdminKYCPage() {
                         className="h-14 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-blue-600/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
                       >
                         {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                        Approuver
+                        {activeTab === "approved" ? "Validation finale" : "Approuver"}
                       </button>
                     </div>
                   </div>
                 )}
 
                 {/* Badge de statut pour verified/rejected */}
-                {activeTab !== "pending" && (
+                {(activeTab === "verified" || activeTab === "rejected") && (
                   <div
                     className={`p-4 rounded-2xl border flex items-center justify-center gap-3 ${
                       activeTab === "verified"
@@ -400,6 +428,7 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
   const colors: Record<string, string> = {
     blue: "bg-blue-600/10 border-blue-600/20 text-blue-500",
     amber: "bg-amber-600/10 border-amber-600/20 text-amber-500",
+    sky: "bg-sky-600/10 border-sky-600/20 text-sky-400",
     emerald: "bg-emerald-600/10 border-emerald-600/20 text-emerald-500",
     rose: "bg-rose-600/10 border-rose-600/20 text-rose-500",
   };
@@ -429,6 +458,7 @@ function TabButton({
 }) {
   const colors: Record<string, { active: string; inactive: string }> = {
     amber: { active: "bg-amber-600 text-white", inactive: "bg-amber-600/10 text-amber-500 border-amber-600/20" },
+    sky: { active: "bg-sky-600 text-white", inactive: "bg-sky-600/10 text-sky-400 border-sky-600/20" },
     emerald: { active: "bg-emerald-600 text-white", inactive: "bg-emerald-600/10 text-emerald-500 border-emerald-600/20" },
     rose: { active: "bg-rose-600 text-white", inactive: "bg-rose-600/10 text-rose-500 border-rose-600/20" },
   };
@@ -460,10 +490,17 @@ function UserCard({
 }) {
   const statusColors: Record<string, string> = {
     VERIFIED: "text-emerald-500",
-    APPROVED: "text-emerald-500",
+    APPROVED: "text-sky-400",
     REJECTED: "text-rose-500",
     PENDING: "text-amber-500",
   };
+
+  const statusLabel =
+    user.kycStatus === "APPROVED"
+      ? "Pre-valide"
+      : user.kycStatus === "VERIFIED"
+      ? "Valide"
+      : "Rejete";
 
   return (
     <div
@@ -491,7 +528,7 @@ function UserCard({
         <div className="flex flex-col items-end gap-1">
           {showStatus && (
             <span className={`text-[8px] font-black uppercase ${statusColors[user.kycStatus]}`}>
-              {user.kycStatus === "VERIFIED" || user.kycStatus === "APPROVED" ? "Valide" : "Rejete"}
+              {statusLabel}
             </span>
           )}
           <ArrowRight size={16} className={isSelected ? "text-blue-500" : "text-slate-700"} />

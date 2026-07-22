@@ -57,17 +57,24 @@ export async function GET(req: NextRequest) {
     });
 
     // Séparer les utilisateurs par statut
+    //  - PENDING  : soumis, en attente d'un superviseur
+    //  - APPROVED : pré-validé par un superviseur, en attente de validation finale admin
+    //  - VERIFIED : validation finale accordée par l'admin
+    //  - REJECTED : refusé
     const pending = users.filter((u) => u.kycStatus === "PENDING");
-    const verified = users.filter((u) => u.kycStatus === "VERIFIED" || u.kycStatus === "APPROVED");
+    const approved = users.filter((u) => u.kycStatus === "APPROVED");
+    const verified = users.filter((u) => u.kycStatus === "VERIFIED");
     const rejected = users.filter((u) => u.kycStatus === "REJECTED");
 
     return NextResponse.json({
       pending,
+      approved,
       verified,
       rejected,
       stats: {
         total: users.length,
         pendingCount: pending.length,
+        approvedCount: approved.length,
         verifiedCount: verified.length,
         rejectedCount: rejected.length,
       },

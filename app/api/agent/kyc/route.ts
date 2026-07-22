@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
-import { grantReferrerBonusIfEligible } from "@/app/api/referral/route";
+import { sendNotification } from "@/lib/notifications";
 
 /** Vérifie que l'utilisateur est bien un agent SUPERVISOR */
 async function supervisorAuth(req: NextRequest) {
@@ -91,18 +91,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
     }
 
+    // Flux à deux niveaux :
+    //  - Le superviseur PRÉ-VALIDE un dossier -> statut "APPROVED"
+    //    (le KYC n'est PAS encore actif ; il attend la validation finale de l'admin)
+    //  - Le superviseur peut rejeter -> statut "REJECTED"
+    // La validation finale (statut "VERIFIED") et le bonus de parrainage
+    // sont accordés uniquement par l'administrateur (voir /api/admin/kyc/verify).
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        kycStatus: status === "APPROVED" ? "VERIFIED" : "REJECTED",
-        kycVerifiedAt: status === "APPROVED" ? new Date() : null,
+        kycStatus: status === "APPROVED" ? "APPROVED" : "REJECTED",
         kycReason: status === "REJECTED" ? (reason || "Rejeté par superviseur agent") : null,
       },
     });
 
-    // Accorder bonus parrainage si KYC approuvé
-    if (status === "APPROVED") {
-      await grantReferrerBonusIfEligible(userId);
+    // Notifier l'utilisateur du résultat de la pré-validation
+    try {
+      if (status === "APPROVED") {
+        await sendNotification({
+          userId,
+          title: "KYC pré-validé",
+          message:
+            "Votre dossier d'identité a été pré-validé par un superviseur. Il est maintenant en attente de la validation finale de l'administration.",
+          type: "INFO",
+          metadata: { status: "APPROVED" },
+        });
+      } else {
+        await sendNotification({
+          userId,
+          title: "KYC refusé",
+          message: reason
+            ? `Votre vérification d'identité a été refusée. Motif : ${reason}. Veuillez soumettre à nouveau votre dossier.`
+            : "Votre vérification d'identité a été refusée. Veuillez soumettre à nouveau votre dossier.",
+          type: "warning",
+          metadata: { status: "REJECTED", reason: reason || undefined },
+        });
+      }
+    } catch (notifErr) {
+      console.error("[AGENT_KYC_NOTIFY]", notifErr);
     }
 
     // Log de l'action
@@ -110,14 +136,17 @@ export async function POST(req: NextRequest) {
       data: {
         adminId: agent.id,
         adminName: agent.name || agent.username || "Superviseur",
-        action: status === "APPROVED" ? "KYC_APPROVED_BY_SUPERVISOR" : "KYC_REJECTED_BY_SUPERVISOR",
+        action: status === "APPROVED" ? "KYC_PREVALIDATED_BY_SUPERVISOR" : "KYC_REJECTED_BY_SUPERVISOR",
         details: JSON.stringify({ userId, status, reason, supervisorId: agent.id }),
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: status === "APPROVED" ? "KYC approuvé avec succès" : "KYC rejeté",
+      message:
+        status === "APPROVED"
+          ? "KYC pré-validé — en attente de validation finale par l'administration"
+          : "KYC rejeté",
       user: { id: updatedUser.id, kycStatus: updatedUser.kycStatus },
     });
   } catch (error) {

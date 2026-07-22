@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
           : undefined;
     }
 
-    const [rawAgents, total, stats, totalAgents] = await Promise.all([
+    const [rawAgents, total, stats, totalAgents, supervisorsCount] = await Promise.all([
       prisma.user.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
           city: true,
           country: true,
           agentId: true,
+          agentRole: true,
           status: true,
           kycStatus: true,
           createdAt: true,
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest) {
         _count: true,
       }),
       prisma.user.count({ where: { role: UserRole.AGENT } }),
+      prisma.user.count({ where: { role: UserRole.AGENT, agentRole: "SUPERVISOR" } }),
     ]);
 
     // Normalize: expose first wallet balance as wallet.balance
@@ -113,6 +115,7 @@ export async function GET(req: NextRequest) {
       pending: stats.find((s) => s.status === UserStatus.PENDING)?._count || 0,
       banned: stats.find((s) => s.status === UserStatus.BANNED)?._count || 0,
       suspended: stats.find((s) => s.status === UserStatus.SUSPENDED)?._count || 0,
+      supervisors: supervisorsCount,
     };
 
     return NextResponse.json({
@@ -303,6 +306,66 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json({ success: true, user: updated, message: `ID mis à jour : ${raw}` });
+    }
+
+    // ACTION: changer le rôle agent (AGENT <-> SUPERVISOR)
+    if (action === "setAgentRole" && userId) {
+      const { newRole } = body;
+      if (!["AGENT", "SUPERVISOR"].includes(newRole)) {
+        return NextResponse.json({ error: "Rôle agent invalide" }, { status: 400 });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, role: true, agentRole: true },
+      });
+      if (!user) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
+      if (user.role !== UserRole.AGENT) {
+        return NextResponse.json(
+          { error: "Seul un agent peut devenir superviseur" },
+          { status: 400 },
+        );
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { agentRole: newRole },
+        select: { id: true, name: true, email: true, role: true, agentRole: true },
+      });
+
+      // Notifier l'agent de son changement de rôle
+      try {
+        await sendNotification({
+          userId,
+          title: newRole === "SUPERVISOR" ? "Promotion superviseur" : "Rôle mis à jour",
+          message:
+            newRole === "SUPERVISOR"
+              ? "Félicitations ! Vous êtes désormais superviseur. Vous avez accès à la supervision de votre équipe et à la pré-validation des dossiers KYC."
+              : "Votre rôle superviseur a été retiré. Vous conservez votre statut d'agent.",
+          type: newRole === "SUPERVISOR" ? "SUCCESS" : "INFO",
+          metadata: { agentRole: newRole },
+        });
+      } catch (notifErr) {
+        console.error("[RECRUITMENT_ROLE_NOTIFY]", notifErr);
+      }
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "RECRUITMENT",
+        action: "AGENT_ROLE_CHANGED",
+        message: `Agent ${updated.email} → rôle ${newRole} (précédent : ${user.agentRole || "AGENT"}) par admin ${payload.id}`,
+        userId: payload.id,
+        details: { targetUserId: userId, newRole, previousRole: user.agentRole },
+      });
+
+      return NextResponse.json({
+        success: true,
+        user: updated,
+        message:
+          newRole === "SUPERVISOR"
+            ? "Agent promu superviseur"
+            : "Rôle superviseur retiré",
+      });
     }
 
     // ACTION: demote agent back to USER
