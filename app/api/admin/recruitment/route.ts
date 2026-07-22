@@ -6,14 +6,20 @@ import { adminAuth } from "@/lib/adminAuth";
 import { UserRole, UserStatus } from "@prisma/client";
 import { logSystemEvent } from "@/lib/systemLogger";
 
-// ─── Helper: génère le prochain identifiant agent séquentiel (PMB-AGT-000001) ───
-// Suit le plus grand numéro déjà attribué afin de garantir l'unicité.
+// Les identifiants PMB-AGT-000001 → PMB-AGT-000099 sont réservés au staff
+// technique / admin. L'attribution automatique commence donc à 100.
+const AGENT_ID_RESERVED_MAX = 99;
+const AGENT_ID_REGEX = /^PMB-AGT-\d{6}$/;
+
+// ─── Helper: génère le prochain identifiant agent séquentiel (PMB-AGT-000100…) ───
+// Suit le plus grand numéro déjà attribué afin de garantir l'unicité,
+// tout en sautant la plage réservée au staff.
 async function generateAgentId(): Promise<string> {
   const existing = await prisma.user.findMany({
     where: { agentId: { not: null } },
     select: { agentId: true },
   });
-  let max = 0;
+  let max = AGENT_ID_RESERVED_MAX;
   for (const a of existing) {
     const n = parseInt((a.agentId || "").replace(/\D/g, ""), 10);
     if (!Number.isNaN(n) && n > max) max = n;
@@ -237,6 +243,66 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json({ success: true, user: updated, message: `ID attribué : ${newAgentId}` });
+    }
+
+    // ACTION: définir / modifier manuellement l'identifiant agent
+    if (action === "setAgentId" && userId) {
+      const raw = (body.agentId ?? "").toString().trim().toUpperCase();
+
+      // Une valeur vide efface l'identifiant (remet à "Non attribué").
+      if (!raw) {
+        const cleared = await prisma.user.update({
+          where: { id: userId },
+          data: { agentId: null },
+          select: { id: true, name: true, email: true, agentId: true },
+        });
+        await logSystemEvent({
+          level: "WARN",
+          source: "RECRUITMENT",
+          action: "AGENT_ID_CLEARED",
+          message: `Identifiant agent effacé pour ${cleared.email} par admin ${payload.id}`,
+          userId: payload.id,
+          details: { targetUserId: userId },
+        });
+        return NextResponse.json({ success: true, user: cleared, message: "Identifiant effacé" });
+      }
+
+      // Validation du format PMB-AGT-XXXXXX.
+      if (!AGENT_ID_REGEX.test(raw)) {
+        return NextResponse.json(
+          { error: "Format invalide. Attendu : PMB-AGT-000000" },
+          { status: 400 },
+        );
+      }
+
+      // Vérifie l'unicité (hors utilisateur courant).
+      const clash = await prisma.user.findFirst({
+        where: { agentId: raw, id: { not: userId } },
+        select: { email: true },
+      });
+      if (clash) {
+        return NextResponse.json(
+          { error: `Identifiant déjà utilisé par ${clash.email}` },
+          { status: 409 },
+        );
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { agentId: raw },
+        select: { id: true, name: true, email: true, agentId: true },
+      });
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "RECRUITMENT",
+        action: "AGENT_ID_SET",
+        message: `Identifiant agent défini manuellement (${raw}) pour ${updated.email} par admin ${payload.id}`,
+        userId: payload.id,
+        details: { targetUserId: userId, agentId: raw },
+      });
+
+      return NextResponse.json({ success: true, user: updated, message: `ID mis à jour : ${raw}` });
     }
 
     // ACTION: demote agent back to USER

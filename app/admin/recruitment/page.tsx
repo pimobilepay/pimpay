@@ -10,7 +10,7 @@ import {
   CheckCircle2, XCircle, Clock, Ban, Star, MapPin, Phone, Mail,
   TrendingUp, Wallet, BadgeCheck, AlertTriangle, Loader2,
   Send, Eye, ArrowUpDown, Download, UserMinus, Zap, Globe,
-  BarChart2, Activity, Calendar, Hash,
+  BarChart2, Activity, Calendar, Hash, Pencil,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { resolveCountry } from "@/lib/country";
@@ -279,13 +279,31 @@ function AgentDrawer({ agent, onClose, onAction }: {
                     {agent.agentId || "Non attribué"}
                   </p>
                 </div>
-                {!agent.agentId && (
+                {agent.agentId ? (
                   <button
-                    onClick={() => onAction(agent, "assignAgentId")}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                    onClick={() => onAction(agent, "setAgentId")}
+                    title="Modifier l'identifiant"
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
                   >
-                    <Hash size={12} /> Attribuer
+                    <Pencil size={12} /> Modifier
                   </button>
+                ) : (
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={() => onAction(agent, "assignAgentId")}
+                      title="Attribuer automatiquement"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                    >
+                      <Hash size={12} /> Auto
+                    </button>
+                    <button
+                      onClick={() => onAction(agent, "setAgentId")}
+                      title="Saisir manuellement"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                    >
+                      <Pencil size={12} /> Manuel
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -467,15 +485,18 @@ function ActionModal({
   agent: Agent | null;
   action: string;
   onClose: () => void;
-  onConfirm: (reason?: string) => void;
+  onConfirm: (reason?: string, agentId?: string) => void;
 }) {
   const [reason, setReason] = useState("");
+  const [agentIdInput, setAgentIdInput] = useState(agent?.agentId || "");
   if (!agent) return null;
 
   const needsReason = action.includes("suspended") || action.includes("banned");
+  const isSetAgentId = action === "setAgentId";
   const labels: Record<string, { title: string; desc: string; btnColor: string; btnLabel: string }> = {
     "setStatus:active":    { title: "Activer l'agent",  desc: `Activer le compte de ${agent.name || agent.email} ?`,      btnColor: "bg-emerald-600 hover:bg-emerald-500", btnLabel: "Activer" },
     assignAgentId:         { title: "Attribuer un ID",  desc: `Générer et attribuer un identifiant agent à ${agent.name || agent.email} ?`, btnColor: "bg-blue-600 hover:bg-blue-500",   btnLabel: "Attribuer" },
+    setAgentId:            { title: "Identifiant agent", desc: `Définir manuellement l'identifiant de ${agent.name || agent.email}.`, btnColor: "bg-blue-600 hover:bg-blue-500",   btnLabel: "Enregistrer" },
     "setStatus:suspended": { title: "Suspendre",         desc: `Suspendre temporairement ${agent.name || agent.email} ?`,  btnColor: "bg-orange-600 hover:bg-orange-500",  btnLabel: "Suspendre" },
     "setStatus:banned":    { title: "Bannir l'agent",    desc: `Bannir définitivement ${agent.name || agent.email} ?`,     btnColor: "bg-red-600 hover:bg-red-500",        btnLabel: "Bannir" },
     sendWelcome:           { title: "Message de bienvenue", desc: `Envoyer un email de bienvenue à ${agent.email} ?`,     btnColor: "bg-blue-600 hover:bg-blue-500",      btnLabel: "Envoyer" },
@@ -500,11 +521,28 @@ function ActionModal({
             className="w-full mb-4 px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] rounded-2xl text-[11px] text-white placeholder-slate-600 outline-none resize-none"
           />
         )}
+        {isSetAgentId && (
+          <div className="mb-4">
+            <input
+              value={agentIdInput}
+              onChange={(e) => setAgentIdInput(e.target.value.toUpperCase())}
+              placeholder="PMB-AGT-000000"
+              spellCheck={false}
+              className="w-full px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] rounded-2xl text-[13px] font-mono font-bold tracking-wider text-white placeholder-slate-600 outline-none focus:border-blue-500/50"
+            />
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+              Format <span className="font-mono text-slate-400">PMB-AGT-000000</span>. Les numéros
+              <span className="font-mono text-slate-400"> 000001</span> à
+              <span className="font-mono text-slate-400"> 000099</span> sont réservés au staff technique.
+              Laisser vide pour effacer l&apos;identifiant.
+            </p>
+          </div>
+        )}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-[11px] font-bold text-slate-400 hover:bg-white/10 transition-colors">
             Annuler
           </button>
-          <button onClick={() => onConfirm(reason || undefined)}
+          <button onClick={() => onConfirm(reason || undefined, isSetAgentId ? agentIdInput.trim() : undefined)}
             className={`flex-1 py-3 rounded-2xl text-[11px] font-black text-white transition-colors ${cfg.btnColor}`}>
             {cfg.btnLabel}
           </button>
@@ -584,7 +622,7 @@ export default function RecruitmentPage() {
     setActionModal({ agent, action });
   };
 
-  const confirmAction = async (reason?: string) => {
+  const confirmAction = async (reason?: string, agentId?: string) => {
     if (!actionModal) return;
     const { agent, action } = actionModal;
     setProcessing(true);
@@ -595,6 +633,8 @@ export default function RecruitmentPage() {
 
       if (action.startsWith("setStatus:")) {
         body = { ...body, action: "setStatus", newStatus: action.split(":")[1], reason };
+      } else if (action === "setAgentId") {
+        body = { ...body, action, agentId: agentId ?? "" };
       } else {
         body = { ...body, action };
       }
@@ -832,6 +872,7 @@ export default function RecruitmentPage() {
       <AnimatePresence>
         {actionModal && (
           <ActionModal
+            key={`${actionModal.agent.id}:${actionModal.action}`}
             agent={actionModal.agent}
             action={actionModal.action}
             onClose={() => setActionModal(null)}
