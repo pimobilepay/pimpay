@@ -723,15 +723,13 @@ export default function PimPayHub() {
     }
   }
 
-  const handleOpenKyc = () => {
-    // Verification stricte: seuls les superviseurs peuvent acceder au KYC
-    if (!isSupervisor) {
-      console.warn('[PimPayHub] Acces KYC refuse - utilisateur non superviseur')
-      return
+  // Charge le nombre de KYC en attente pour afficher le badge sur la carte Supervision
+  React.useEffect(() => {
+    if (isSupervisor) {
+      fetchKycList()
     }
-    setKycModalOpen(true)
-    fetchKycList()
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSupervisor])
 
   const handleKycDecision = async (userId: string, status: 'APPROVED' | 'REJECTED') => {
     setKycProcessing(true)
@@ -1159,31 +1157,35 @@ export default function PimPayHub() {
             {/* Security & Tools */}
             <div className="grid grid-cols-3 gap-3">
               <motion.div whileHover={{ scale: isSupervisor ? 1.05 : 1 }} whileTap={{ scale: isSupervisor ? 0.95 : 1 }}>
-                <GlassCard
-                  className={`p-4 flex flex-col items-center justify-center gap-2 transition-colors ${
-                    isSupervisor
-                      ? 'cursor-pointer hover:border-emerald-500/30'
-                      : 'cursor-not-allowed opacity-50'
-                  }`}
-                  onClick={isSupervisor ? handleOpenKyc : undefined}
-                >
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 relative">
-                    <UserCheck className="h-5 w-5 text-emerald-600" />
-                    {!isSupervisor && (
+                {isSupervisor ? (
+                  <Link href="/hub/supervisor" className="block">
+                    <GlassCard className="p-4 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer hover:border-emerald-500/30">
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 relative">
+                        <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                        {kycList.length > 0 && (
+                          <div className="absolute -top-1 -right-1 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center">
+                            <span className="text-[9px] font-bold text-white">{kycList.length > 9 ? '9+' : kycList.length}</span>
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs font-medium text-center text-muted-foreground">
+                        Supervision
+                      </span>
+                    </GlassCard>
+                  </Link>
+                ) : (
+                  <GlassCard className="p-4 flex flex-col items-center justify-center gap-2 transition-colors cursor-not-allowed opacity-50">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 relative">
+                      <UserCheck className="h-5 w-5 text-emerald-600" />
                       <div className="absolute -top-1 -right-1 bg-slate-700 rounded-full p-0.5">
                         <Lock className="h-2.5 w-2.5 text-slate-300" />
                       </div>
-                    )}
-                    {isSupervisor && kycList.length > 0 && (
-                      <div className="absolute -top-1 -right-1 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center">
-                        <span className="text-[9px] font-bold text-white">{kycList.length > 9 ? '9+' : kycList.length}</span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs font-medium text-center text-muted-foreground">
-                    {isSupervisor ? 'KYC' : 'KYC 🔒'}
-                  </span>
-                </GlassCard>
+                    </div>
+                    <span className="text-xs font-medium text-center text-muted-foreground">
+                      KYC 🔒
+                    </span>
+                  </GlassCard>
+                )}
               </motion.div>
 
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
