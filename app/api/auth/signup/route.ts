@@ -53,13 +53,24 @@ export async function POST(req: Request) {
 
     // 3. TRANSACTION AVEC TIMEOUT AUGMENTÉ (20s)
     const result = await prisma.$transaction(async (tx) => {
-      // Look up the referrer if a referral code is provided
+      // Look up the referrer if a referral code is provided.
+      // The public referral link (QR code) can carry the referrer's
+      // referralCode, username, or id (see /api/agent/referral), so we
+      // resolve against all three to make sure the referral is attributed.
       let referrerId: string | null = null;
       if (referralCode) {
-        const referrer = await tx.user.findUnique({
-          where: { referralCode },
+        const code = String(referralCode).trim();
+        const referrer = await tx.user.findFirst({
+          where: {
+            OR: [
+              { referralCode: code },
+              { username: code.toLowerCase() },
+              { id: code },
+            ],
+          },
           select: { id: true },
         });
+        // Never allow self-referral
         if (referrer) referrerId = referrer.id;
       }
 
