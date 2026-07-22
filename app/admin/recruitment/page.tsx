@@ -239,7 +239,7 @@ function AgentDrawer({ agent, onClose, onAction }: {
             </div>
 
             {/* Body */}
-            <div className="p-5 space-y-5">
+            <div className="p-5 pb-32 space-y-5">
               {/* Avatar + name */}
               <div className="flex items-center gap-4">
                 <div className="relative flex-shrink-0">
@@ -273,12 +273,20 @@ function AgentDrawer({ agent, onClose, onAction }: {
                 <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-500/15">
                   <BadgeCheck size={16} className="text-blue-400" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-[8px] font-black uppercase tracking-[2px] text-blue-400">ID Agent</p>
-                  <p className="font-mono text-base font-black text-white truncate">
+                  <p className={`font-mono text-base font-black truncate ${agent.agentId ? "text-white" : "text-slate-500"}`}>
                     {agent.agentId || "Non attribué"}
                   </p>
                 </div>
+                {!agent.agentId && (
+                  <button
+                    onClick={() => onAction(agent, "assignAgentId")}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                  >
+                    <Hash size={12} /> Attribuer
+                  </button>
+                )}
               </div>
 
               {/* Info grid */}
@@ -467,6 +475,7 @@ function ActionModal({
   const needsReason = action.includes("suspended") || action.includes("banned");
   const labels: Record<string, { title: string; desc: string; btnColor: string; btnLabel: string }> = {
     "setStatus:active":    { title: "Activer l'agent",  desc: `Activer le compte de ${agent.name || agent.email} ?`,      btnColor: "bg-emerald-600 hover:bg-emerald-500", btnLabel: "Activer" },
+    assignAgentId:         { title: "Attribuer un ID",  desc: `Générer et attribuer un identifiant agent à ${agent.name || agent.email} ?`, btnColor: "bg-blue-600 hover:bg-blue-500",   btnLabel: "Attribuer" },
     "setStatus:suspended": { title: "Suspendre",         desc: `Suspendre temporairement ${agent.name || agent.email} ?`,  btnColor: "bg-orange-600 hover:bg-orange-500",  btnLabel: "Suspendre" },
     "setStatus:banned":    { title: "Bannir l'agent",    desc: `Bannir définitivement ${agent.name || agent.email} ?`,     btnColor: "bg-red-600 hover:bg-red-500",        btnLabel: "Bannir" },
     sendWelcome:           { title: "Message de bienvenue", desc: `Envoyer un email de bienvenue à ${agent.email} ?`,     btnColor: "bg-blue-600 hover:bg-blue-500",      btnLabel: "Envoyer" },

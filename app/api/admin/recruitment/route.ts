@@ -6,6 +6,21 @@ import { adminAuth } from "@/lib/adminAuth";
 import { UserRole, UserStatus } from "@prisma/client";
 import { logSystemEvent } from "@/lib/systemLogger";
 
+// ─── Helper: génère le prochain identifiant agent séquentiel (PMB-AGT-000001) ───
+// Suit le plus grand numéro déjà attribué afin de garantir l'unicité.
+async function generateAgentId(): Promise<string> {
+  const existing = await prisma.user.findMany({
+    where: { agentId: { not: null } },
+    select: { agentId: true },
+  });
+  let max = 0;
+  for (const a of existing) {
+    const n = parseInt((a.agentId || "").replace(/\D/g, ""), 10);
+    if (!Number.isNaN(n) && n > max) max = n;
+  }
+  return `PMB-AGT-${String(max + 1).padStart(6, "0")}`;
+}
+
 // ─── GET: list all agent candidates (users with AGENT role or PENDING status) ───
 export async function GET(req: NextRequest) {
   const payload = await adminAuth(req);
@@ -123,19 +138,7 @@ export async function POST(req: NextRequest) {
 
       // Attribue un identifiant agent séquentiel (PMB-AGT-000001) si l'utilisateur
       // n'en possède pas déjà un. Le numéro suit le plus grand ID déjà attribué.
-      let nextAgentId = user.agentId;
-      if (!nextAgentId) {
-        const existing = await prisma.user.findMany({
-          where: { agentId: { not: null } },
-          select: { agentId: true },
-        });
-        let max = 0;
-        for (const a of existing) {
-          const n = parseInt((a.agentId || "").replace(/\D/g, ""), 10);
-          if (!Number.isNaN(n) && n > max) max = n;
-        }
-        nextAgentId = `PMB-AGT-${String(max + 1).padStart(6, "0")}`;
-      }
+      const nextAgentId = user.agentId || (await generateAgentId());
 
       const updated = await prisma.user.update({
         where: { id: userId },
@@ -171,22 +174,69 @@ export async function POST(req: NextRequest) {
       const prismaStatus = statusMap[newStatus];
       if (!prismaStatus) return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
 
+      // Lorsqu'un agent est activé, on lui attribue un identifiant agent
+      // s'il n'en possède pas encore un.
+      let assignedAgentId: string | null = null;
+      if (prismaStatus === UserStatus.ACTIVE) {
+        const current = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { agentId: true },
+        });
+        if (current && !current.agentId) {
+          assignedAgentId = await generateAgentId();
+        }
+      }
+
       const updated = await prisma.user.update({
         where: { id: userId },
-        data: { status: prismaStatus, statusReason: reason || null },
-        select: { id: true, name: true, email: true, status: true },
+        data: {
+          status: prismaStatus,
+          statusReason: reason || null,
+          ...(assignedAgentId ? { agentId: assignedAgentId } : {}),
+        },
+        select: { id: true, name: true, email: true, status: true, agentId: true },
       });
 
       await logSystemEvent({
         level: "INFO",
         source: "RECRUITMENT",
         action: "AGENT_STATUS_CHANGED",
-        message: `Agent ${updated.email} → ${newStatus}${reason ? ` (${reason})` : ""}`,
+        message: `Agent ${updated.email} → ${newStatus}${reason ? ` (${reason})` : ""}${assignedAgentId ? ` — ID attribué ${assignedAgentId}` : ""}`,
         userId: payload.id,
-        details: { targetUserId: userId, newStatus, reason },
+        details: { targetUserId: userId, newStatus, reason, assignedAgentId },
       });
 
       return NextResponse.json({ success: true, user: updated });
+    }
+
+    // ACTION: attribuer manuellement un identifiant agent
+    if (action === "assignAgentId" && userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, agentId: true },
+      });
+      if (!user) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
+      if (user.agentId) {
+        return NextResponse.json({ success: true, user, message: "Identifiant déjà attribué" });
+      }
+
+      const newAgentId = await generateAgentId();
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { agentId: newAgentId },
+        select: { id: true, name: true, email: true, agentId: true },
+      });
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "RECRUITMENT",
+        action: "AGENT_ID_ASSIGNED",
+        message: `Identifiant ${newAgentId} attribué à l'agent ${user.email} par admin ${payload.id}`,
+        userId: payload.id,
+        details: { targetUserId: userId, agentId: newAgentId },
+      });
+
+      return NextResponse.json({ success: true, user: updated, message: `ID attribué : ${newAgentId}` });
     }
 
     // ACTION: demote agent back to USER
