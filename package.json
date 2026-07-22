@@ -16,6 +16,9 @@
     "migrate:keys": "tsc --outDir dist scripts/migrate-encrypt-keys.ts lib/crypto.ts --module commonjs --moduleResolution node --esModuleInterop true --skipLibCheck true && ENCRYPTION_KEY=$ENCRYPTION_KEY node dist/scripts/migrate-encrypt-keys.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
     "@google/genai": "^2.6.0",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
