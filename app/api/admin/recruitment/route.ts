@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") || "all"; // pending | active | banned | all
+  const type = searchParams.get("type") || "all"; // terrain | administratif | all
   const search = searchParams.get("search") || "";
   const page = parseInt(searchParams.get("page") || "1");
   const limit = 20;
@@ -70,7 +71,14 @@ export async function GET(req: NextRequest) {
           : undefined;
     }
 
-    const [rawAgents, total, stats, totalAgents, supervisorsCount] = await Promise.all([
+    if (type === "terrain") {
+      // TERRAIN inclut les agents sans type défini (valeur par défaut)
+      where.OR = [{ agentType: "TERRAIN" }, { agentType: null }];
+    } else if (type === "administratif") {
+      where.agentType = "ADMINISTRATIF";
+    }
+
+    const [rawAgents, total, stats, totalAgents, supervisorsCount, administratifCount] = await Promise.all([
       prisma.user.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -87,6 +95,7 @@ export async function GET(req: NextRequest) {
           country: true,
           agentId: true,
           agentRole: true,
+          agentType: true,
           status: true,
           kycStatus: true,
           createdAt: true,
@@ -102,6 +111,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.user.count({ where: { role: UserRole.AGENT } }),
       prisma.user.count({ where: { role: UserRole.AGENT, agentRole: "SUPERVISOR" } }),
+      prisma.user.count({ where: { role: UserRole.AGENT, agentType: "ADMINISTRATIF" } }),
     ]);
 
     // Normalize: expose first wallet balance as wallet.balance
@@ -117,6 +127,8 @@ export async function GET(req: NextRequest) {
       banned: stats.find((s) => s.status === UserStatus.BANNED)?._count || 0,
       suspended: stats.find((s) => s.status === UserStatus.SUSPENDED)?._count || 0,
       supervisors: supervisorsCount,
+      administratif: administratifCount,
+      terrain: totalAgents - administratifCount,
     };
 
     return NextResponse.json({
@@ -365,6 +377,59 @@ export async function POST(req: NextRequest) {
           newRole === "SUPERVISOR"
             ? "Agent promu superviseur"
             : "Rôle superviseur retiré",
+      });
+    }
+
+    // ACTION: changer le type d'agent (TERRAIN <-> ADMINISTRATIF)
+    if (action === "setAgentType" && userId) {
+      const { newType } = body;
+      if (!["TERRAIN", "ADMINISTRATIF"].includes(newType)) {
+        return NextResponse.json({ error: "Type d'agent invalide" }, { status: 400 });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, role: true, agentType: true },
+      });
+      if (!user) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
+      if (user.role !== UserRole.AGENT) {
+        return NextResponse.json({ error: "Seul un agent possède un type" }, { status: 400 });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { agentType: newType },
+        select: { id: true, name: true, email: true, agentType: true },
+      });
+
+      // Notifier l'agent de son changement de type
+      try {
+        await sendNotification({
+          userId,
+          title: "Type d'agent mis à jour",
+          message:
+            newType === "TERRAIN"
+              ? "Vous êtes désormais un agent de terrain. Vous gérez les opérations cash-in / cash-out sur le terrain."
+              : "Vous êtes désormais un agent administratif. Vous gérez les opérations de back-office et le suivi des dossiers.",
+          type: "info",
+        });
+      } catch (notifErr) {
+        console.error("[RECRUITMENT_TYPE_NOTIFY]", notifErr);
+      }
+
+      await logSystemEvent({
+        level: "INFO",
+        source: "RECRUITMENT",
+        action: "AGENT_TYPE_CHANGED",
+        message: `Agent ${updated.email} → type ${newType} (précédent : ${user.agentType || "TERRAIN"}) par admin ${payload.id}`,
+        userId: payload.id,
+        details: { targetUserId: userId, newType, previousType: user.agentType },
+      });
+
+      return NextResponse.json({
+        success: true,
+        user: updated,
+        message: newType === "TERRAIN" ? "Agent défini comme agent de terrain" : "Agent défini comme agent administratif",
       });
     }
 

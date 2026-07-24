@@ -44,6 +44,8 @@ interface Stats {
   banned: number;
   suspended: number;
   supervisors: number;
+  terrain: number;
+  administratif: number;
 }
 
 interface Candidate {
@@ -60,6 +62,7 @@ interface Candidate {
 }
 
 type TabFilter = "all" | "active" | "pending" | "banned" | "suspended";
+type TypeFilter = "all" | "terrain" | "administratif";
 type SortKey = "name" | "createdAt" | "balance" | "lastLogin";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
