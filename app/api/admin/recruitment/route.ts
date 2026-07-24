@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { UserRole, UserStatus } from "@prisma/client";
 import { logSystemEvent } from "@/lib/systemLogger";
+import { sendNotification } from "@/lib/notifications";
 
 // Les identifiants PMB-AGT-000001 → PMB-AGT-000099 sont réservés au staff
 // technique / admin. L'attribution automatique commence donc à 100.
@@ -342,8 +343,7 @@ export async function POST(req: NextRequest) {
             newRole === "SUPERVISOR"
               ? "Félicitations ! Vous êtes désormais superviseur. Vous avez accès à la supervision de votre équipe et à la pré-validation des dossiers KYC."
               : "Votre rôle superviseur a été retiré. Vous conservez votre statut d'agent.",
-          type: newRole === "SUPERVISOR" ? "SUCCESS" : "INFO",
-          metadata: { agentRole: newRole },
+          type: newRole === "SUPERVISOR" ? "success" : "info",
         });
       } catch (notifErr) {
         console.error("[RECRUITMENT_ROLE_NOTIFY]", notifErr);

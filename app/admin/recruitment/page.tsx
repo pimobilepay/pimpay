@@ -10,7 +10,7 @@ import {
   CheckCircle2, XCircle, Clock, Ban, Star, MapPin, Phone, Mail,
   TrendingUp, Wallet, BadgeCheck, AlertTriangle, Loader2,
   Send, Eye, ArrowUpDown, Download, UserMinus, Zap, Globe,
-  BarChart2, Activity, Calendar, Hash, Pencil,
+  BarChart2, Activity, Calendar, Hash, Pencil, Crown,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { resolveCountry } from "@/lib/country";
@@ -29,6 +29,7 @@ interface Agent {
   city: string | null;
   country: string | null;
   agentId: string | null;
+  agentRole: "AGENT" | "SUPERVISOR" | null;
   status: AgentStatus;
   kycStatus: string;
   createdAt: string;
@@ -42,6 +43,7 @@ interface Stats {
   pending: number;
   banned: number;
   suspended: number;
+  supervisors: number;
 }
 
 interface Candidate {
@@ -133,6 +135,11 @@ function AgentRow({ agent, onAction, onView }: {
         <div className="flex items-center gap-2">
           <p className="text-[12px] font-bold text-white truncate">{agent.name || agent.username || "—"}</p>
           {agent.kycStatus === "VERIFIED" && <BadgeCheck size={11} className="text-blue-400 flex-shrink-0" />}
+          {agent.agentRole === "SUPERVISOR" && (
+            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[8px] font-black uppercase tracking-wider flex-shrink-0">
+              <Crown size={8} /> Sup
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-[10px] text-slate-500 truncate">{agent.email || agent.phone || "—"}</span>
@@ -181,6 +188,8 @@ function AgentRow({ agent, onAction, onView }: {
                   { label: "Activer", icon: <CheckCircle2 size={12} className="text-emerald-400" />, action: "setStatus:active", hide: agent.status === "ACTIVE" },
                   { label: "Suspendre", icon: <ShieldOff size={12} className="text-orange-400" />, action: "setStatus:suspended", hide: agent.status === "SUSPENDED" },
                   { label: "Bannir", icon: <Ban size={12} className="text-red-400" />, action: "setStatus:banned", hide: agent.status === "BANNED" },
+                  { label: "Promouvoir superviseur", icon: <Crown size={12} className="text-amber-400" />, action: "setAgentRole:SUPERVISOR", hide: agent.agentRole === "SUPERVISOR" },
+                  { label: "Retirer superviseur", icon: <Crown size={12} className="text-slate-400" />, action: "setAgentRole:AGENT", hide: agent.agentRole !== "SUPERVISOR" },
                   { label: "Message de bienvenue", icon: <Send size={12} className="text-blue-400" />, action: "sendWelcome" },
                   { label: "Rétrograder", icon: <UserMinus size={12} className="text-slate-400" />, action: "demote" },
                 ].filter((item) => !item.hide).map((item) => (
@@ -262,8 +271,13 @@ function AgentDrawer({ agent, onClose, onAction }: {
                 </div>
                 <div className="min-w-0">
                   <p className="text-lg font-black text-white truncate">{agent.name || agent.username || "—"}</p>
-                  <div className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${cfg.bg} ${cfg.color}`}>
-                    {cfg.icon} {cfg.label}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${cfg.bg} ${cfg.color}`}>
+                      {cfg.icon} {cfg.label}
+                    </div>
+                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${agent.agentRole === "SUPERVISOR" ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-white/[0.04] border-white/10 text-slate-400"}`}>
+                      {agent.agentRole === "SUPERVISOR" ? <><Crown size={10} /> Superviseur</> : <><UserCheck size={10} /> Agent</>}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -357,6 +371,21 @@ function AgentDrawer({ agent, onClose, onAction }: {
                     className="flex items-center gap-2.5 w-full px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-bold hover:bg-red-500/20 transition-colors active:scale-95"
                   >
                     <Ban size={14} /> Bannir l'agent
+                  </button>
+                )}
+                {agent.agentRole !== "SUPERVISOR" ? (
+                  <button
+                    onClick={() => onAction(agent, "setAgentRole:SUPERVISOR")}
+                    className="flex items-center gap-2.5 w-full px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20 transition-colors active:scale-95"
+                  >
+                    <Crown size={14} /> Promouvoir superviseur
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onAction(agent, "setAgentRole:AGENT")}
+                    className="flex items-center gap-2.5 w-full px-4 py-3 rounded-2xl bg-slate-500/10 border border-slate-500/20 text-slate-300 text-[11px] font-bold hover:bg-slate-500/20 transition-colors active:scale-95"
+                  >
+                    <Crown size={14} /> Retirer le rôle superviseur
                   </button>
                 )}
                 <button
@@ -501,6 +530,8 @@ function ActionModal({
     "setStatus:banned":    { title: "Bannir l'agent",    desc: `Bannir définitivement ${agent.name || agent.email} ?`,     btnColor: "bg-red-600 hover:bg-red-500",        btnLabel: "Bannir" },
     sendWelcome:           { title: "Message de bienvenue", desc: `Envoyer un email de bienvenue à ${agent.email} ?`,     btnColor: "bg-blue-600 hover:bg-blue-500",      btnLabel: "Envoyer" },
     demote:                { title: "Rétrograder",        desc: `Retirer le rôle Agent de ${agent.name || agent.email} ?`, btnColor: "bg-slate-600 hover:bg-slate-500",    btnLabel: "Rétrograder" },
+    "setAgentRole:SUPERVISOR": { title: "Promouvoir superviseur", desc: `Promouvoir ${agent.name || agent.email} au rôle de superviseur ? Il pourra superviser son équipe et pré-valider les dossiers KYC.`, btnColor: "bg-amber-600 hover:bg-amber-500", btnLabel: "Promouvoir" },
+    "setAgentRole:AGENT":      { title: "Retirer le rôle superviseur", desc: `Retirer le rôle superviseur de ${agent.name || agent.email} ? Il conservera son statut d'agent.`, btnColor: "bg-slate-600 hover:bg-slate-500", btnLabel: "Retirer" },
   };
   const cfg = labels[action] || { title: "Confirmer", desc: "Êtes-vous sûr ?", btnColor: "bg-blue-600", btnLabel: "Confirmer" };
 
@@ -557,7 +588,7 @@ function ActionModal({
 export default function RecruitmentPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, pending: 0, banned: 0, suspended: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, pending: 0, banned: 0, suspended: 0, supervisors: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
@@ -590,7 +621,7 @@ export default function RecruitmentPage() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setAgents(data.agents || []);
-      setStats(data.stats || { total: 0, active: 0, pending: 0, banned: 0, suspended: 0 });
+      setStats(data.stats || { total: 0, active: 0, pending: 0, banned: 0, suspended: 0, supervisors: 0 });
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
     } catch {
@@ -633,6 +664,8 @@ export default function RecruitmentPage() {
 
       if (action.startsWith("setStatus:")) {
         body = { ...body, action: "setStatus", newStatus: action.split(":")[1], reason };
+      } else if (action.startsWith("setAgentRole:")) {
+        body = { ...body, action: "setAgentRole", newRole: action.split(":")[1] };
       } else if (action === "setAgentId") {
         body = { ...body, action, agentId: agentId ?? "" };
       } else {
@@ -723,8 +756,8 @@ export default function RecruitmentPage() {
         {/* ── Stats strip ── */}
         <div className="flex gap-2 mb-6 mt-2">
           <StatCard label="Total" value={stats.total} icon={<Users size={14} />} color="text-white" />
+          <StatCard label="Superviseurs" value={stats.supervisors} icon={<Crown size={14} />} color="text-amber-400" />
           <StatCard label="Actifs" value={stats.active} icon={<UserCheck size={14} />} color="text-emerald-400" />
-          <StatCard label="Attente" value={stats.pending} icon={<Clock size={14} />} color="text-amber-400" />
           <StatCard label="Suspendus" value={stats.suspended} icon={<ShieldOff size={14} />} color="text-orange-400" />
           <StatCard label="Bannis" value={stats.banned} icon={<Ban size={14} />} color="text-red-400" />
         </div>
