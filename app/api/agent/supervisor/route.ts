@@ -50,11 +50,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Équipe supervisée : agents parrainés directement par le superviseur
+    // Réseau supervisé : le superviseur (comme l'admin) voit l'ensemble des
+    // agents — agents de terrain ET agents administratifs — et non plus
+    // uniquement ceux qu'il a parrainés.
     const teamAgents = await prisma.user.findMany({
       where: {
-        referredById: supervisor.id,
         role: 'AGENT',
+        id: { not: supervisor.id },
       },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -68,6 +70,7 @@ export async function GET(req: NextRequest) {
         status: true,
         kycStatus: true,
         agentRole: true,
+        agentType: true,
         agentId: true,
         createdAt: true,
         lastLoginAt: true,
@@ -108,6 +111,8 @@ export async function GET(req: NextRequest) {
           city: a.city,
           country: a.country,
           agentId: a.agentId,
+          agentRole: a.agentRole,
+          agentType: a.agentType || 'TERRAIN',
           status: a.status,
           isActive,
           kycStatus: a.kycStatus,
@@ -125,6 +130,8 @@ export async function GET(req: NextRequest) {
     // Statistiques agrégées de l'équipe
     const totalAgents = team.length;
     const activeAgents = team.filter((a) => a.isActive).length;
+    const terrainAgents = team.filter((a) => a.agentType === 'TERRAIN').length;
+    const administratifAgents = team.filter((a) => a.agentType === 'ADMINISTRATIF').length;
     const totalFloat = team.reduce((s, a) => s + a.floatBalance, 0);
     const networkDailyVolume = team.reduce((s, a) => s + a.dailyVolume, 0);
     const networkDailyTransactions = team.reduce((s, a) => s + a.dailyTransactions, 0);
@@ -148,6 +155,8 @@ export async function GET(req: NextRequest) {
       stats: {
         totalAgents,
         activeAgents,
+        terrainAgents,
+        administratifAgents,
         totalFloat,
         networkDailyVolume,
         networkDailyTransactions,

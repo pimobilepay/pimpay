@@ -89,6 +89,7 @@ export default function AdminDashboard() {
             { label: "Hub Agent", desc: "Operations agents", icon: <Wallet size={20} />, path: "/hub", color: "cyan" },
             { label: "Messages", desc: "Messagerie admin", icon: <MessageSquare size={20} />, path: "/admin/messages", color: "rose" },
             { label: "Recrutement", desc: "Gestion agents", icon: <Users size={20} />, path: "/admin/recruitment", color: "purple" },
+            { label: "Supervision", desc: "Terrain & administratif", icon: <ShieldCheck size={20} />, path: "/hub/supervisor", color: "emerald" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
               blue: "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20",

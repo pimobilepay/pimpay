@@ -11,6 +11,7 @@ import {
   TrendingUp, Wallet, BadgeCheck, AlertTriangle, Loader2,
   Send, Eye, ArrowUpDown, Download, UserMinus, Zap, Globe,
   BarChart2, Activity, Calendar, Hash, Pencil, Crown,
+  Briefcase, Footprints,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { resolveCountry } from "@/lib/country";
@@ -30,6 +31,7 @@ interface Agent {
   country: string | null;
   agentId: string | null;
   agentRole: "AGENT" | "SUPERVISOR" | null;
+  agentType: "TERRAIN" | "ADMINISTRATIF" | null;
   status: AgentStatus;
   kycStatus: string;
   createdAt: string;
@@ -73,6 +75,11 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; bg: str
   BANNED:    { label: "Banni",     color: "text-red-400",     bg: "bg-red-500/15 border-red-500/30",       icon: <Ban size={10} /> },
   SUSPENDED: { label: "Suspendu",  color: "text-orange-400",  bg: "bg-orange-500/15 border-orange-500/30", icon: <ShieldOff size={10} /> },
   FROZEN:    { label: "Gelé",      color: "text-blue-400",    bg: "bg-blue-500/15 border-blue-500/30",     icon: <AlertTriangle size={10} /> },
+};
+
+const TYPE_CONFIG: Record<"TERRAIN" | "ADMINISTRATIF", { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  TERRAIN:       { label: "Terrain",       color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: <Footprints size={9} /> },
+  ADMINISTRATIF: { label: "Administratif", color: "text-blue-400",    bg: "bg-blue-500/15 border-blue-500/30",       icon: <Briefcase size={9} /> },
 };
 
 function initials(name: string | null, email: string | null): string {
@@ -143,6 +150,14 @@ function AgentRow({ agent, onAction, onView }: {
               <Crown size={8} /> Sup
             </span>
           )}
+          {(() => {
+            const t = TYPE_CONFIG[agent.agentType || "TERRAIN"];
+            return (
+              <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-wider flex-shrink-0 ${t.bg} ${t.color}`}>
+                {t.icon} {t.label}
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-[10px] text-slate-500 truncate">{agent.email || agent.phone || "—"}</span>
@@ -193,6 +208,8 @@ function AgentRow({ agent, onAction, onView }: {
                   { label: "Bannir", icon: <Ban size={12} className="text-red-400" />, action: "setStatus:banned", hide: agent.status === "BANNED" },
                   { label: "Promouvoir superviseur", icon: <Crown size={12} className="text-amber-400" />, action: "setAgentRole:SUPERVISOR", hide: agent.agentRole === "SUPERVISOR" },
                   { label: "Retirer superviseur", icon: <Crown size={12} className="text-slate-400" />, action: "setAgentRole:AGENT", hide: agent.agentRole !== "SUPERVISOR" },
+                  { label: "Définir agent terrain", icon: <Footprints size={12} className="text-emerald-400" />, action: "setAgentType:TERRAIN", hide: (agent.agentType || "TERRAIN") === "TERRAIN" },
+                  { label: "Définir agent administratif", icon: <Briefcase size={12} className="text-blue-400" />, action: "setAgentType:ADMINISTRATIF", hide: agent.agentType === "ADMINISTRATIF" },
                   { label: "Message de bienvenue", icon: <Send size={12} className="text-blue-400" />, action: "sendWelcome" },
                   { label: "Rétrograder", icon: <UserMinus size={12} className="text-slate-400" />, action: "demote" },
                 ].filter((item) => !item.hide).map((item) => (
@@ -281,6 +298,14 @@ function AgentDrawer({ agent, onClose, onAction }: {
                     <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${agent.agentRole === "SUPERVISOR" ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-white/[0.04] border-white/10 text-slate-400"}`}>
                       {agent.agentRole === "SUPERVISOR" ? <><Crown size={10} /> Superviseur</> : <><UserCheck size={10} /> Agent</>}
                     </div>
+                    {(() => {
+                      const t = TYPE_CONFIG[agent.agentType || "TERRAIN"];
+                      return (
+                        <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${t.bg} ${t.color}`}>
+                          {t.icon} {t.label}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -389,6 +414,21 @@ function AgentDrawer({ agent, onClose, onAction }: {
                     className="flex items-center gap-2.5 w-full px-4 py-3 rounded-2xl bg-slate-500/10 border border-slate-500/20 text-slate-300 text-[11px] font-bold hover:bg-slate-500/20 transition-colors active:scale-95"
                   >
                     <Crown size={14} /> Retirer le rôle superviseur
+                  </button>
+                )}
+                {(agent.agentType || "TERRAIN") !== "TERRAIN" ? (
+                  <button
+                    onClick={() => onAction(agent, "setAgentType:TERRAIN")}
+                    className="flex items-center gap-2.5 w-full px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors active:scale-95"
+                  >
+                    <Footprints size={14} /> Définir comme agent de terrain
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onAction(agent, "setAgentType:ADMINISTRATIF")}
+                    className="flex items-center gap-2.5 w-full px-4 py-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-bold hover:bg-blue-500/20 transition-colors active:scale-95"
+                  >
+                    <Briefcase size={14} /> Définir comme agent administratif
                   </button>
                 )}
                 <button
@@ -535,6 +575,8 @@ function ActionModal({
     demote:                { title: "Rétrograder",        desc: `Retirer le rôle Agent de ${agent.name || agent.email} ?`, btnColor: "bg-slate-600 hover:bg-slate-500",    btnLabel: "Rétrograder" },
     "setAgentRole:SUPERVISOR": { title: "Promouvoir superviseur", desc: `Promouvoir ${agent.name || agent.email} au rôle de superviseur ? Il pourra superviser son équipe et pré-valider les dossiers KYC.`, btnColor: "bg-amber-600 hover:bg-amber-500", btnLabel: "Promouvoir" },
     "setAgentRole:AGENT":      { title: "Retirer le rôle superviseur", desc: `Retirer le rôle superviseur de ${agent.name || agent.email} ? Il conservera son statut d'agent.`, btnColor: "bg-slate-600 hover:bg-slate-500", btnLabel: "Retirer" },
+    "setAgentType:TERRAIN":       { title: "Agent de terrain", desc: `Définir ${agent.name || agent.email} comme agent de terrain (cash-in / cash-out sur le terrain) ?`, btnColor: "bg-emerald-600 hover:bg-emerald-500", btnLabel: "Confirmer" },
+    "setAgentType:ADMINISTRATIF": { title: "Agent administratif", desc: `Définir ${agent.name || agent.email} comme agent administratif (back-office, gestion des dossiers) ?`, btnColor: "bg-blue-600 hover:bg-blue-500", btnLabel: "Confirmer" },
   };
   const cfg = labels[action] || { title: "Confirmer", desc: "Êtes-vous sûr ?", btnColor: "bg-blue-600", btnLabel: "Confirmer" };
 
@@ -591,11 +633,12 @@ function ActionModal({
 export default function RecruitmentPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, pending: 0, banned: 0, suspended: 0, supervisors: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, pending: 0, banned: 0, suspended: 0, supervisors: 0, terrain: 0, administratif: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -617,6 +660,7 @@ export default function RecruitmentPage() {
     try {
       const params = new URLSearchParams({
         status: activeTab,
+        type: typeFilter,
         search,
         page: String(page),
       });
@@ -624,7 +668,7 @@ export default function RecruitmentPage() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setAgents(data.agents || []);
-      setStats(data.stats || { total: 0, active: 0, pending: 0, banned: 0, suspended: 0, supervisors: 0 });
+      setStats(data.stats || { total: 0, active: 0, pending: 0, banned: 0, suspended: 0, supervisors: 0, terrain: 0, administratif: 0 });
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
     } catch {
@@ -633,7 +677,7 @@ export default function RecruitmentPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeTab, search, page]);
+  }, [activeTab, typeFilter, search, page]);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -669,6 +713,8 @@ export default function RecruitmentPage() {
         body = { ...body, action: "setStatus", newStatus: action.split(":")[1], reason };
       } else if (action.startsWith("setAgentRole:")) {
         body = { ...body, action: "setAgentRole", newRole: action.split(":")[1] };
+      } else if (action.startsWith("setAgentType:")) {
+        body = { ...body, action: "setAgentType", newType: action.split(":")[1] };
       } else if (action === "setAgentId") {
         body = { ...body, action, agentId: agentId ?? "" };
       } else {
@@ -746,6 +792,12 @@ export default function RecruitmentPage() {
     { key: "banned",    label: "Bannis",    count: stats.banned },
   ];
 
+  const TYPE_TABS: { key: TypeFilter; label: string; count: number; icon: React.ReactNode }[] = [
+    { key: "all",           label: "Tous types",           count: stats.total,         icon: <Users size={11} /> },
+    { key: "terrain",       label: "Agents terrain",       count: stats.terrain,       icon: <Footprints size={11} /> },
+    { key: "administratif", label: "Agents administratifs", count: stats.administratif, icon: <Briefcase size={11} /> },
+  ];
+
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32">
       <div className="max-w-2xl mx-auto px-4 pt-4">
@@ -818,6 +870,27 @@ export default function RecruitmentPage() {
             >
               {tab.label}
               <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black ${activeTab === tab.key ? "bg-white/20" : "bg-white/5"}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Type filter tabs (terrain / administratif) ── */}
+        <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 scrollbar-none">
+          {TYPE_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => { setTypeFilter(tab.key); setPage(1); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
+                typeFilter === tab.key
+                  ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                  : "bg-white/[0.03] border border-white/[0.06] text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black ${typeFilter === tab.key ? "bg-white/20" : "bg-white/5"}`}>
                 {tab.count}
               </span>
             </button>

@@ -72,6 +72,7 @@ export default function SupervisorClient() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"team" | "kyc">("team");
+  const [typeFilter, setTypeFilter] = useState<"all" | "TERRAIN" | "ADMINISTRATIF">("all");
 
   // KYC validation state
   const [kycReason, setKycReason] = useState("");
@@ -95,6 +96,7 @@ export default function SupervisorClient() {
   const isForbidden = data?.error && !data?.success;
 
   const filteredTeam = team.filter((a: any) => {
+    if (typeFilter !== "all" && (a.agentType || "TERRAIN") !== typeFilter) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -219,7 +221,9 @@ export default function SupervisorClient() {
                       ) : (
                         <p className="text-2xl font-black text-white mt-2">{stats?.totalAgents ?? 0}</p>
                       )}
-                      <p className="text-xs text-slate-500 mt-1">{stats?.activeAgents ?? 0} actifs</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {stats?.terrainAgents ?? 0} terrain · {stats?.administratifAgents ?? 0} admin
+                      </p>
                     </div>
                     <div className="p-3 bg-blue-500/10 rounded-2xl">
                       <Users className="h-5 w-5 text-blue-500" />
@@ -326,24 +330,56 @@ export default function SupervisorClient() {
             {/* Team tab */}
             {tab === "team" && (
               <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
-                <CardHeader className="flex flex-row items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-lg font-black text-white flex items-center gap-2">
-                      <Users className="h-5 w-5 text-emerald-500" />
-                      Agents supervisés
-                    </CardTitle>
-                    <CardDescription className="text-slate-500">
-                      Agents rattachés à votre réseau
-                    </CardDescription>
+                <CardHeader className="flex flex-col gap-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg font-black text-white flex items-center gap-2">
+                        <Users className="h-5 w-5 text-emerald-500" />
+                        Liste des agents
+                      </CardTitle>
+                      <CardDescription className="text-slate-500">
+                        Agents de terrain et administratifs du réseau
+                      </CardDescription>
+                    </div>
+                    <div className="relative w-full max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Rechercher un agent..."
+                        className="pl-9 bg-slate-800/50 border-white/10 text-white text-sm"
+                      />
+                    </div>
                   </div>
-                  <div className="relative w-full max-w-xs">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Rechercher un agent..."
-                      className="pl-9 bg-slate-800/50 border-white/10 text-white text-sm"
-                    />
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(
+                      [
+                        { key: "all", label: "Tous", count: stats?.totalAgents ?? 0 },
+                        { key: "TERRAIN", label: "Agents terrain", count: stats?.terrainAgents ?? 0 },
+                        { key: "ADMINISTRATIF", label: "Agents administratifs", count: stats?.administratifAgents ?? 0 },
+                      ] as const
+                    ).map((f) => (
+                      <button
+                        key={f.key}
+                        onClick={() => setTypeFilter(f.key)}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all",
+                          typeFilter === f.key
+                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                            : "text-slate-500 hover:text-white border border-white/5"
+                        )}
+                      >
+                        {f.label}
+                        <span
+                          className={cn(
+                            "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black",
+                            typeFilter === f.key ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-slate-400"
+                          )}
+                        >
+                          {f.count}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -356,9 +392,13 @@ export default function SupervisorClient() {
                   ) : filteredTeam.length === 0 ? (
                     <div className="py-12 flex flex-col items-center text-center gap-2">
                       <Users className="h-10 w-10 text-slate-600" />
-                      <p className="text-sm font-bold text-slate-400">Aucun agent dans votre réseau</p>
+                      <p className="text-sm font-bold text-slate-400">Aucun agent trouvé</p>
                       <p className="text-xs text-slate-500 max-w-sm">
-                        Les agents que vous recrutez via votre QR de parrainage apparaîtront ici.
+                        {typeFilter === "TERRAIN"
+                          ? "Aucun agent de terrain ne correspond à cette vue."
+                          : typeFilter === "ADMINISTRATIF"
+                          ? "Aucun agent administratif ne correspond à cette vue."
+                          : "Aucun agent ne correspond à votre recherche."}
                       </p>
                     </div>
                   ) : (
@@ -375,9 +415,14 @@ export default function SupervisorClient() {
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-sm font-bold text-white truncate">{a.name}</p>
                                 <StatusBadge isActive={a.isActive} />
+                                {(a.agentType || "TERRAIN") === "ADMINISTRATIF" ? (
+                                  <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20">Administratif</Badge>
+                                ) : (
+                                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Terrain</Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
                                 {a.phone && (
