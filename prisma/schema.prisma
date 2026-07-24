@@ -83,6 +83,7 @@ model User {
   statusReason         String?
   maintenanceUntil     DateTime?
   agentRole            AgentRole?       @default(AGENT)
+  agentType            AgentType?       @default(TERRAIN)
   emailVerified        DateTime?
   accounts             Account[]
   adminProfile         AdminProfile?    @relation("user_admin_profile")
@@ -1066,6 +1067,14 @@ enum SystemWalletType {
 enum AgentRole {
   AGENT
   SUPERVISOR
+}
+
+// Distinction opérationnelle des agents :
+// - TERRAIN        : agents de terrain (cash-in/out, prospection sur le terrain)
+// - ADMINISTRATIF  : agents administratifs (back-office, gestion de dossiers)
+enum AgentType {
+  TERRAIN
+  ADMINISTRATIF
 }
 
 // ============================================================================
