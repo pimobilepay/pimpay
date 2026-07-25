@@ -186,7 +186,7 @@ export async function proxy(req: NextRequest) {
     
   if (!userPayload && isProtectedPath) {
     // Utiliser redirect 302 pour eviter les problemes de cache
-    const response = NextResponse.redirect(new URL("/auth/login", req.url), 302);
+    const response = NextResponse.redirect(new URL("/maintenance", req.url), 302);
     applyNoStore(response);
     applySecurityHeaders(response);
     return response;
