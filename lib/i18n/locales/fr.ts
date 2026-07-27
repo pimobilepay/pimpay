@@ -89,6 +89,7 @@ export const fr = {
     contact: "Contact",
     account: "Compte",
     myProfile: "Mon Profil",
+    referral: "Parrainage",
     settings: "Parametres",
     search: "Rechercher...",
     accountVerified: "Compte Verifie",
@@ -701,6 +702,7 @@ export const fr = {
     // Statistiques
     network: "Reseau",
     account: "Compte",
+    referral: "Parrainage",
     verified: "Verifie",
     notVerified: "Non verifie",
     admin: "Admin",

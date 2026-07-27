@@ -91,6 +91,7 @@ export const en: TranslationKeys = {
     contact: "Contact",
     account: "Account",
     myProfile: "My Profile",
+    referral: "Referral",
     settings: "Settings",
     search: "Search...",
     accountVerified: "Verified Account",
@@ -703,6 +704,7 @@ export const en: TranslationKeys = {
     // Statistics
     network: "Network",
     account: "Account",
+    referral: "Referral",
     verified: "Verified",
     notVerified: "Not verified",
     admin: "Admin",

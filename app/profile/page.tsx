@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   User, Mail, Shield, Bell, ChevronRight, LogOut, Camera, CheckCircle2,
   Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen, Loader2,
-  Phone, Briefcase, BadgeCheck, FileText, Building2, Hash, Lock, X, Check, ChevronDown
+  Phone, Briefcase, BadgeCheck, FileText, Building2, Hash, Lock, X, Check, ChevronDown, Gift
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useCurrency, CURRENCIES, type CurrencyCode } from "@/context/CurrencyContext";
 import { useLanguage } from "@/context/LanguageContext";
 import LogoutOverlay from "@/components/LogoutOverlay";
+import { ReferralProgram } from "@/components/ReferralProgram";
 
 interface UserData {
   id: string;
@@ -116,6 +117,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
@@ -357,6 +359,9 @@ export default function ProfilePage() {
       {/* Ecran de deconnexion (localise) */}
       {loggingOut && <LogoutOverlay />}
 
+      {/* Programme de parrainage */}
+      {showReferral && <ReferralProgram onClose={() => setShowReferral(false)} />}
+
       {/* En-tete du profil */}
       <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
         <div className="flex flex-col items-center">
@@ -403,23 +408,33 @@ export default function ProfilePage() {
       </div>
 
       {/* Statistiques rapides */}
-      <div className="grid grid-cols-3 gap-3 px-6 mb-8">
-        <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
+      <div className="grid grid-cols-4 gap-2 px-6 mb-8">
+        <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
           <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.kycStatus")}</p>
           <p className={`text-sm font-bold ${user?.isVerified ? "text-emerald-400" : "text-amber-400"}`}>
             {user?.isVerified ? t("profile.verified") : user?.kycStatus || t("profile.notVerified")}
           </p>
         </div>
-        <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
+        <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
           <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.network")}</p>
           <p className="text-sm font-bold text-white">Pi Mainnet</p>
         </div>
-        <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
+        <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
           <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.account")}</p>
           <p className="text-sm font-bold text-blue-400">
             {user?.role === "ADMIN" ? t("profile.admin") : t("profile.standard")}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowReferral(true)}
+          className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all active:scale-95"
+        >
+          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.referral")}</p>
+          <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-400">
+            <Gift size={14} />
+          </span>
+        </button>
       </div>
 
       {/* Sections du profil */}

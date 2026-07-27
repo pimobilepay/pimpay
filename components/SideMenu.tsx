@@ -4,12 +4,13 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Linkedin, Twitter,
-  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles
+  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles, Gift
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import LogoutOverlay from "@/components/LogoutOverlay";
+import { ReferralProgram } from "@/components/ReferralProgram";
 import { toast } from "sonner";
 
 interface UserData {
@@ -26,6 +27,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   const { locale, setLocale, t } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("pimpay_user");
@@ -142,6 +144,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       items: [
         { label: t("sideMenu.myProfile"), icon: <User size={20} className="text-slate-400" />, path: "/profile" },
         { label: t("kyc.title"), icon: <ShieldCheck size={20} className="text-amber-400" />, path: "/settings/kyc" },
+        { label: t("sideMenu.referral"), icon: <Gift size={20} className="text-emerald-400" />, path: "__referral__" },
         { label: t("sideMenu.settings"), icon: <Settings size={20} className="text-slate-400" />, path: "/settings" },
       ]
     }
@@ -191,6 +194,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   return (
     <>
       {loggingOut && <LogoutOverlay />}
+      {showReferral && <ReferralProgram onClose={() => setShowReferral(false)} />}
 
       <div
         onClick={onClose}
@@ -253,7 +257,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
                 <h3 className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-[2px] mb-3">{group.title}</h3>
                 <div className="space-y-1">
                   {group.items.map((item, iIdx) => (
-                    <button key={iIdx} onClick={() => handleNavigation(item.path)} className="w-full flex items-center justify-between p-3.5 rounded-2xl hover:bg-white/5 text-slate-300 active:bg-white/10 transition-all group">
+                    <button key={iIdx} onClick={() => item.path === "__referral__" ? (onClose(), setShowReferral(true)) : handleNavigation(item.path)} className="w-full flex items-center justify-between p-3.5 rounded-2xl hover:bg-white/5 text-slate-300 active:bg-white/10 transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="p-2 rounded-xl bg-slate-900/50 group-hover:scale-110 transition-transform">
                           {item.icon}
