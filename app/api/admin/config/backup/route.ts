@@ -68,6 +68,21 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 3.b UPLOAD DE LA SAUVEGARDE VERS GOOGLE DRIVE (Seulement si Cron)
+    let driveResult: { id: string; name: string; webViewLink?: string | null } | null = null;
+    let driveError: string | null = null;
+
+    if (isCron) {
+      try {
+        const { uploadBackupToDrive } = await import("@/lib/googleDrive");
+        const fileName = `pimpay_backup_${new Date().toISOString().slice(0, 10)}_${new Date().getTime()}.json`;
+        driveResult = await uploadBackupToDrive(fileName, backupString);
+      } catch (e: any) {
+        driveError = e?.message || "Erreur inconnue Google Drive";
+        console.error("BACKUP_DRIVE_ERROR:", driveError);
+      }
+    }
+
     // 4. LOG DE L'ACTION
     await prisma.auditLog.create({
       data: {
@@ -75,13 +90,23 @@ export async function GET(req: NextRequest) {
         adminName: isCron ? "Auto-Protect" : (adminPayload?.id ? "System Admin" : "Unknown"),
         action: "DATABASE_BACKUP",
         details: isCron
-          ? "Cron Job : Backup + Stats Graphique."
+          ? driveError
+            ? `Cron Job : Backup + Stats. ECHEC Drive : ${driveError}`
+            : `Cron Job : Backup + Stats. Envoye sur Google Drive (${driveResult?.name}).`
           : "Manuel.",
         targetId: null, 
       }
     });
 
-    if (isCron) return NextResponse.json({ success: true, mode: "Cron_Stats_Updated" });
+    if (isCron)
+      return NextResponse.json({
+        success: !driveError,
+        mode: "Cron_Stats_Updated",
+        drive: driveResult
+          ? { id: driveResult.id, name: driveResult.name, link: driveResult.webViewLink }
+          : null,
+        driveError,
+      });
 
     return new NextResponse(backupString, {
       status: 200,
