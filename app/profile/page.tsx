@@ -13,6 +13,8 @@ import { useCurrency, CURRENCIES, type CurrencyCode } from "@/context/CurrencyCo
 import { useLanguage } from "@/context/LanguageContext";
 import LogoutOverlay from "@/components/LogoutOverlay";
 import { ReferralProgram } from "@/components/ReferralProgram";
+import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
+import { QrCode } from "lucide-react";
 
 interface UserData {
   id: string;
@@ -118,6 +120,7 @@ export default function ProfilePage() {
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
+  const [showPaymentQR, setShowPaymentQR] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
@@ -362,6 +365,14 @@ export default function ProfilePage() {
       {/* Programme de parrainage */}
       {showReferral && <ReferralProgram onClose={() => setShowReferral(false)} />}
 
+      {/* QR de paiement (cash-in / cash-out agent) */}
+      {showPaymentQR && user && (
+        <PaymentQRModal
+          user={{ id: user.id, name: user.name, username: user.username }}
+          onClose={() => setShowPaymentQR(false)}
+        />
+      )}
+
       {/* En-tete du profil */}
       <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
         <div className="flex flex-col items-center">
@@ -434,6 +445,26 @@ export default function ProfilePage() {
           <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-400">
             <Gift size={14} />
           </span>
+        </button>
+      </div>
+
+      {/* QR de paiement - cash-in / cash-out via agent */}
+      <div className="px-6 mb-8">
+        <button
+          type="button"
+          onClick={() => setShowPaymentQR(true)}
+          className="w-full flex items-center gap-4 p-4 rounded-[28px] bg-gradient-to-r from-blue-600/20 to-emerald-600/10 border border-white/10 hover:border-white/20 transition-all active:scale-[0.99] text-left"
+        >
+          <div className="p-3 rounded-2xl bg-white text-[#020617] shrink-0">
+            <QrCode size={24} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white">{t("profile.paymentQrTitle")}</p>
+            <p className="text-[11px] text-slate-400 font-medium leading-snug mt-0.5 text-pretty">
+              {t("profile.paymentQrDesc")}
+            </p>
+          </div>
+          <ChevronRight size={18} className="text-slate-500 shrink-0" />
         </button>
       </div>
 

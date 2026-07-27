@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { QRScanner } from "@/components/qr-scanner";
+import { AgentTransactionModal, type AgentCustomer } from "@/components/hub/AgentTransactionModal";
+import { parseUserQRValue } from "@/lib/agent-qr";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -54,6 +58,39 @@ export default function AgentCustomersPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tab, setTab] = useState<"referrals" | "search">("referrals");
   const [searchQuery, setSearchQuery] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [loadingCustomer, setLoadingCustomer] = useState(false);
+  const [activeCustomer, setActiveCustomer] = useState<AgentCustomer | null>(null);
+  const [activeMode, setActiveMode] = useState<"cash-in" | "cash-out">("cash-in");
+
+  // Recupere la fiche complete du client (avec soldes) puis ouvre la modale
+  async function openCustomer(id: string, mode: "cash-in" | "cash-out" = "cash-in") {
+    if (!id) return;
+    setLoadingCustomer(true);
+    try {
+      const res = await fetch(`/api/agent/customer?id=${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (!res.ok || !data.customer) {
+        throw new Error(data.error || "Client introuvable");
+      }
+      setActiveMode(mode);
+      setActiveCustomer(data.customer as AgentCustomer);
+    } catch (err: any) {
+      toast.error(err.message || "Client introuvable");
+    } finally {
+      setLoadingCustomer(false);
+    }
+  }
+
+  // Resultat du scan QR agent
+  function handleScanResult(raw: string) {
+    const parsed = parseUserQRValue(raw);
+    if (!parsed?.id) {
+      toast.error("QR code non reconnu");
+      return;
+    }
+    openCustomer(parsed.id, "cash-in");
+  }
 
   const { data: searchData, isLoading: searchLoading } = useSWR(
     tab === "search" && searchQuery.length >= 2
@@ -116,9 +153,13 @@ export default function AgentCustomersPage() {
             <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Clients</h1>
             <p className="text-sm text-slate-500 mt-1">Suivez vos filleuls et recherchez des clients</p>
           </div>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button
+            onClick={() => setScannerOpen(true)}
+            disabled={loadingCustomer}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
             <QrCode className="h-4 w-4 mr-2" />
-            Scanner QR
+            {loadingCustomer ? "Chargement..." : "Scanner QR"}
           </Button>
         </div>
 
@@ -338,10 +379,21 @@ export default function AgentCustomersPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                          <Button
+                            size="sm"
+                            disabled={loadingCustomer}
+                            onClick={() => openCustomer(customer.id, "cash-in")}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
                             Cash-In
                           </Button>
-                          <Button size="sm" variant="outline" className="border-white/10 text-white">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={loadingCustomer}
+                            onClick={() => openCustomer(customer.id, "cash-out")}
+                            className="border-white/10 text-white"
+                          >
                             Cash-Out
                           </Button>
                         </div>
@@ -354,6 +406,23 @@ export default function AgentCustomersPage() {
           </>
         )}
       </main>
+
+      {/* Scanner QR agent */}
+      {scannerOpen && (
+        <QRScanner
+          onClose={() => setScannerOpen(false)}
+          onResult={(data) => handleScanResult(data)}
+        />
+      )}
+
+      {/* Fiche client + cash-in / cash-out */}
+      {activeCustomer && (
+        <AgentTransactionModal
+          customer={activeCustomer}
+          initialMode={activeMode}
+          onClose={() => setActiveCustomer(null)}
+        />
+      )}
     </div>
   );
-}
+  }
