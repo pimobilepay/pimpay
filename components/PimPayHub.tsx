@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { AgentSidebar } from '@/components/hub/AgentSidebar'
+import { AgentWorkspace, type WorkspaceCustomer } from '@/components/hub/AgentWorkspace'
 import { parseUserQRValue } from '@/lib/agent-qr'
 import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import useSWR from 'swr'
@@ -259,12 +260,14 @@ function TransactionModal({
   isOpen,
   onClose,
   type,
-  onSuccess
+  onSuccess,
+  initialCustomer
 }: {
   isOpen: boolean
   onClose: () => void
   type: 'cash-in' | 'cash-out'
   onSuccess: () => void
+  initialCustomer?: Customer | null
 }) {
   const [step, setStep] = React.useState<'search' | 'confirm' | 'pending'>('search')
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -275,6 +278,15 @@ function TransactionModal({
   const [error, setError] = React.useState('')
   const [pendingTxId, setPendingTxId] = React.useState<string | null>(null)
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+
+  // Préselection du client depuis la recherche rapide du dashboard :
+  // à l'ouverture du modal, on saute directement à l'étape de confirmation.
+  React.useEffect(() => {
+    if (isOpen && initialCustomer) {
+      setSelectedCustomer(initialCustomer)
+      setStep('confirm')
+    }
+  }, [isOpen, initialCustomer])
 
   // Background search function - no dropdown suggestions
   const handleSearch = async () => {
@@ -964,6 +976,8 @@ export default function PimPayHub() {
   const [cashOutModalOpen, setCashOutModalOpen] = React.useState(false)
   const [qrScannerOpen, setQrScannerOpen] = React.useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  // Client présélectionné depuis la recherche rapide (workspace agent)
+  const [prefillCustomer, setPrefillCustomer] = React.useState<WorkspaceCustomer | null>(null)
 
   // KYC Supervisor states
   const [kycModalOpen, setKycModalOpen] = React.useState(false)
@@ -1058,6 +1072,16 @@ export default function PimPayHub() {
 
   const handleTransactionSuccess = () => {
     refreshDashboard()
+  }
+
+  // Recherche rapide : ouvre le modal correspondant avec le client présélectionné
+  const handleQuickCashIn = (customer: WorkspaceCustomer) => {
+    setPrefillCustomer(customer)
+    setCashInModalOpen(true)
+  }
+  const handleQuickCashOut = (customer: WorkspaceCustomer) => {
+    setPrefillCustomer(customer)
+    setCashOutModalOpen(true)
   }
 
   // Compute chart colors in JavaScript for recharts
@@ -1307,6 +1331,19 @@ export default function PimPayHub() {
                 </Link>
               </div>
             </div>
+
+            {/* Agent Workspace : outils pour travailler dans les meilleures conditions */}
+            <AgentWorkspace
+              floatBalance={floatBalance}
+              liquidityHealth={liquidityHealth}
+              todayTransactionsCount={data?.todayTransactionsCount || 0}
+              dailyVolume={data?.dailyVolume || 0}
+              safeMode={safeMode}
+              currency="XAF"
+              formatCurrency={formatCurrency}
+              onQuickCashIn={handleQuickCashIn}
+              onQuickCashOut={handleQuickCashOut}
+            />
 
             {/* Agent Analytics */}
             <GlassCard className="p-5">
@@ -1614,15 +1651,17 @@ export default function PimPayHub() {
       {/* Modals */}
       <TransactionModal
         isOpen={cashInModalOpen}
-        onClose={() => setCashInModalOpen(false)}
+        onClose={() => { setCashInModalOpen(false); setPrefillCustomer(null) }}
         type="cash-in"
         onSuccess={handleTransactionSuccess}
+        initialCustomer={prefillCustomer}
       />
       <TransactionModal
         isOpen={cashOutModalOpen}
-        onClose={() => setCashOutModalOpen(false)}
+        onClose={() => { setCashOutModalOpen(false); setPrefillCustomer(null) }}
         type="cash-out"
         onSuccess={handleTransactionSuccess}
+        initialCustomer={prefillCustomer}
       />
       <QRScannerModal
         isOpen={qrScannerOpen}
