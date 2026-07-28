@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerId, amount, currency = 'XAF', description } = body;
+    const { customerId, amount, currency = 'XAF', description, requireConfirmation = false } = body;
 
     // 3. Validation des données
     const amountNum = parseFloat(amount);
