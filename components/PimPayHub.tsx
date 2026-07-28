@@ -34,10 +34,15 @@ import {
   ChevronLeft,
   Star,
   Package,
-  Share2
+  Share2,
+  Mail,
+  Phone,
+  MapPin,
+  IdCard
 } from 'lucide-react'
 import Link from 'next/link'
 import { AgentSidebar } from '@/components/hub/AgentSidebar'
+import { parseUserQRValue } from '@/lib/agent-qr'
 import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import useSWR from 'swr'
 
@@ -89,6 +94,10 @@ interface Customer {
   phone: string
   avatar?: string
   kycStatus: string
+  email?: string | null
+  country?: string | null
+  firstName?: string | null
+  lastName?: string | null
 }
 
 // KYC pending user type
@@ -527,64 +536,131 @@ function TransactionModal({
   )
 }
 
-// QR Scanner Modal
+// Petite ligne d'info client
+function InfoRow({
+  icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: React.ReactNode
+  label: string
+  value?: string | null
+  mono?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground shrink-0">{icon}</span>
+      <span className="text-muted-foreground w-20 shrink-0">{label}</span>
+      <span className={cn('text-foreground font-medium truncate', mono && 'font-mono text-xs')}>
+        {value || '—'}
+      </span>
+    </div>
+  )
+}
+
+// QR Scanner Modal - flux complet: scan -> infos client -> choix operation -> montant
 function QRScannerModal({
   isOpen,
   onClose,
-  onCustomerFound
+  onSuccess
 }: {
   isOpen: boolean
   onClose: () => void
-  onCustomerFound: (customer: Customer) => void
+  onSuccess: () => void
 }) {
+  const [step, setStep] = React.useState<'scan' | 'details' | 'amount' | 'pending'>('scan')
   const [showScanner, setShowScanner] = React.useState(true)
   const [manualCode, setManualCode] = React.useState('')
+  const [customer, setCustomer] = React.useState<Customer | null>(null)
+  const [direction, setDirection] = React.useState<'cash-in' | 'cash-out' | null>(null)
+  const [amount, setAmount] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState('')
+  const [pendingTxId, setPendingTxId] = React.useState<string | null>(null)
 
-  const handleQRResult = async (data: string) => {
+  const handleClose = () => {
+    setStep('scan')
+    setShowScanner(true)
+    setManualCode('')
+    setCustomer(null)
+    setDirection(null)
+    setAmount('')
+    setError('')
+    setPendingTxId(null)
+    onClose()
+  }
+
+  // Charge un client par id (QR) ou par recherche texte, puis affiche ses infos
+  const loadCustomer = async (query: string, byId: boolean) => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const url = byId
+        ? `/api/agent/customer?id=${encodeURIComponent(query)}`
+        : `/api/agent/customer?q=${encodeURIComponent(query)}`
+      const res = await fetch(url)
+      const apiData = await res.json()
+      if (!res.ok) throw new Error(apiData.error || 'Client introuvable')
+
+      const found: Customer | undefined = apiData.customer || apiData.customers?.[0]
+      if (!found) throw new Error('Client introuvable avec ce QR code')
+
+      setCustomer(found)
+      setStep('details')
+    } catch (err: any) {
+      setError(err.message || 'Erreur')
+      setShowScanner(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleQRResult = (data: string) => {
     if (!data) {
       setShowScanner(false)
       return
     }
-
-    setIsLoading(true)
-    setError('')
-
-    try {
-      const res = await fetch(`/api/agent/customer?q=${encodeURIComponent(data)}`)
-      const apiData = await res.json()
-
-      if (!res.ok || !apiData.customers?.length) {
-        throw new Error('Client non trouve avec ce QR code')
-      }
-
-      onCustomerFound(apiData.customers[0])
-      handleClose()
-    } catch (err: any) {
-      setError(err.message)
-      setShowScanner(false)
-    } finally {
-      setIsLoading(false)
+    // Extraire l'id du payload QR PIMOBIPAY, sinon recherche brute
+    const parsed = parseUserQRValue(data)
+    if (parsed?.id) {
+      loadCustomer(parsed.id, true)
+    } else {
+      loadCustomer(data, false)
     }
   }
 
-  const handleManualSearch = async () => {
+  const handleManualSearch = () => {
     if (!manualCode) return
+    loadCustomer(manualCode, false)
+  }
 
+  const handleSubmit = async () => {
+    if (!customer || !direction || !amount) return
     setIsLoading(true)
     setError('')
-
     try {
-      const res = await fetch(`/api/agent/customer?q=${encodeURIComponent(manualCode)}`)
+      const endpoint = direction === 'cash-in' ? '/api/agent/cash-in' : '/api/agent/cash-out'
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: customer.id,
+          amount: parseFloat(amount),
+          currency: 'USD',
+          requireConfirmation: true
+        })
+      })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la transaction')
 
-      if (!res.ok || !data.customers?.length) {
-        throw new Error('Client non trouve')
+      if (data.pendingConfirmation) {
+        setPendingTxId(data.transactionId)
+        setStep('pending')
+      } else {
+        onSuccess()
+        handleClose()
       }
-
-      onCustomerFound(data.customers[0])
-      handleClose()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -592,15 +668,38 @@ function QRScannerModal({
     }
   }
 
-  const handleClose = () => {
-    setShowScanner(true)
-    setManualCode('')
-    setError('')
-    onClose()
-  }
+  // Poll du statut de confirmation client
+  React.useEffect(() => {
+    if (step !== 'pending' || !pendingTxId) return
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/agent/transaction-status?id=${pendingTxId}`)
+        const data = await res.json()
+        if (data.status === 'SUCCESS') {
+          onSuccess()
+          handleClose()
+        } else if (data.status === 'REJECTED' || data.status === 'EXPIRED') {
+          setError(data.status === 'REJECTED' ? 'Transaction refusee par le client' : 'Transaction expiree')
+          setStep('amount')
+          setPendingTxId(null)
+        }
+      } catch {
+        // continue polling
+      }
+    }
+    const interval = setInterval(checkStatus, 3000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, pendingTxId])
 
-  // Show fullscreen QR scanner if enabled
-  if (showScanner && isOpen) {
+  const fullName =
+    customer?.name ||
+    [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') ||
+    customer?.username ||
+    'Client'
+
+  // Scanner plein ecran
+  if (isOpen && step === 'scan' && showScanner) {
     return (
       <QRScanner
         onClose={(data?: string) => {
@@ -617,61 +716,241 @@ function QRScannerModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <QrCode className="h-5 w-5" />
-            Scanner le QR Client
-          </DialogTitle>
-          <DialogDescription>
-            Entrez l&apos;identifiant du client ou utilisez le scanner
-          </DialogDescription>
-        </DialogHeader>
+        {/* STEP SCAN (saisie manuelle) */}
+        {step === 'scan' && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                Scanner le QR Client
+              </DialogTitle>
+              <DialogDescription>
+                Scannez le QR du client ou entrez son identifiant
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="manual-code">Identifiant client</Label>
-            <Input
-              id="manual-code"
-              placeholder="Username ou telephone"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-            />
-          </div>
+            <div className="space-y-4">
+              <Button onClick={() => setShowScanner(true)} className="w-full">
+                <QrCode className="h-4 w-4 mr-2" />
+                Ouvrir le scanner
+              </Button>
 
-          {error && (
-            <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
-              {error}
-            </p>
-          )}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">ou</span>
+                </div>
+              </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <div className="space-y-2">
+                <Label htmlFor="manual-code">Identifiant client</Label>
+                <Input
+                  id="manual-code"
+                  placeholder="Username, telephone ou email"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleManualSearch()
+                  }}
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+                  {error}
+                </p>
+              )}
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">ou</span>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose}>
+                Annuler
+              </Button>
+              <Button onClick={handleManualSearch} disabled={!manualCode || isLoading}>
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Rechercher
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {/* STEP DETAILS: infos client + choix cash-in / cash-out */}
+        {step === 'details' && customer && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-emerald-600" />
+                Client identifie
+              </DialogTitle>
+              <DialogDescription>
+                Verifiez les informations puis choisissez l&apos;operation
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border bg-muted/50 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-background flex items-center justify-center overflow-hidden">
+                    {customer.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={customer.avatar || "/placeholder.svg"}
+                        alt={fullName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground truncate">{fullName}</p>
+                    {customer.username && (
+                      <p className="text-sm text-muted-foreground truncate">@{customer.username}</p>
+                    )}
+                  </div>
+                  <Badge variant={customer.kycStatus === 'APPROVED' ? 'default' : 'secondary'}>
+                    {customer.kycStatus === 'APPROVED' ? 'KYC OK' : customer.kycStatus}
+                  </Badge>
+                </div>
+
+                <div className="grid gap-2 text-sm">
+                  <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={customer.email} />
+                  <InfoRow icon={<Phone className="h-4 w-4" />} label="Telephone" value={customer.phone} />
+                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="Pays" value={customer.country} />
+                  <InfoRow icon={<IdCard className="h-4 w-4" />} label="ID" value={customer.id} mono />
+                </div>
+              </div>
+
+              {error && (
+                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+                  {error}
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  className="h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 flex-col gap-1"
+                  onClick={() => { setDirection('cash-in'); setError(''); setStep('amount') }}
+                >
+                  <ArrowDownLeft className="h-5 w-5" />
+                  <span className="text-xs font-medium">Cash-In (Depot)</span>
+                </Button>
+                <Button
+                  className="h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 flex-col gap-1"
+                  onClick={() => { setDirection('cash-out'); setError(''); setStep('amount') }}
+                >
+                  <ArrowUpRight className="h-5 w-5" />
+                  <span className="text-xs font-medium">Cash-Out (Retrait)</span>
+                </Button>
+              </div>
             </div>
-          </div>
 
-          <Button 
-            onClick={() => setShowScanner(true)}
-            variant="outline"
-            className="w-full"
-          >
-            <QrCode className="h-4 w-4 mr-2" />
-            Ouvrir le scanner
-          </Button>
-        </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setCustomer(null); setError(''); setShowScanner(true); setStep('scan') }}
+              >
+                Scanner un autre
+              </Button>
+            </DialogFooter>
+          </>
+        )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            Annuler
-          </Button>
-          <Button onClick={handleManualSearch} disabled={!manualCode || isLoading}>
-            {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Rechercher
-          </Button>
-        </DialogFooter>
+        {/* STEP AMOUNT */}
+        {step === 'amount' && customer && direction && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {direction === 'cash-in' ? (
+                  <>
+                    <ArrowDownLeft className="h-5 w-5 text-emerald-600" />
+                    Cash-In
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpRight className="h-5 w-5 text-blue-600" />
+                    Cash-Out
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                {direction === 'cash-in' ? 'Depot' : 'Retrait'} pour {fullName}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="scan-amount">Montant (USD)</Label>
+                <Input
+                  id="scan-amount"
+                  type="number"
+                  placeholder="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="text-2xl font-bold h-14"
+                  autoFocus
+                />
+              </div>
+              {error && (
+                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+                  {error}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setDirection(null); setAmount(''); setError(''); setStep('details') }}
+              >
+                Retour
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={!amount || isLoading}
+                className={direction === 'cash-in' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}
+              >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Confirmer {direction === 'cash-in' ? 'le depot' : 'le retrait'}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {/* STEP PENDING */}
+        {step === 'pending' && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Confirmation client</DialogTitle>
+              <DialogDescription>En attente de confirmation du client...</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-8">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                    <ShieldCheck className="h-3 w-3 text-white" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-lg">Confirmation MFA requise</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Le client doit confirmer la transaction avec son code de securite
+                  </p>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose}>
+                Fermer
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -779,11 +1058,6 @@ export default function PimPayHub() {
 
   const handleTransactionSuccess = () => {
     refreshDashboard()
-  }
-
-  const handleQRCustomerFound = (customer: Customer) => {
-    // Could open cash-in or cash-out modal with pre-selected customer
-    setCashInModalOpen(true)
   }
 
   // Compute chart colors in JavaScript for recharts
@@ -1353,7 +1627,7 @@ export default function PimPayHub() {
       <QRScannerModal
         isOpen={qrScannerOpen}
         onClose={() => setQrScannerOpen(false)}
-        onCustomerFound={handleQRCustomerFound}
+        onSuccess={handleTransactionSuccess}
       />
 
       {/* ─── KYC Modal (Superviseur uniquement) ────────────────── */}

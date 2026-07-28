@@ -39,8 +39,12 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           name: true,
+          firstName: true,
+          lastName: true,
           username: true,
           phone: true,
+          email: true,
+          country: true,
           avatar: true,
           kycStatus: true,
           wallets: {
@@ -85,8 +89,12 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         name: true,
+        firstName: true,
+        lastName: true,
         username: true,
         phone: true,
+        email: true,
+        country: true,
         avatar: true,
         kycStatus: true
       },

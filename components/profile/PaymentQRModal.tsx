@@ -1,7 +1,7 @@
 "use client";
 
 import { QRCodeSVG } from "qrcode.react";
-import { X, Copy, Check, ShieldCheck, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { X, Copy, Check, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { buildUserQRValue } from "@/lib/agent-qr";
@@ -62,18 +62,6 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
               {copied ? <Check size={14} /> : <Copy size={14} />}
               {displayId}
             </button>
-          </div>
-
-          {/* Deux possibilites */}
-          <div className="grid grid-cols-2 gap-3 w-full">
-            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-              <ArrowDownToLine size={20} className="text-emerald-400" />
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Cash-In</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
-              <ArrowUpFromLine size={20} className="text-blue-400" />
-              <span className="text-xs font-black uppercase tracking-wider text-blue-400">Cash-Out</span>
-            </div>
           </div>
 
           {/* Description */}
