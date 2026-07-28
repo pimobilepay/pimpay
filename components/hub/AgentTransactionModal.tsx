@@ -50,6 +50,8 @@ export function AgentTransactionModal({
   const [currency, setCurrency] = useState(customer.wallets?.[0]?.currency || "XAF");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [reference, setReference] = useState<string | null>(null);
 
   const verified = customer.kycStatus === "VERIFIED" || customer.kycStatus === "APPROVED";
   const initial = (customer.name || customer.username || "?").charAt(0).toUpperCase();
@@ -76,7 +78,15 @@ export function AgentTransactionModal({
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId: customer.id, amount: amountNum, currency }),
+        body: JSON.stringify({
+          customerId: customer.id,
+          amount: amountNum,
+          currency,
+          // Un depot (cash-in) doit etre confirme par le client cote application :
+          // le backend cree alors une notification TRANSACTION_CONFIRM qui declenche
+          // le toast + la popup de confirmation/annulation cote client.
+          requireConfirmation: mode === "cash-in",
+        }),
       });
       const data = await res.json();
 
@@ -84,12 +94,21 @@ export function AgentTransactionModal({
         throw new Error(data.error || "Operation echouee");
       }
 
-      setDone(true);
-      toast.success(
-        mode === "cash-in"
-          ? `Depot de ${amountNum.toLocaleString()} ${currency} effectue`
-          : `Retrait de ${amountNum.toLocaleString()} ${currency} effectue`
-      );
+      if (data.pendingConfirmation) {
+        // Transaction en attente : le client doit confirmer depuis son application.
+        setReference(data.transaction?.reference || null);
+        setPending(true);
+        toast.success("Demande envoyee au client", {
+          description: `Le client doit confirmer le depot de ${amountNum.toLocaleString()} ${currency} depuis son application.`,
+        });
+      } else {
+        setDone(true);
+        toast.success(
+          mode === "cash-in"
+            ? `Depot de ${amountNum.toLocaleString()} ${currency} effectue`
+            : `Retrait de ${amountNum.toLocaleString()} ${currency} effectue`
+        );
+      }
       onSuccess?.();
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de l'operation");
@@ -119,7 +138,27 @@ export function AgentTransactionModal({
           </button>
         </div>
 
-        {done ? (
+        {pending ? (
+          <div className="flex flex-col items-center gap-4 py-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <Clock size={40} className="text-amber-400" />
+            </div>
+            <p className="text-white font-bold">En attente du client</p>
+            <p className="text-sm text-slate-400">
+              Le client doit confirmer le depot de{" "}
+              <span className="font-bold text-white">
+                {parseFloat(amount).toLocaleString()} {currency}
+              </span>{" "}
+              depuis son application.
+            </p>
+            {reference && (
+              <p className="text-[11px] font-mono text-slate-500">Ref: {reference}</p>
+            )}
+            <Button onClick={onClose} className="mt-2 w-full bg-amber-600 hover:bg-amber-700 text-white">
+              Terminer
+            </Button>
+          </div>
+        ) : done ? (
           <div className="flex flex-col items-center gap-4 py-8 text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center">
               <CheckCircle2 size={40} className="text-emerald-400" />
