@@ -38,7 +38,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { AgentSidebar } from '@/components/hub/AgentSidebar'
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import useSWR from 'swr'
 
 import { cn } from '@/lib/utils'
@@ -73,6 +73,13 @@ interface CommissionData {
   day: string
   commission: number
   transactions: number
+}
+
+interface FlowData {
+  hour: string
+  entrant: number
+  sortant: number
+  count: number
 }
 
 interface Customer {
@@ -122,6 +129,9 @@ interface DashboardData {
   dailyVolume: number
   todayTransactionsCount: number
   commissionData: CommissionData[]
+  flowData: FlowData[]
+  totalEntrant: number
+  totalSortant: number
   recentTransactions: Transaction[]
   weeklyGrowth: number
 }
@@ -691,8 +701,9 @@ export default function PimPayHub() {
     '/api/agent/dashboard',
     fetcher,
     { 
-      refreshInterval: 30000, // Refresh every 30 seconds
-      revalidateOnFocus: true
+      refreshInterval: 5000, // Rafraichissement live toutes les 5 secondes
+      revalidateOnFocus: true,
+      keepPreviousData: true
     }
   )
 
@@ -700,6 +711,9 @@ export default function PimPayHub() {
   const dailyEarnings = data?.dailyEarnings || { pi: 0, xaf: 0 }
   const liquidityHealth = data?.liquidityHealth || 0
   const commissionData = data?.commissionData || []
+  const flowData = data?.flowData || []
+  const totalEntrant = data?.totalEntrant || 0
+  const totalSortant = data?.totalSortant || 0
   const recentTransactions = data?.recentTransactions || []
   const weeklyGrowth = data?.weeklyGrowth || 0
   const isSupervisor = data?.agent?.agentRole === 'SUPERVISOR'
@@ -1080,6 +1094,93 @@ export default function PimPayHub() {
                         fill="url(#commissionGradient)"
                       />
                     </AreaChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              )}
+            </GlassCard>
+
+            {/* Flux Entrant / Sortant (Live) */}
+            <GlassCard className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-foreground">Flux Entrant / Sortant</h3>
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-500">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      </span>
+                      Live
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Mouvements du jour, par heure</p>
+                </div>
+              </div>
+
+              {/* Totaux du jour */}
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                  <div className="flex items-center gap-1.5 text-emerald-600">
+                    <ArrowDownLeft className="h-4 w-4" />
+                    <span className="text-xs font-medium">Entrant</span>
+                  </div>
+                  <p className="mt-1 text-lg font-bold text-foreground">
+                    {formatCurrency(totalEntrant)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+                  <div className="flex items-center gap-1.5 text-blue-600">
+                    <ArrowUpRight className="h-4 w-4" />
+                    <span className="text-xs font-medium">Sortant</span>
+                  </div>
+                  <p className="mt-1 text-lg font-bold text-foreground">
+                    {formatCurrency(totalSortant)}
+                  </p>
+                </div>
+              </div>
+
+              {isLoading && flowData.length === 0 ? (
+                <div className="h-[180px] w-full bg-muted animate-pulse rounded-xl" />
+              ) : flowData.length === 0 ? (
+                <p className="py-10 text-center text-muted-foreground">Aucun mouvement aujourd&apos;hui</p>
+              ) : (
+                <ChartContainer
+                  config={{
+                    entrant: { label: 'Entrant', color: '#10b981' },
+                    sortant: { label: 'Sortant', color: '#3b82f6' },
+                  }}
+                  className="h-[180px] w-full"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={flowData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
+                      <XAxis
+                        dataKey="hour"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                        dy={6}
+                      />
+                      <YAxis hide />
+                      <Tooltip
+                        cursor={{ fill: '#ffffff08' }}
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value, name) => (
+                              <span className="font-semibold">
+                                {name === 'entrant' ? 'Entrant' : 'Sortant'}: {Number(value).toLocaleString()} USD
+                              </span>
+                            )}
+                          />
+                        }
+                      />
+                      <Legend
+                        formatter={(value) => (value === 'entrant' ? 'Entrant' : 'Sortant')}
+                        wrapperStyle={{ fontSize: 11 }}
+                      />
+                      <Bar dataKey="entrant" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                      <Bar dataKey="sortant" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>
               )}

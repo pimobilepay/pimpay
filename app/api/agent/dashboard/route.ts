@@ -131,6 +131,52 @@ export async function GET(req: NextRequest) {
       transactions: data.transactions
     }));
 
+    // 7.b Flux ENTRANT / SORTANT du jour (par heure) pour le graphique temps réel
+    const classifyDirection = (tx: any): 'in' | 'out' => {
+      const isOutgoing = tx.fromUserId === authUser.id;
+      if (tx.type === 'DEPOSIT') return 'in';
+      if (tx.type === 'WITHDRAW') return 'out';
+      return isOutgoing ? 'out' : 'in';
+    };
+
+    // Initialiser 24 tranches horaires
+    const flowByHour: { hour: string; entrant: number; sortant: number; count: number }[] = [];
+    for (let h = 0; h < 24; h++) {
+      flowByHour.push({
+        hour: `${h.toString().padStart(2, '0')}h`,
+        entrant: 0,
+        sortant: 0,
+        count: 0,
+      });
+    }
+
+    todayTransactions.forEach((tx: any) => {
+      const h = new Date(tx.createdAt).getHours();
+      const bucket = flowByHour[h];
+      if (!bucket) return;
+      if (classifyDirection(tx) === 'in') {
+        bucket.entrant += tx.amount;
+      } else {
+        bucket.sortant += tx.amount;
+      }
+      bucket.count += 1;
+    });
+
+    // Ne garder que les tranches jusqu'à l'heure actuelle (évite une longue ligne plate)
+    const currentHour = new Date().getHours();
+    const flowData = flowByHour
+      .slice(0, currentHour + 1)
+      .map((b) => ({
+        hour: b.hour,
+        entrant: Math.round(b.entrant),
+        sortant: Math.round(b.sortant),
+        count: b.count,
+      }));
+
+    // Totaux du jour
+    const totalEntrant = flowData.reduce((s, b) => s + b.entrant, 0);
+    const totalSortant = flowData.reduce((s, b) => s + b.sortant, 0);
+
     // 8. Formater les transactions récentes
     const allTransactions = [...agent.transactionsFrom, ...agent.transactionsTo]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -190,6 +236,9 @@ export async function GET(req: NextRequest) {
       dailyVolume,
       todayTransactionsCount: todayTransactions.length,
       commissionData,
+      flowData,
+      totalEntrant,
+      totalSortant,
       recentTransactions,
       weeklyGrowth: commissionData.length > 1 
         ? Math.round(((commissionData[6]?.commission || 0) - (commissionData[0]?.commission || 0)) / Math.max(commissionData[0]?.commission || 1, 1) * 100)
