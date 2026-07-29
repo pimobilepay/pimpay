@@ -37,7 +37,7 @@ import {
   Loader2,
   Headphones,
 } from "lucide-react";
-import { resolveCountry } from "@/lib/country";
+import { resolveCountry, squareFlagUrl } from "@/lib/country";
 
 interface AgentProfileCardProps {
   name: string;
@@ -110,7 +110,7 @@ export function AgentProfileCard({
   avatar,
   qrValue,
   referralLink,
-  country = "République du Congo",
+  country,
   phone = "+242 06 554 0305",
   email = "pimobilepay@gmail.com",
   joinDate = "15 Mai 2024",
@@ -170,11 +170,22 @@ export function AgentProfileCard({
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth - 20;
-      const imgHeight = (img.height / img.width) * imgWidth;
+      const margin = 10;
+      const maxW = pageWidth - margin * 2;
+      const maxH = pageHeight - margin * 2;
+      // Ajuste la carte entière dans une page A4 en conservant son ratio.
+      const ratio = img.height / img.width;
+      let drawW = maxW;
+      let drawH = drawW * ratio;
+      if (drawH > maxH) {
+        drawH = maxH;
+        drawW = drawH / ratio;
+      }
+      const x = (pageWidth - drawW) / 2;
+      const y = (pageHeight - drawH) / 2;
       pdf.setFillColor(2, 4, 10);
       pdf.rect(0, 0, pageWidth, pageHeight, "F");
-      pdf.addImage(dataUrl, "PNG", 10, 10, imgWidth, Math.min(imgHeight, pageHeight - 20));
+      pdf.addImage(dataUrl, "PNG", x, y, drawW, drawH);
       pdf.save(`profil-agent-${agentId}.pdf`);
     } catch (e) {
       console.error("[AgentProfileCard] PDF export failed", e);
@@ -501,14 +512,14 @@ function InfoItem({
 }) {
   return (
     <div className="flex items-start gap-2">
-      {flagIso ? (
+      {flagIso && squareFlagUrl(flagIso) ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`https://flagcdn.com/w80/${flagIso}.png`}
+          src={squareFlagUrl(flagIso) as string}
           alt=""
           aria-hidden="true"
           crossOrigin="anonymous"
-          className="mt-0.5 h-8 w-8 shrink-0 rounded-lg border border-white/10 object-cover"
+          className="mt-0.5 aspect-square h-8 w-8 shrink-0 rounded-lg border border-white/10 object-cover"
         />
       ) : (
         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">

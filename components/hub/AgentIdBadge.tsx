@@ -18,6 +18,7 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
+import { resolveCountry, squareFlagUrl } from "@/lib/country";
 
 interface AgentIdBadgeProps {
   name: string;
@@ -33,58 +34,14 @@ interface AgentIdBadgeProps {
   partnerLabel?: string;
 }
 
-/** Table de correspondance pays -> libellé + code ISO (drapeau). */
-const COUNTRY_MAP: Record<string, { label: string; iso: string }> = {
-  cg: { label: "République du Congo", iso: "cg" },
-  "republique du congo": { label: "République du Congo", iso: "cg" },
-  "congo": { label: "République du Congo", iso: "cg" },
-  "congo-brazzaville": { label: "République du Congo", iso: "cg" },
-  cd: { label: "RD Congo", iso: "cd" },
-  "rd congo": { label: "RD Congo", iso: "cd" },
-  "republique democratique du congo": { label: "RD Congo", iso: "cd" },
-  cm: { label: "Cameroun", iso: "cm" },
-  cameroun: { label: "Cameroun", iso: "cm" },
-  ga: { label: "Gabon", iso: "ga" },
-  gabon: { label: "Gabon", iso: "ga" },
-  cf: { label: "Centrafrique", iso: "cf" },
-  centrafrique: { label: "Centrafrique", iso: "cf" },
-  td: { label: "Tchad", iso: "td" },
-  tchad: { label: "Tchad", iso: "td" },
-  ci: { label: "Côte d'Ivoire", iso: "ci" },
-  "cote d'ivoire": { label: "Côte d'Ivoire", iso: "ci" },
-  sn: { label: "Sénégal", iso: "sn" },
-  senegal: { label: "Sénégal", iso: "sn" },
-  ml: { label: "Mali", iso: "ml" },
-  mali: { label: "Mali", iso: "ml" },
-  bf: { label: "Burkina Faso", iso: "bf" },
-  "burkina faso": { label: "Burkina Faso", iso: "bf" },
-  bj: { label: "Bénin", iso: "bj" },
-  benin: { label: "Bénin", iso: "bj" },
-  tg: { label: "Togo", iso: "tg" },
-  togo: { label: "Togo", iso: "tg" },
-  ng: { label: "Nigeria", iso: "ng" },
-  nigeria: { label: "Nigeria", iso: "ng" },
-  fr: { label: "France", iso: "fr" },
-  france: { label: "France", iso: "fr" },
-};
-
-function resolveCountry(input?: string | null): { label: string; iso: string } {
-  if (!input) return { label: "République du Congo", iso: "cg" };
-  const key = input
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  return COUNTRY_MAP[key] || { label: input, iso: "" };
-}
-
-/** Drapeau du pays de l'agent (image flagcdn, compatible export PNG/PDF). */
+/** Drapeau CARRÉ (1:1) du pays de l'agent, compatible export PNG/PDF. */
 function CountryFlag({ iso, className = "" }: { iso: string; className?: string }) {
-  if (!iso) return null;
+  const src = squareFlagUrl(iso);
+  if (!src) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://flagcdn.com/w80/${iso}.png`}
+      src={src}
       alt=""
       aria-hidden="true"
       crossOrigin="anonymous"
@@ -350,7 +307,7 @@ export function AgentIdBadge({
                     {row.flag && (
                       <CountryFlag
                         iso={resolvedCountry.iso}
-                        className="h-8 w-8 shrink-0 rounded-md border border-white/10 object-cover"
+                        className="aspect-square h-8 w-8 shrink-0 rounded-md border border-white/10 object-cover"
                       />
                     )}
                     {row.shield && (

@@ -43,3 +43,13 @@ export function resolveCountry(input?: string | null): { label: string; iso: str
     .replace(/[\u0300-\u036f]/g, "");
   return COUNTRY_MAP[key] || { label: input, iso: "" };
 }
+
+/**
+ * URL d'un drapeau CARRÉ (ratio 1:1) pour un code ISO donné.
+ * Utilise lipis/flag-icons (variante 1x1) servie via jsDelivr avec CORS,
+ * compatible avec l'export PNG/PDF (html-to-image).
+ */
+export function squareFlagUrl(iso?: string | null): string | null {
+  if (!iso) return null;
+  return `https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.5.0/flags/1x1/${iso.toLowerCase()}.svg`;
+}
