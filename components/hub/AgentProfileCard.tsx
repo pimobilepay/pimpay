@@ -66,6 +66,8 @@ interface AgentProfileCardProps {
     successRate: string;
   };
   achievements?: { key: string; earned: boolean }[];
+  /** Affiche la rangée d'actions (PNG, PDF, Partager, Imprimer, Lien, QR). */
+  showActions?: boolean;
 }
 
 const ACHIEVEMENT_META: Record<
@@ -120,6 +122,7 @@ export function AgentProfileCard({
   rank = "#12 Top Performer",
   stats = defaultStats,
   achievements = DEFAULT_ACHIEVEMENTS,
+  showActions = true,
 }: AgentProfileCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState<"png" | "pdf" | null>(null);
@@ -467,14 +470,16 @@ export function AgentProfileCard({
       </div>
 
       {/* Actions */}
-      <div className="grid w-full max-w-[520px] grid-cols-2 gap-3 sm:grid-cols-6">
-        <ActionButton onClick={handleDownloadPng} disabled={downloading !== null} icon={downloading === "png" ? Loader2 : Download} spinning={downloading === "png"} label="PNG" />
-        <ActionButton onClick={handleDownloadPdf} disabled={downloading !== null} icon={downloading === "pdf" ? Loader2 : FileText} spinning={downloading === "pdf"} label="PDF" />
-        <ActionButton onClick={handleShare} icon={Share2} label="Partager" />
-        <ActionButton onClick={handlePrint} icon={Printer} label="Imprimer" />
-        <ActionButton onClick={() => copy(referralLink || code, setCopiedLink)} icon={copiedLink ? Check : Link2} label={copiedLink ? "Copié" : "Lien"} />
-        <ActionButton onClick={() => copy(qrValue, setCopiedLink)} icon={QrCode} label="QR" />
-      </div>
+      {showActions && (
+        <div className="grid w-full max-w-[520px] grid-cols-2 gap-3 sm:grid-cols-6">
+          <ActionButton onClick={handleDownloadPng} disabled={downloading !== null} icon={downloading === "png" ? Loader2 : Download} spinning={downloading === "png"} label="PNG" />
+          <ActionButton onClick={handleDownloadPdf} disabled={downloading !== null} icon={downloading === "pdf" ? Loader2 : FileText} spinning={downloading === "pdf"} label="PDF" />
+          <ActionButton onClick={handleShare} icon={Share2} label="Partager" />
+          <ActionButton onClick={handlePrint} icon={Printer} label="Imprimer" />
+          <ActionButton onClick={() => copy(referralLink || code, setCopiedLink)} icon={copiedLink ? Check : Link2} label={copiedLink ? "Copié" : "Lien"} />
+          <ActionButton onClick={() => copy(qrValue, setCopiedLink)} icon={QrCode} label="QR" />
+        </div>
+      )}
     </div>
   );
 }

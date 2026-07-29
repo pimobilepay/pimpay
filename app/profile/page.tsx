@@ -467,6 +467,7 @@ export default function ProfilePage() {
             progress={tier.progress}
             stats={cardStats}
             achievements={referralData?.achievements}
+            showActions={false}
           />
         )}
 
