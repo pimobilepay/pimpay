@@ -36,13 +36,38 @@ const COUNTRY_MAP: Record<string, { label: string; iso: string }> = {
   france: { label: "France", iso: "fr" },
 };
 
-/** Résout un libellé de pays en { label, iso } (iso vide si inconnu). */
-export function resolveCountry(input?: string | null): { label: string; iso: string } {
-  if (!input) return { label: "—", iso: "" };
-  const key = input
+import { countries } from "@/lib/country-data";
+
+/** Normalise une chaîne pour comparaison (minuscules, sans accents). */
+function normalizeKey(input: string): string {
+  return input
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  return COUNTRY_MAP[key] || { label: input, iso: "" };
+}
+
+/**
+ * Index universel construit à partir de la liste complète des pays
+ * (nom + code ISO alpha-2). Permet de résoudre n'importe quel pays,
+ * pas seulement ceux listés manuellement dans COUNTRY_MAP.
+ */
+const WORLD_INDEX: Record<string, { label: string; iso: string }> = (() => {
+  const idx: Record<string, { label: string; iso: string }> = {};
+  for (const c of countries) {
+    const iso = c.code.toLowerCase();
+    const entry = { label: c.name, iso };
+    idx[normalizeKey(c.name)] = entry;
+    idx[iso] = entry;
+  }
+  return idx;
+})();
+
+/** Résout un libellé de pays en { label, iso } (iso vide si inconnu). */
+export function resolveCountry(input?: string | null): { label: string; iso: string } {
+  if (!input) return { label: "—", iso: "" };
+  const key = normalizeKey(input);
+  // 1) Alias manuels (variantes/orthographes FR spécifiques).
+  // 2) Repli sur l'index mondial complet (nom ou code ISO).
+  return COUNTRY_MAP[key] || WORLD_INDEX[key] || { label: input, iso: "" };
 }
