@@ -17,6 +17,7 @@ import { ReferralProgram } from "@/components/ReferralProgram";
 import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
 import { QrCode } from "lucide-react";
 import { AgentProfileCard } from "@/components/hub/AgentProfileCard";
+import { UserProfileCard } from "@/components/profile/UserProfileCard";
 
 const swrFetcher = (url: string) => fetch(url, { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
 
@@ -404,6 +405,10 @@ export default function ProfilePage() {
   }
 
   // ── Données de la carte de profil (design "Agent Officiel") ──────────────
+  // Détermine si le compte est un agent/admin (affiche la carte agent) ou un
+  // utilisateur standard (affiche la carte utilisateur).
+  const isAgentAccount =
+    user?.role === "AGENT" || user?.role === "ADMIN" || Boolean(user?.agentId);
   const agentInfo = referralData?.agent;
   const agentStats = referralData?.stats;
   const referralCode =
@@ -445,9 +450,10 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* Carte de profil officielle (design Agent) avec drapeau + informations */}
+      {/* Carte de profil : design Agent (bleu) pour les agents/admins,
+          carte utilisateur pour les comptes standards. */}
       <div className="px-4 pt-6 pb-4">
-        {user && (
+        {user && isAgentAccount && (
           <AgentProfileCard
             name={user.name}
             agentId={user.agentId || undefined}
@@ -468,6 +474,22 @@ export default function ProfilePage() {
             stats={cardStats}
             achievements={referralData?.achievements}
             showActions={false}
+          />
+        )}
+
+        {user && !isAgentAccount && (
+          <UserProfileCard
+            name={user.name}
+            username={user.username}
+            email={user.email}
+            phone={user.phone}
+            country={user.country || undefined}
+            city={user.city}
+            wallet={walletShort}
+            joinDate={cardJoinDate}
+            avatar={user.avatar}
+            isVerified={user.isVerified}
+            kycStatus={user.kycStatus}
           />
         )}
 

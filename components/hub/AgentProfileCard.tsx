@@ -38,6 +38,7 @@ import {
   Headphones,
 } from "lucide-react";
 import { resolveCountry, squareFlagUrl } from "@/lib/country";
+// NOTE: la carte utilise la couleur bleue de la plateforme (remplace l'ancien vert).
 
 interface AgentProfileCardProps {
   name: string;
@@ -74,13 +75,13 @@ const ACHIEVEMENT_META: Record<
   string,
   { icon: React.ComponentType<{ className?: string }>; label: string; ring: string; bg: string; color: string }
 > = {
-  first_referral: { icon: Star, label: "Premier\nRéférent", ring: "border-emerald-500/60", bg: "bg-emerald-500/10", color: "text-emerald-400" },
+  first_referral: { icon: Star, label: "Premier\nRéférent", ring: "border-blue-500/60", bg: "bg-blue-500/10", color: "text-blue-400" },
   referrals_100: { icon: Users, label: "100\nRéférences", ring: "border-sky-500/60", bg: "bg-sky-500/10", color: "text-sky-400" },
   transactions_500: { icon: Award, label: "500\nTransactions", ring: "border-fuchsia-500/60", bg: "bg-fuchsia-500/10", color: "text-fuchsia-400" },
   merchants_100: { icon: Store, label: "100\nCommerçants", ring: "border-amber-500/60", bg: "bg-amber-500/10", color: "text-amber-400" },
   top_seller: { icon: Flame, label: "Top\nSeller", ring: "border-orange-500/60", bg: "bg-orange-500/10", color: "text-orange-400" },
   regional_ambassador: { icon: Crown, label: "Ambassadeur\nRégional", ring: "border-rose-500/60", bg: "bg-rose-500/10", color: "text-rose-400" },
-  elite_partner: { icon: Gem, label: "Elite\nPartner", ring: "border-teal-500/60", bg: "bg-teal-500/10", color: "text-teal-400" },
+  elite_partner: { icon: Gem, label: "Elite\nPartner", ring: "border-blue-500/60", bg: "bg-blue-500/10", color: "text-blue-400" },
 };
 
 const DEFAULT_ACHIEVEMENTS = [
@@ -218,10 +219,10 @@ export function AgentProfileCard({
   const statItems = [
     { icon: Users, value: stats.references, label: "Références", color: "text-sky-400" },
     { icon: ArrowLeftRight, value: stats.transactions, label: "Transactions", color: "text-cyan-400" },
-    { icon: Wallet, value: stats.volume, label: "Volume Total", color: "text-emerald-400" },
-    { icon: Store, value: stats.merchants, label: "Commerçants", color: "text-emerald-400" },
+    { icon: Wallet, value: stats.volume, label: "Volume Total", color: "text-blue-400" },
+    { icon: Store, value: stats.merchants, label: "Commerçants", color: "text-blue-400" },
     { icon: Globe, value: stats.countries, label: "Pays Servis", color: "text-sky-400" },
-    { icon: TrendingUp, value: stats.successRate, label: "Taux de Réussite", color: "text-emerald-400" },
+    { icon: TrendingUp, value: stats.successRate, label: "Taux de Réussite", color: "text-blue-400" },
   ];
 
   const security = [
@@ -242,21 +243,21 @@ export function AgentProfileCard({
       {/* Captured poster */}
       <div
         ref={cardRef}
-        className="w-full max-w-[520px] overflow-hidden rounded-[2rem] border border-emerald-500/20 bg-[#02040a] p-5 shadow-2xl shadow-emerald-500/10 sm:p-6"
+        className="w-full max-w-[520px] overflow-hidden rounded-[2rem] border border-blue-500/20 bg-[#02040a] p-5 shadow-2xl shadow-blue-500/10 sm:p-6"
       >
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600">
               <Wallet className="h-5 w-5 text-white" />
             </div>
             <div>
               <p className="text-lg font-black leading-none text-white">PIMOBIPAY</p>
-              <p className="text-[10px] font-bold uppercase tracking-[2px] text-emerald-500">Agent Officiel</p>
+              <p className="text-[10px] font-bold uppercase tracking-[2px] text-blue-500">Agent Officiel</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-emerald-500" />
+            <ShieldCheck className="h-6 w-6 text-blue-500" />
             <div className="text-right">
               <p className="text-xs font-black leading-none text-white">Agent Vérifié</p>
               <p className="text-[10px] text-slate-400">Partenaire Officiel</p>
@@ -268,7 +269,7 @@ export function AgentProfileCard({
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
           <div className="flex items-center gap-4">
             <div className="relative shrink-0 p-1">
-              <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-emerald-500/50 bg-white">
+              <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-blue-500/50 bg-white">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={avatar || "/logo-pimpay.png"}
@@ -277,14 +278,14 @@ export function AgentProfileCard({
                   crossOrigin="anonymous"
                 />
               </div>
-              <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#02040a] bg-emerald-500">
+              <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#02040a] bg-blue-500">
                 <Check className="h-4 w-4 text-white" strokeWidth={3} />
               </span>
             </div>
             <div>
               <p className="text-2xl font-black text-white">{name}</p>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-sm font-bold text-emerald-500">{roleLabel}</span>
+                <span className="text-sm font-bold text-blue-500">{roleLabel}</span>
                 <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-400">
                   Actif
                 </span>
@@ -295,16 +296,16 @@ export function AgentProfileCard({
           </div>
 
           {/* Level card */}
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-6 py-4 text-center">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-500/5 px-6 py-4 text-center">
             <p className="text-[10px] font-black uppercase tracking-[2px] text-slate-400">Niveau Actuel</p>
             <div className="my-2 flex items-center justify-center gap-1">
-              <Medal className="h-5 w-5 -scale-x-100 text-emerald-500/60" />
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-emerald-500/50 bg-emerald-500/10">
-                <Star className="h-7 w-7 fill-emerald-400 text-emerald-400" />
+              <Medal className="h-5 w-5 -scale-x-100 text-blue-500/60" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-blue-500/50 bg-blue-500/10">
+                <Star className="h-7 w-7 fill-blue-400 text-blue-400" />
               </div>
-              <Medal className="h-5 w-5 text-emerald-500/60" />
+              <Medal className="h-5 w-5 text-blue-500/60" />
             </div>
-            <p className="text-base font-black text-emerald-400">{level}</p>
+            <p className="text-base font-black text-blue-400">{level}</p>
             <p className="text-[11px] text-slate-400">{levelSubtitle}</p>
           </div>
         </div>
@@ -313,11 +314,11 @@ export function AgentProfileCard({
         <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-black uppercase tracking-[2px] text-slate-400">Votre Progression</p>
-            <p className="text-xl font-black text-emerald-400">{progress}%</p>
+            <p className="text-xl font-black text-blue-400">{progress}%</p>
           </div>
           <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400"
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -333,7 +334,7 @@ export function AgentProfileCard({
         <div className="mt-4 grid grid-cols-1 gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4 sm:grid-cols-[auto_1fr]">
           {/* QR */}
           <div className="flex flex-col items-center gap-2 sm:border-r sm:border-white/5 sm:pr-4">
-            <p className="text-[10px] font-black uppercase tracking-[2px] text-emerald-500">Scannez pour vérifier</p>
+            <p className="text-[10px] font-black uppercase tracking-[2px] text-blue-500">Scannez pour vérifier</p>
             <div className="rounded-xl bg-white p-2">
               <QRCodeSVG value={qrValue} size={116} level="H" includeMargin={false} />
             </div>
@@ -348,7 +349,7 @@ export function AgentProfileCard({
             <InfoItem
               icon={UserRound}
               label="Code Agent / Référent"
-              value={<span className="break-all font-mono text-emerald-400">{code}</span>}
+              value={<span className="break-all font-mono text-blue-400">{code}</span>}
               onCopy={() => copy(code, setCopiedCode)}
               copied={copiedCode}
             />
@@ -356,7 +357,7 @@ export function AgentProfileCard({
             <InfoItem
               icon={ShieldCheck}
               label="Statut"
-              value={<span className="font-bold text-emerald-400">Vérifié &amp; Actif</span>}
+              value={<span className="font-bold text-blue-400">Vérifié &amp; Actif</span>}
             />
             <InfoItem icon={Mail} label="Email" value={<span className="break-all">{email || "—"}</span>} />
             <InfoItem
@@ -377,7 +378,7 @@ export function AgentProfileCard({
 
         {/* Stats */}
         <div className="mt-4">
-          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-emerald-500">Vos Statistiques</p>
+          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-blue-500">Vos Statistiques</p>
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
             {statItems.map((s) => (
               <div
@@ -394,17 +395,17 @@ export function AgentProfileCard({
 
         {/* Security */}
         <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-emerald-500">
+          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-blue-500">
             Sécurité &amp; Conformité
           </p>
           <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
             {security.map((s) => (
               <div key={s.label} className="flex flex-col items-center gap-1.5 text-center">
                 <div className="relative">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10">
-                    <s.icon className="h-5 w-5 text-emerald-400" />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/10">
+                    <s.icon className="h-5 w-5 text-blue-400" />
                   </div>
-                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500">
+                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500">
                     <Check className="h-2.5 w-2.5 text-white" strokeWidth={4} />
                   </span>
                 </div>
@@ -416,7 +417,7 @@ export function AgentProfileCard({
 
         {/* Achievements */}
         <div className="mt-4">
-          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-emerald-500">
+          <p className="text-center text-[11px] font-black uppercase tracking-[2px] text-blue-500">
             Vos Réalisations
             <span className="ml-2 text-slate-500">
               {earnedCount}/{achievementItems.length}
@@ -432,7 +433,7 @@ export function AgentProfileCard({
                 >
                   <a.icon className={`h-6 w-6 ${a.earned ? a.color : "text-slate-600"}`} />
                   {a.earned ? (
-                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500">
+                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500">
                       <Check className="h-2.5 w-2.5 text-white" strokeWidth={4} />
                     </span>
                   ) : (
@@ -456,7 +457,7 @@ export function AgentProfileCard({
         {/* Footer */}
         <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-4 text-center sm:flex-row sm:text-left">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600">
               <Wallet className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -471,7 +472,7 @@ export function AgentProfileCard({
             <p className="text-[10px] text-slate-500">L&apos;avenir de vos transactions</p>
           </div>
           <div className="flex items-center gap-2">
-            <Headphones className="h-5 w-5 text-emerald-500" />
+            <Headphones className="h-5 w-5 text-blue-500" />
             <div>
               <p className="text-[10px] font-bold text-white">Support</p>
               <p className="text-[10px] text-slate-500">support@pimobipay.com</p>
@@ -523,7 +524,7 @@ function InfoItem({
         />
       ) : (
         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
-          <Icon className="h-4 w-4 text-emerald-400" />
+          <Icon className="h-4 w-4 text-blue-400" />
         </div>
       )}
       <div className="min-w-0">
@@ -531,8 +532,8 @@ function InfoItem({
         <div className="flex items-center gap-1.5 text-sm font-semibold text-white">
           <span className="min-w-0 truncate">{value}</span>
           {onCopy && (
-            <button onClick={onCopy} aria-label={`Copier ${label}`} className="shrink-0 text-slate-500 hover:text-emerald-400">
-              {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            <button onClick={onCopy} aria-label={`Copier ${label}`} className="shrink-0 text-slate-500 hover:text-blue-400">
+              {copied ? <Check className="h-3.5 w-3.5 text-blue-400" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           )}
         </div>
@@ -558,7 +559,7 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-slate-900/60 px-2 py-3 text-white transition-colors hover:border-emerald-500/40 hover:bg-slate-800 disabled:opacity-50"
+      className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-slate-900/60 px-2 py-3 text-white transition-colors hover:border-blue-500/40 hover:bg-slate-800 disabled:opacity-50"
     >
       <Icon className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`} />
       <span className="text-[10px] font-bold">{label}</span>
