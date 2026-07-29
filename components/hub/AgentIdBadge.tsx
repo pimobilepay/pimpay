@@ -39,6 +39,9 @@ const COUNTRY_MAP: Record<string, { label: string; iso: string }> = {
   "republique du congo": { label: "République du Congo", iso: "cg" },
   "congo": { label: "République du Congo", iso: "cg" },
   "congo-brazzaville": { label: "République du Congo", iso: "cg" },
+  "congo brazzaville": { label: "République du Congo", iso: "cg" },
+  "brazzaville": { label: "République du Congo", iso: "cg" },
+  "congo br": { label: "République du Congo", iso: "cg" },
   cd: { label: "RD Congo", iso: "cd" },
   "rd congo": { label: "RD Congo", iso: "cd" },
   "republique democratique du congo": { label: "RD Congo", iso: "cd" },
@@ -350,7 +353,7 @@ export function AgentIdBadge({
                     {row.flag && (
                       <CountryFlag
                         iso={resolvedCountry.iso}
-                        className="h-8 w-8 shrink-0 rounded-md border border-white/10 object-cover"
+                        className="h-8 w-8 shrink-0 rounded-none border border-white/10 object-cover"
                       />
                     )}
                     {row.shield && (

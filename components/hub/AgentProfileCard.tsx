@@ -170,11 +170,23 @@ export function AgentProfileCard({
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth - 20;
-      const imgHeight = (img.height / img.width) * imgWidth;
+      // Fond sombre plein A4
       pdf.setFillColor(2, 4, 10);
       pdf.rect(0, 0, pageWidth, pageHeight, "F");
-      pdf.addImage(dataUrl, "PNG", 10, 10, imgWidth, Math.min(imgHeight, pageHeight - 20));
+      // Ajuste la carte dans la page A4 en conservant ses proportions, puis centre.
+      const margin = 8;
+      const availW = pageWidth - margin * 2;
+      const availH = pageHeight - margin * 2;
+      const ratio = img.width / img.height;
+      let drawW = availW;
+      let drawH = drawW / ratio;
+      if (drawH > availH) {
+        drawH = availH;
+        drawW = drawH * ratio;
+      }
+      const x = (pageWidth - drawW) / 2;
+      const y = (pageHeight - drawH) / 2;
+      pdf.addImage(dataUrl, "PNG", x, y, drawW, drawH);
       pdf.save(`profil-agent-${agentId}.pdf`);
     } catch (e) {
       console.error("[AgentProfileCard] PDF export failed", e);
@@ -508,7 +520,7 @@ function InfoItem({
           alt=""
           aria-hidden="true"
           crossOrigin="anonymous"
-          className="mt-0.5 h-8 w-8 shrink-0 rounded-lg border border-white/10 object-cover"
+          className="mt-0.5 h-8 w-8 shrink-0 rounded-none border border-white/10 object-cover"
         />
       ) : (
         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
