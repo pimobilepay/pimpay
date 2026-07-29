@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import useSWR from "swr";
 import {
-  User, Mail, Shield, Bell, ChevronRight, LogOut, Camera, CheckCircle2,
+  User, Mail, Shield, Bell, ChevronRight, LogOut, CheckCircle2,
   Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen, Loader2,
   Phone, Briefcase, BadgeCheck, FileText, Building2, Hash, Lock, X, Check, ChevronDown, Gift
 } from "lucide-react";
@@ -15,6 +16,38 @@ import LogoutOverlay from "@/components/LogoutOverlay";
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
 import { QrCode } from "lucide-react";
+import { AgentProfileCard } from "@/components/hub/AgentProfileCard";
+
+const swrFetcher = (url: string) => fetch(url, { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
+
+/** Paliers basés sur le nombre de filleuls (identique à la carte agent). */
+const PROFILE_TIERS = [
+  { name: "BRONZE AGENT", min: 0, target: 10 as number | null, next: "SILVER AGENT" as string | null },
+  { name: "SILVER AGENT", min: 10, target: 25 as number | null, next: "GOLD AGENT" as string | null },
+  { name: "GOLD AGENT", min: 25, target: 50 as number | null, next: "PLATINUM AGENT" as string | null },
+  { name: "PLATINUM AGENT", min: 50, target: 100 as number | null, next: "ELITE AGENT" as string | null },
+  { name: "ELITE AGENT", min: 100, target: null as number | null, next: null as string | null },
+];
+
+function getProfileTier(count: number) {
+  let current = PROFILE_TIERS[0];
+  for (const tier of PROFILE_TIERS) if (count >= tier.min) current = tier;
+  if (current.target === null) {
+    return { level: current.name, levelSubtitle: "Niveau le plus élevé", nextLevel: current.name, progress: 100 };
+  }
+  const span = current.target - current.min;
+  const progress = Math.min(100, Math.max(0, Math.round(((count - current.min) / span) * 100)));
+  return {
+    level: current.name,
+    levelSubtitle: `${count} filleul${count > 1 ? "s" : ""} recruté${count > 1 ? "s" : ""}`,
+    nextLevel: current.next || current.name,
+    progress,
+  };
+}
+
+function fmtInt(n: number) {
+  return new Intl.NumberFormat("fr-FR").format(n || 0);
+}
 
 interface UserData {
   id: string;
@@ -41,6 +74,11 @@ interface UserData {
   walletAddress: string;
   role: string;
   avatar?: string;
+  createdAt?: string;
+  referralCode?: string;
+  referralCount?: number;
+  agentId?: string;
+  agentRole?: string;
 }
 
 interface ProfileItem {
@@ -124,6 +162,14 @@ export default function ProfilePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
+
+  // Données de parrainage/statistiques réelles (agents & admins).
+  // Renvoie null pour les utilisateurs standards (accès réservé) : la carte
+  // se rabat alors sur les données de profil ci-dessous.
+  const { data: referralData } = useSWR(
+    user && (user.role === "AGENT" || user.role === "ADMIN") ? "/api/agent/referral" : null,
+    swrFetcher
+  );
 
   // Options pour les champs select
   const genderOptions = [
@@ -357,6 +403,32 @@ export default function ProfilePage() {
     );
   }
 
+  // ── Données de la carte de profil (design "Agent Officiel") ──────────────
+  const agentInfo = referralData?.agent;
+  const agentStats = referralData?.stats;
+  const referralCode =
+    agentInfo?.referralCode || user?.referralCode || user?.username || user?.id || "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const referralLink =
+    referralData?.referralLink ||
+    (referralCode ? `${origin}/auth/signup?ref=${encodeURIComponent(referralCode)}` : origin);
+  const referencesCount = agentStats?.totalReferred ?? user?.referralCount ?? 0;
+  const tier = getProfileTier(referencesCount);
+  const walletShort = user?.walletAddress
+    ? `${user.walletAddress.substring(0, 4)}...${user.walletAddress.slice(-6)}`
+    : "—";
+  const cardJoinDate = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+    : user?.joinedAt || "—";
+  const cardStats = {
+    references: fmtInt(referencesCount),
+    transactions: fmtInt(agentStats?.transactions ?? 0),
+    volume: `${fmtInt(agentStats?.volumeTotal ?? 0)} ${agentStats?.currency || "XAF"}`,
+    merchants: fmtInt(agentStats?.merchants ?? 0),
+    countries: fmtInt(agentStats?.countriesServed ?? 0),
+    successRate: `${agentStats?.successRate ?? 0}%`,
+  };
+
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
       {/* Ecran de deconnexion (localise) */}
@@ -373,44 +445,35 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* En-tete du profil */}
-      <div className="relative pt-12 pb-8 px-6 bg-gradient-to-b from-blue-600/20 to-transparent">
-        <div className="flex flex-col items-center">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 p-1 shadow-2xl">
-              <div className="w-full h-full rounded-full bg-[#020617] flex items-center justify-center text-3xl font-black italic overflow-hidden">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="Photo de profil" className="w-full h-full object-cover" />
-                ) : (
-                  user?.name?.[0]?.toUpperCase() || "P"
-                )}
-              </div>
-            </div>
-            <Link
-              href="/profile/edit"
-              className="absolute -bottom-1 -right-1 p-2 bg-blue-600 rounded-full border-4 border-[#020617] shadow-lg active:scale-90 transition-transform"
-            >
-              <Camera size={14} className="text-white" />
-            </Link>
-          </div>
+      {/* Carte de profil officielle (design Agent) avec drapeau + informations */}
+      <div className="px-4 pt-6 pb-4">
+        {user && (
+          <AgentProfileCard
+            name={user.name}
+            agentId={user.agentId || undefined}
+            code={referralCode}
+            role={user.agentRole || user.role}
+            avatar={user.avatar}
+            qrValue={referralLink}
+            referralLink={referralLink}
+            country={user.country || undefined}
+            phone={user.phone}
+            email={user.email}
+            joinDate={cardJoinDate}
+            wallet={walletShort}
+            level={tier.level}
+            levelSubtitle={tier.levelSubtitle}
+            nextLevel={tier.nextLevel}
+            progress={tier.progress}
+            stats={cardStats}
+            achievements={referralData?.achievements}
+          />
+        )}
 
-          <h1 className="mt-4 text-lg font-bold flex items-center gap-2 text-balance text-center">
-            {user?.name}
-            {user?.isVerified && (
-              <CheckCircle2
-                size={16}
-                fill="#60a5fa"
-                className="text-[#020617] bg-white rounded-full border-none shrink-0"
-              />
-            )}
-          </h1>
-          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
-            {user?.role === "ADMIN" ? t("profile.administrator") : `${t("profile.pioneerSince")} ${user?.joinedAt}`}
-          </p>
-
+        <div className="mx-auto mt-5 flex max-w-[520px] justify-center">
           <Link
             href="/profile/edit"
-            className="mt-4 flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all active:scale-95"
+            className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all active:scale-95"
           >
             <UserPen size={14} className="text-blue-400" />
             {t("profile.editMyInfo")}
