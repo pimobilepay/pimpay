@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { verifyJWT } from "@/lib/auth";
 import { nanoid } from "nanoid";
 import { parseAmount } from "@/lib/amount-guard";
+import { sendNotification } from "@/lib/notifications";
 
 // Durees d'expiration autorisees (au choix de l'utilisateur).
 const DURATION_MS: Record<string, number> = {
@@ -64,18 +65,85 @@ export async function POST(req: NextRequest) {
     }
     const amount = parsed.value;
 
+    // ── Destinataire cible (optionnel) ──────────────────────────────────────
+    // Si l'utilisateur precise a qui il reclame l'argent, on resout le compte
+    // pour pouvoir le notifier. La demande reste payable via le lien par
+    // n'importe qui : le destinataire n'est qu'une cible de notification.
+    const recipientInput =
+      typeof body.recipient === "string" ? body.recipient.trim() : "";
+    let recipient: { id: string; username: string; name: string | null } | null = null;
+
+    if (recipientInput) {
+      const clean = recipientInput.startsWith("@")
+        ? recipientInput.slice(1)
+        : recipientInput;
+
+      recipient = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: { equals: clean, mode: "insensitive" } },
+            { email: { equals: clean, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true, username: true, name: true },
+      });
+
+      if (!recipient) {
+        return NextResponse.json(
+          { error: "Destinataire introuvable sur PIMOBIPAY." },
+          { status: 404 }
+        );
+      }
+      if (recipient.id === requesterId) {
+        return NextResponse.json(
+          { error: "Vous ne pouvez pas vous reclamer un paiement a vous-meme." },
+          { status: 400 }
+        );
+      }
+    }
+
     const expiresAt = new Date(Date.now() + DURATION_MS[duration]);
 
     const request = await prisma.paymentRequest.create({
       data: {
         code: nanoid(10),
         requesterId,
+        recipientId: recipient?.id ?? null,
         amount,
         currency,
         note: note || null,
         expiresAt,
       },
+      include: {
+        recipient: { select: { username: true, name: true } },
+      },
     });
+
+    // Notifie le destinataire qu'un paiement lui est reclame.
+    if (recipient) {
+      const requester = await prisma.user.findUnique({
+        where: { id: requesterId },
+        select: { username: true, name: true },
+      });
+      const requesterName =
+        requester?.name || requester?.username || "Un utilisateur PIMOBIPAY";
+
+      await sendNotification({
+        userId: recipient.id,
+        title: "Demande de paiement recue",
+        message: `${requesterName} vous demande ${amount.toLocaleString()} ${currency}${
+          note ? ` — ${note}` : ""
+        }.`,
+        type: "PAYMENT_SENT",
+        metadata: {
+          amount,
+          currency,
+          senderName: requesterName,
+          senderUsername: requester?.username,
+          reference: request.code,
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, request });
   } catch (err: any) {
@@ -111,6 +179,7 @@ export async function GET() {
       take: 50,
       include: {
         payer: { select: { username: true, name: true } },
+        recipient: { select: { username: true, name: true } },
       },
     });
 

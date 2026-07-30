@@ -96,6 +96,7 @@ model User {
   notifications        Notification[]
   paymentRequestsMade  PaymentRequest[] @relation("payment_request_requester")
   paymentRequestsPaid  PaymentRequest[] @relation("payment_request_payer")
+  paymentRequestsGot   PaymentRequest[] @relation("payment_request_recipient")
   p2pContactsAsContact P2PContact[]     @relation("contact_user")
   p2pContactsOwned     P2PContact[]     @relation("contact_owner")
   qrPayments           QRPayment[]
@@ -372,6 +373,10 @@ model PaymentRequest {
   id          String               @id @default(cuid())
   code        String               @unique
   requesterId String
+  // Destinataire cible (optionnel) : quand renseigne, cet utilisateur recoit
+  // une notification l'invitant a regler la demande. La demande reste malgre
+  // tout payable par n'importe qui possedant le lien / QR code.
+  recipientId String?
   payerId     String?
   amount      Float
   currency    String               @default("PI")
@@ -383,9 +388,11 @@ model PaymentRequest {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   requester   User                 @relation("payment_request_requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient   User?                @relation("payment_request_recipient", fields: [recipientId], references: [id])
   payer       User?                @relation("payment_request_payer", fields: [payerId], references: [id])
 
   @@index([requesterId])
+  @@index([recipientId])
   @@index([status])
 }
 
