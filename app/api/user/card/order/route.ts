@@ -7,7 +7,10 @@ const CARD_CONFIG: any = {
   // MASTERCARD
   PLATINIUM: { price: 10, daily: 1000, years: 3, prismaType: "CLASSIC", brand: "MASTERCARD" },
   PREMIUM: { price: 25, daily: 2500, years: 5, prismaType: "GOLD", brand: "MASTERCARD" },
-  GOLD: { price: 50, daily: 5000, years: 10, prismaType: "GOLD", brand: "MASTERCARD" },
+  // prismaType BUSINESS (au lieu de GOLD) pour que chaque combinaison brand+type
+  // reste unique : sinon PREMIUM et GOLD (tous deux MASTERCARD+GOLD) rendaient
+  // la meme couleur sur /cards et /dashboard/card.
+  GOLD: { price: 50, daily: 5000, years: 10, prismaType: "BUSINESS", brand: "MASTERCARD" },
   ULTRA: { price: 100, daily: 999999, years: 15, prismaType: "ULTRA", brand: "MASTERCARD" },
   // VISA
   VISA_CLASSIC: { price: 15, daily: 1500, years: 3, prismaType: "CLASSIC", brand: "VISA" },

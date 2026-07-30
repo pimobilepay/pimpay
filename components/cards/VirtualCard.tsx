@@ -89,7 +89,32 @@ const CARD_STYLES: Record<string, CardStyle> = {
   VISA_INFINITE: NIGHT,
 };
 
-const getStyle = (type: string): CardStyle => CARD_STYLES[type] || NAVY;
+// [FIX] Les cartes enregistrees en base ne stockent pas l'ID de palier
+// (PLATINIUM, VISA_GOLD...) mais l'enum Prisma CardType (CLASSIC | GOLD |
+// BUSINESS | ULTRA) + la marque. Avant, /cards et /dashboard/card ne rendaient
+// donc que 2 couleurs (NAVY/NIGHT) car getStyle ne reconnaissait pas ces enums.
+// On resout ici la couleur exacte a partir de la combinaison marque + type,
+// pour que ces pages soient identiques a la page de commande.
+const STYLE_BY_BRAND_TYPE: Record<string, CardStyle> = {
+  // MASTERCARD
+  "MASTERCARD:CLASSIC": BLUE, // PLATINIUM
+  "MASTERCARD:GOLD": TEAL, // PREMIUM
+  "MASTERCARD:BUSINESS": INDIGO, // GOLD
+  "MASTERCARD:ULTRA": NIGHT, // ULTRA
+  // VISA
+  "VISA:CLASSIC": PURPLE, // VISA_CLASSIC
+  "VISA:GOLD": GOLD, // VISA_GOLD
+  "VISA:BUSINESS": PLATINUM, // VISA_PLATINUM
+  "VISA:ULTRA": NIGHT, // VISA_INFINITE
+};
+
+const getStyle = (type: string, brand?: string): CardStyle => {
+  // 1) Correspondance directe par ID de palier (utilisee par la page de commande).
+  if (CARD_STYLES[type]) return CARD_STYLES[type];
+  // 2) Resolution par marque + enum Prisma (cartes reelles enregistrees en base).
+  const key = `${(brand || "").toUpperCase()}:${type}`;
+  return STYLE_BY_BRAND_TYPE[key] || NAVY;
+};
 
 // PimPay "P" logo mark (stroked, rounded — matching the brand identity).
 export function PimpayLogo({ size = 26 }: { size?: number }) {
@@ -222,7 +247,7 @@ export function CardFace({
 }) {
   const cardType = card.type?.toUpperCase() || "CLASSIC";
   const cardBrand = card.brand?.toUpperCase() || "VISA";
-  const style = getStyle(cardType);
+  const style = getStyle(cardType, cardBrand);
   const isVisa = cardBrand === "VISA";
   const isMasterCard = cardBrand === "MASTERCARD";
 
