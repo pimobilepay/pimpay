@@ -94,6 +94,8 @@ model User {
   loans                Loan[]
   merchantProfile      Merchant?        @relation("user_merchant")
   notifications        Notification[]
+  paymentRequestsMade  PaymentRequest[] @relation("payment_request_requester")
+  paymentRequestsPaid  PaymentRequest[] @relation("payment_request_payer")
   p2pContactsAsContact P2PContact[]     @relation("contact_user")
   p2pContactsOwned     P2PContact[]     @relation("contact_owner")
   qrPayments           QRPayment[]
@@ -361,6 +363,37 @@ model QRPayment {
   createdAt    DateTime      @default(now())
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+}
+
+// Demande de paiement : un utilisateur cree une demande (montant + note),
+// partage un lien / QR via son `code` unique, et n'importe quel autre
+// utilisateur peut la regler depuis son wallet.
+model PaymentRequest {
+  id          String               @id @default(cuid())
+  code        String               @unique
+  requesterId String
+  payerId     String?
+  amount      Float
+  currency    String               @default("PI")
+  note        String?
+  status      PaymentRequestStatus @default(PENDING)
+  reference   String?
+  expiresAt   DateTime
+  paidAt      DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  requester   User                 @relation("payment_request_requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  payer       User?                @relation("payment_request_payer", fields: [payerId], references: [id])
+
+  @@index([requesterId])
+  @@index([status])
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
 }
 
 model Session {
