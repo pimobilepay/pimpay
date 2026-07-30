@@ -136,25 +136,6 @@ export function UserProfileCard({
         />
         <InfoItem icon={Calendar} label="Date d'inscription" value={joinDate} />
       </div>
-
-      {/* Footer */}
-      <div className="mt-5 flex items-center justify-between border-t border-white/5 pt-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600">
-            <Wallet className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-slate-500">Powered by</p>
-            <p className="text-xs font-black text-white">
-              PIMOBIPAY <span className="font-normal text-slate-400">Technologies</span>
-            </p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-xs font-black text-white">www.pimobipay.com</p>
-          <p className="text-[10px] text-slate-500">L&apos;avenir de vos transactions</p>
-        </div>
-      </div>
     </div>
   );
 }

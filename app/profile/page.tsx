@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import useSWR from "swr";
 import {
-  User, Mail, Shield, Bell, ChevronRight, LogOut, CheckCircle2,
+  User, Shield, Bell, ChevronRight, LogOut, CheckCircle2,
   Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen, Loader2,
-  Phone, Briefcase, BadgeCheck, FileText, Building2, Hash, Lock, X, Check, ChevronDown, Gift
+  Briefcase, BadgeCheck, FileText, Hash, Lock, X, Check, ChevronDown, Gift
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -343,19 +343,9 @@ export default function ProfilePage() {
       ],
     },
     {
-      title: t("profile.contactInfo"),
-      icon: <Mail size={12} />,
-      items: [
-        { label: t("profile.emailAddress"), icon: <Mail size={18} />, value: user?.email || t("profile.notSpecified"), fieldKey: "email", editable: true, inputType: "email" },
-        { label: t("profile.phoneNumber"), icon: <Phone size={18} />, value: user?.phone || t("profile.notSpecified"), fieldKey: "phone", editable: true, inputType: "tel" },
-      ],
-    },
-    {
       title: t("profile.addressLocation"),
       icon: <MapPin size={12} />,
       items: [
-        { label: t("profile.country"), icon: <Globe size={18} />, value: user?.country || t("profile.notSpecified"), fieldKey: "country", editable: true, inputType: "text" },
-        { label: t("profile.city"), icon: <Building2 size={18} />, value: user?.city || t("profile.notSpecifiedFem"), fieldKey: "city", editable: true, inputType: "text" },
         { label: t("profile.residenceAddress"), icon: <MapPin size={18} />, value: user?.address || t("profile.notSpecifiedFem"), fieldKey: "address", editable: true, inputType: "text" },
         { label: t("profile.postalCode"), icon: <Hash size={18} />, value: user?.postalCode || t("profile.notSpecified"), fieldKey: "postalCode", editable: true, inputType: "text" },
       ],
@@ -380,7 +370,6 @@ export default function ProfilePage() {
       title: t("profile.securityWeb3"),
       icon: <Wallet size={12} />,
       items: [
-        { label: t("profile.piWalletAddress"), icon: <Wallet size={18} />, value: user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...${user.walletAddress.slice(-6)}` : t("profile.notLinked"), fieldKey: "walletAddress", editable: true, inputType: "text" },
         { label: t("profile.transactionPin"), icon: <Shield size={18} />, value: t("profile.secured"), active: true, path: "/profile/change-pin" },
         { label: t("profile.biometricAuth"), icon: <Fingerprint size={18} />, toggle: true, path: "/settings/security/biometrics" },
       ],
@@ -492,16 +481,6 @@ export default function ProfilePage() {
             kycStatus={user.kycStatus}
           />
         )}
-
-        <div className="mx-auto mt-5 flex max-w-[520px] justify-center">
-          <Link
-            href="/profile/edit"
-            className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all active:scale-95"
-          >
-            <UserPen size={14} className="text-blue-400" />
-            {t("profile.editMyInfo")}
-          </Link>
-        </div>
       </div>
 
       {/* Statistiques rapides */}
@@ -552,6 +531,17 @@ export default function ProfilePage() {
           </div>
           <ChevronRight size={18} className="text-slate-500 shrink-0" />
         </button>
+      </div>
+
+      {/* Bouton modifier mes informations */}
+      <div className="px-6 mb-8 flex justify-center">
+        <Link
+          href="/profile/edit"
+          className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all active:scale-95"
+        >
+          <UserPen size={14} className="text-blue-400" />
+          {t("profile.editMyInfo")}
+        </Link>
       </div>
 
       {/* Sections du profil */}
