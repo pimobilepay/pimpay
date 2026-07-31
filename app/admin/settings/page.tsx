@@ -554,15 +554,22 @@ export default function SystemSettings() {
   const runBackup = async () => {
     setBackupRunning(true);
     try {
-      const url = backupSendEmail ? "/api/admin/config/backup?sendEmail=true" : "/api/admin/config/backup";
+      const url = backupSendEmail ? "/api/admin/config/backup?redact=true" : "/api/admin/config/backup";
       const res = await fetch(url, { credentials: "include" });
       if (res.ok) {
+        const tables = res.headers.get("X-Backup-Tables");
+        const totalTables = res.headers.get("X-Backup-Total-Tables");
+        const rows = res.headers.get("X-Backup-Rows");
         const blob = await res.blob();
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `pimpay_backup_${Date.now()}.json`;
+        a.download = `pimpay_full_backup_${Date.now()}.json`;
         document.body.appendChild(a); a.click(); a.remove();
-        toast.success("Backup téléchargé avec succès");
+        toast.success(
+          tables
+            ? `Backup complet : ${tables}/${totalTables} tables · ${Number(rows || 0).toLocaleString('fr-FR')} lignes`
+            : "Backup téléchargé avec succès"
+        );
         setBackupModal(false);
       } else {
         const err = await res.json().catch(() => ({}));
@@ -1705,7 +1712,7 @@ export default function SystemSettings() {
               </div>
             )}
 
-            {/* ═════════════════════���══════════════════════════════ */}
+            {/* ═══════════════���═════���══════════════════════════════ */}
             {/* SECTION: SECURITY                                   */}
             {/* ════════════════════════════════════════════════════ */}
             {activeSection === 'security' && (
@@ -2852,13 +2859,15 @@ export default function SystemSettings() {
             <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/15 rounded-xl">
               <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
               <p className="text-[10px] text-slate-400 leading-relaxed">
-                Cette action exportera toutes les données (utilisateurs, transactions, configurations, logs) dans un fichier JSON chiffré.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Données incluses</p>
-              <div className="grid grid-cols-2 gap-2">
-                {["Utilisateurs", "Configurations", "Logs Audit", "Transactions"].map(item => (
+                    Cette action exporte <strong className="text-white">toutes les tables</strong> de la base de données
+                    ({dbData?.totalTables ? `${dbData.totalTables} tables détectées` : 'schéma complet'}) dans un
+                    unique fichier JSON, et envoie une copie sur Google Drive.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Données incluses</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["Toutes les tables", "Utilisateurs & Wallets", "Transactions & Ledger", "Config, Logs & Audit"].map(item => (
                   <div key={item} className="flex items-center gap-2 p-3 bg-white/[0.02] border border-white/[0.04] rounded-xl">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     <span className="text-[10px] font-bold text-white">{item}</span>
@@ -2872,11 +2881,11 @@ export default function SystemSettings() {
               className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${backupSendEmail ? 'bg-blue-500/10 border-blue-500/25' : 'bg-white/[0.02] border-white/[0.06]'}`}
             >
               <div className="flex items-center gap-3">
-                <Mail size={14} className={backupSendEmail ? 'text-blue-400' : 'text-slate-500'} />
-                <div className="text-left">
-                  <p className="text-[10px] font-bold text-white">Envoyer par Email</p>
-                  <p className="text-[8px] text-slate-500">Recevoir le backup par email</p>
-                </div>
+                    <Shield size={14} className={backupSendEmail ? 'text-blue-400' : 'text-slate-500'} />
+                    <div className="text-left">
+                      <p className="text-[10px] font-bold text-white">Masquer les données sensibles</p>
+                      <p className="text-[8px] text-slate-500">Clés privées, mots de passe et secrets 2FA remplacés par [REDACTED]</p>
+                    </div>
               </div>
               <div className={`w-9 h-5 rounded-full relative transition-colors ${backupSendEmail ? 'bg-blue-500' : 'bg-slate-700'}`}>
                 <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${backupSendEmail ? 'left-5' : 'left-1'}`} />
