@@ -153,6 +153,33 @@ const ETH_RPC_ENDPOINTS = [
 
 const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ETHEREUM (ETH natif) — via les RPC publics Ethereum Mainnet
+// Utilise l'adresse EVM de l'utilisateur (sidraAddress), comme BNB.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getEthBalance(address: string): Promise<number | null> {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    console.error("[ETH_BALANCE] Adresse EVM invalide:", address);
+    return null;
+  }
+  for (const rpc of ETH_RPC_ENDPOINTS) {
+    try {
+      const provider = new ethers.JsonRpcProvider(rpc);
+      const raw = await Promise.race([
+        provider.getBalance(address),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("RPC timeout")), TIMEOUT)
+        ),
+      ]);
+      return parseFloat(ethers.formatEther(raw));
+    } catch (err) {
+      console.warn(`[ETH_BALANCE] ${rpc} failed, trying next...`);
+    }
+  }
+  console.error("[ETH_BALANCE] Tous les endpoints Ethereum ont échoué");
+  return null;
+}
+
 // Contrats des stablecoins EVM.
 // - USDC / BUSD / DAI : Binance Smart Chain (18 décimales)
 // - EURC : Euro Coin de Circle sur Ethereum (6 décimales)

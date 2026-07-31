@@ -339,9 +339,13 @@ export async function POST(req: NextRequest) {
       SOL:  user.solAddress,
       XRP:  user.xrpAddress,
       XLM:  user.xlmAddress,
-      ADA:  user.sidraAddress, // Cardano → adresse EVM par défaut (à adapter)
+      // ADA et TON : aucune adresse dediee en base. On ne retombe PAS sur
+      // l'adresse EVM (sidraAddress) : une adresse Cardano/TON n'est pas une
+      // adresse 0x, les fonds envoyes seraient definitivement perdus.
+      // L'utilisateur doit fournir explicitement body.toAddress.
+      ADA:  null,
       DOGE: user.walletAddress,
-      TON:  user.sidraAddress,
+      TON:  null,
     };
 
     const toAddress = body.toAddress || toAddressMap[toToken];

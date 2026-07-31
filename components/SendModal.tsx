@@ -93,9 +93,9 @@ export default function SendModal({
 
   const explorerLink = txHash ? getExplorerLink(currency, txHash) : "#";
 
-  // Placeholder dynamique selon le groupe
+  // Placeholder dynamique selon la chaine de l'actif
   const getPlaceholder = () => {
-    switch (config.group) {
+    switch (config.chain) {
       case "EVM":
         return "Adresse 0x..., email ou @username";
       case "STELLAR":
