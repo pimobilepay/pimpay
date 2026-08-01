@@ -409,7 +409,7 @@ export async function POST(request: Request) {
       result = await verifyBTCAddress(address);
     } else if (upperCurrency === "SOL") {
       result = await verifySolanaAddress(address);
-    } else if (config?.group === "EVM" || rule?.prefix === "0x") {
+    } else if (config?.chain === "EVM" || rule?.prefix === "0x") {
       result = await verifyEVMAddress(address, upperCurrency);
     } else {
       // Default: format is valid, assume exists

@@ -154,11 +154,11 @@ const ETH_RPC_ENDPOINTS = [
 const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ETHEREUM (ETH natif) — via les RPC publics Ethereum Mainnet.
-// On réutilise l'adresse EVM (sidraAddress), identique sur toutes les chaînes EVM.
+// ETHEREUM (ETH natif) — via les RPC publics Ethereum Mainnet
+// Utilise l'adresse EVM de l'utilisateur (sidraAddress), comme BNB.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getEthBalance(address: string): Promise<number | null> {
-  if (!ethers.isAddress(address)) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
     console.error("[ETH_BALANCE] Adresse EVM invalide:", address);
     return null;
   }

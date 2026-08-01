@@ -244,6 +244,84 @@ export const WALLET_ASSET_ORDER = [
   "USDC", "DAI", "BUSD", "EURC", "OUSD"
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MATRICE DE CAPACITÉS DÉPÔT / RETRAIT (source de vérité unique)
+//
+// Toute la logique dépôt/retrait doit s'appuyer sur ces maps pour éviter les
+// désynchronisations entre l'UI, les routes de sync et le broadcast on-chain.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Endpoint de synchronisation on-chain par actif.
+ * Un actif présent ici voit ses dépôts détectés et crédités automatiquement.
+ * PI est absent volontairement : ses dépôts passent par le SDK Pi (/api/pi/*).
+ */
+export const SYNC_ENDPOINTS: Record<string, string> = {
+  SDA: "/api/wallet/sidra/sync",
+  BTC: "/api/wallet/btc/sync",
+  ETH: "/api/wallet/eth/sync",
+  BNB: "/api/wallet/bnb/sync",
+  SOL: "/api/wallet/sol/sync",
+  XRP: "/api/wallet/xrp/sync",
+  XLM: "/api/wallet/xlm/sync",
+  TRX: "/api/wallet/trx/sync",
+  USDT: "/api/wallet/usdt/sync",
+  USDC: "/api/wallet/usdc/sync",
+  DAI: "/api/wallet/dai/sync",
+  BUSD: "/api/wallet/busd/sync",
+  EURC: "/api/wallet/eurc/sync",
+  OUSD: "/api/wallet/ousd/sync",
+};
+
+/**
+ * Actifs dont le dépôt est opérationnel (adresse dédiée + détection du solde).
+ * PI inclus via le SDK Pi Network.
+ */
+export const DEPOSIT_SUPPORTED = new Set<string>(["PI", ...Object.keys(SYNC_ENDPOINTS)]);
+
+/**
+ * Actifs dont le retrait externe est réellement diffusé on-chain par le serveur.
+ * - PI : via le SDK Pi Network (paiement A2U)
+ * - SDA / ETH / BNB : natif EVM (clé sidraPrivateKey)
+ * - USDC / BUSD / DAI / EURC / OUSD : ERC20/BEP20 (clé sidraPrivateKey)
+ * - TRX / USDT : TRON / TRC20 (clé usdtPrivateKey)
+ */
+export const WITHDRAW_ONCHAIN_SUPPORTED = new Set<string>([
+  "PI",
+  "SDA",
+  "ETH",
+  "BNB",
+  "USDC",
+  "BUSD",
+  "DAI",
+  "EURC",
+  "OUSD",
+  "TRX",
+  "USDT",
+]);
+
+/**
+ * Actifs listés dans l'app mais SANS adresse de dépôt dédiée, SANS lecture de
+ * solde et SANS broadcast. Ils sont mappés par défaut sur l'adresse EVM, ce qui
+ * ferait perdre les fonds d'un utilisateur. Ils restent visibles (swap, cours)
+ * mais dépôt et retrait direct sont bloqués jusqu'à implémentation réelle.
+ */
+export const UNSUPPORTED_ONCHAIN_ASSETS = new Set<string>(["ADA", "TON"]);
+
+export function isDepositSupported(symbol: string): boolean {
+  const s = symbol.toUpperCase();
+  return DEPOSIT_SUPPORTED.has(s) && !UNSUPPORTED_ONCHAIN_ASSETS.has(s);
+}
+
+export function isWithdrawSupported(symbol: string): boolean {
+  const s = symbol.toUpperCase();
+  return WITHDRAW_ONCHAIN_SUPPORTED.has(s) && !UNSUPPORTED_ONCHAIN_ASSETS.has(s);
+}
+
+export function getSyncEndpoint(symbol: string): string | null {
+  return SYNC_ENDPOINTS[symbol.toUpperCase()] ?? null;
+}
+
 export function getAssetConfig(symbol: string): CryptoAsset {
   return CRYPTO_ASSETS[symbol.toUpperCase()] || CRYPTO_ASSETS.PI;
 }

@@ -19,7 +19,7 @@ import { usePiPrice } from "@/hooks/usePiPrice";
 import { formatBalance, formatCryptoBalance } from "@/lib/formatters";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
-import { CRYPTO_ASSETS } from "@/lib/crypto-config";
+import { CRYPTO_ASSETS, isWithdrawSupported } from "@/lib/crypto-config";
 import { validateAddress, CRYPTO_RULES } from "@/lib/crypto-validator";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 import "flag-icons/css/flag-icons.min.css";
@@ -937,10 +937,18 @@ export default function WithdrawPage() {
                             const asset = CRYPTO_ASSETS[key];
                             const wallet = wallets.find(w => w.currency === key);
                             const walletBalance = wallet?.balance || 0;
+                            // ADA/TON : aucun broadcast on-chain cote serveur et aucune
+                            // adresse dediee. On desactive le retrait pour eviter un
+                            // envoi vers une adresse EVM incompatible (perte de fonds).
+                            const unavailable = !isWithdrawSupported(key);
                             return (
                               <button
                                 key={key}
+                                disabled={unavailable}
+                                aria-disabled={unavailable}
+                                title={unavailable ? `Retrait ${key} bientot disponible` : undefined}
                                 onClick={() => {
+                                  if (unavailable) return;
                                   setSelectedCrypto(key);
                                   setShowCryptoSelector(false);
                                   setCryptoAddress("");
@@ -950,7 +958,9 @@ export default function WithdrawPage() {
                                   setAddressVerifying(false);
                                 }}
                                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
-                                  selectedCrypto === key
+                                  unavailable
+                                    ? "opacity-40 cursor-not-allowed"
+                                    : selectedCrypto === key
                                     ? "bg-blue-600/20 border border-blue-500/30"
                                     : "hover:bg-white/5"
                                 }`}
@@ -969,7 +979,9 @@ export default function WithdrawPage() {
                                   )}
                                   <div className="text-left">
                                     <span className="text-[11px] font-black block">{asset.name}</span>
-                                    <span className={`text-[9px] font-bold ${asset.accentColor}`}>{asset.network}</span>
+                                    <span className={`text-[9px] font-bold ${unavailable ? "text-slate-500" : asset.accentColor}`}>
+                                      {unavailable ? "Bientot disponible" : asset.network}
+                                    </span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">

@@ -158,6 +158,25 @@ export async function POST(req: NextRequest) {
     }
     const amount = parsed.value;
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GARDE-FOU ACTIFS NON DIFFUSABLES ON-CHAIN (ADA, TON)
+    //
+    // Ces actifs sont listes dans l'app (cours, swap) mais n'ont NI adresse
+    // dediee en base, NI lecture de solde, NI broadcast serveur. Sans ce garde,
+    // un retrait externe debitait le solde DB, echouait au broadcast, puis
+    // remboursait — et surtout l'adresse par defaut utilisee etait une adresse
+    // EVM (0x...) incompatible avec Cardano/TON. On bloque en amont.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (UNSUPPORTED_ONCHAIN_ASSETS.has(currency) && isExternalAddress(recipientInput)) {
+      return NextResponse.json(
+        {
+          error: `Les retraits externes ${currency} ne sont pas encore disponibles. Les transferts entre membres PIMOBIPAY restent possibles.`,
+          code: "WITHDRAW_ASSET_UNSUPPORTED",
+        },
+        { status: 400 }
+      );
+    }
+
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
 

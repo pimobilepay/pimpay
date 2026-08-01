@@ -405,7 +405,9 @@ export async function POST(req: NextRequest) {
         xrpAddress: true,     // XRP
         xlmAddress: true,     // XLM/Stellar
         usdtAddress: true,    // TRON (TRX/USDT)
-        tonAddress: true,     // TON
+        // NOTE: aucun champ `tonAddress` n'existe dans le schema Prisma.
+        // Le selectionner faisait echouer TOUTE la route avec une
+        // PrismaClientValidationError avant meme le devis.
       },
     });
 
@@ -430,9 +432,12 @@ export async function POST(req: NextRequest) {
       XLM:   user.xlmAddress,
       TRX:   user.usdtAddress,
       USDT:  user.usdtAddress,
-      ADA:   user.sidraAddress,
+      ADA:   null,
       DOGE:  user.walletAddress,
-      TON:   user.tonAddress || user.sidraAddress,
+      // TON et ADA : aucune adresse dediee en base. On ne retombe PAS sur
+      // l'adresse EVM (sidraAddress) : les fonds seraient irrecuperables.
+      // L'utilisateur doit fournir explicitement body.toAddress.
+      TON:   null,
       LTC:   user.walletAddress,
       AVAX:  user.sidraAddress,
       DOT:   user.sidraAddress,

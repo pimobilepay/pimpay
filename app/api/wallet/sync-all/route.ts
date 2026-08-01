@@ -1,28 +1,47 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * POST /api/wallet/sync-all
  *
- * Synchronise tous les soldes crypto de l'utilisateur en une seule requête.
- * Centralise les appels BNB, TRX, USDT pour optimiser les performances
- * et garantir la cohérence des notifications et de l'historique.
- * 
- * Utilise TRONGRID_API_KEY pour les appels TRON (TRX/USDT).
+ * Synchronise TOUS les soldes crypto on-chain de l'utilisateur en une requete.
+ *
+ * ⚠️ Avant correction cette route ne couvrait que BNB, TRX et USDT alors que
+ * 14 actifs ont une detection de depot reelle. Les depots BTC, ETH, SOL, XRP,
+ * XLM, USDC, DAI, BUSD, EURC et OUSD n'etaient donc jamais credites par la
+ * synchronisation globale.
+ *
+ * Couverture actuelle (alignee sur lib/crypto-config.ts → SYNC_ENDPOINTS) :
+ *   - EVM   (sidraAddress) : ETH, BNB, USDC, DAI, BUSD, EURC, OUSD
+ *   - TRON  (usdtAddress)  : TRX, USDT
+ *   - BTC   (walletAddress)
+ *   - SOL   (solAddress)
+ *   - XRP   (xrpAddress)
+ *   - XLM   (xlmAddress)
+ *
+ * SDA est exclu : il a sa propre route dediee (/api/wallet/sidra/sync) avec une
+ * logique de reconciliation specifique a la Sidra Chain.
+ * PI est exclu : ses depots passent par le SDK Pi Network (/api/pi/*).
+ * ADA et TON sont exclus : aucune adresse dediee en base (cf.
+ * UNSUPPORTED_ONCHAIN_ASSETS), un depot y serait irrecuperable.
  */
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
-import {
-  TransactionStatus,
-  TransactionType,
-  WalletType,
-  Prisma,
-} from "@prisma/client";
-import { nanoid } from "nanoid";
+import { creditOnchainDeposit } from "@/lib/blockchain/credit-deposit";
 import { getBnbBalance } from "@/lib/blockchain/bnb";
 import { getTrxBalance, getUsdtBalance, USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
+import {
+  getBtcBalance,
+  getSolBalance,
+  getXrpBalance,
+  getXlmBalance,
+  getEthBalance,
+  getEvmTokenBalance,
+  BSC_TOKENS,
+} from "@/lib/blockchain/balances";
 
 interface SyncResult {
   currency: string;
@@ -33,6 +52,157 @@ interface SyncResult {
   reference?: string;
 }
 
+/** Definition declarative d'un actif synchronisable. */
+interface AssetSyncSpec {
+  currency: string;
+  /** Champ d'adresse Prisma requis pour lire le solde on-chain. */
+  addressField: "sidraAddress" | "usdtAddress" | "walletAddress" | "solAddress" | "xrpAddress" | "xlmAddress";
+  network: string;
+  source: string;
+  decimals: number;
+  minDeposit: number;
+  /** Lit le solde on-chain. Retourne null si le reseau est indisponible. */
+  read: (address: string) => Promise<number | null>;
+  extraMetadata?: Record<string, unknown>;
+}
+
+const ASSET_SPECS: AssetSyncSpec[] = [
+  // ── EVM natifs ────────────────────────────────────────────────────────────
+  {
+    currency: "ETH",
+    addressField: "sidraAddress",
+    network: "Ethereum",
+    source: "ETH_MAINNET",
+    decimals: 8,
+    minDeposit: 0.00001,
+    read: getEthBalance,
+  },
+  {
+    currency: "BNB",
+    addressField: "sidraAddress",
+    network: "BSC (BEP20)",
+    source: "BSC_MAINNET",
+    decimals: 8,
+    minDeposit: 0.0001,
+    read: async (a) => {
+      const v = await getBnbBalance(a);
+      const n = parseFloat(String(v));
+      return isNaN(n) ? null : n;
+    },
+  },
+
+  // ── Stablecoins EVM (ERC20 / BEP20) ───────────────────────────────────────
+  {
+    currency: "USDC",
+    addressField: "sidraAddress",
+    network: "BSC (BEP20)",
+    source: "BSC_MAINNET",
+    decimals: 4,
+    minDeposit: 0.01,
+    read: (a) => getEvmTokenBalance(a, "USDC"),
+    extraMetadata: { contractAddress: BSC_TOKENS.USDC.contract },
+  },
+  {
+    currency: "DAI",
+    addressField: "sidraAddress",
+    network: "BSC (BEP20)",
+    source: "BSC_MAINNET",
+    decimals: 4,
+    minDeposit: 0.01,
+    read: (a) => getEvmTokenBalance(a, "DAI"),
+    extraMetadata: { contractAddress: BSC_TOKENS.DAI.contract },
+  },
+  {
+    currency: "BUSD",
+    addressField: "sidraAddress",
+    network: "BSC (BEP20)",
+    source: "BSC_MAINNET",
+    decimals: 4,
+    minDeposit: 0.01,
+    read: (a) => getEvmTokenBalance(a, "BUSD"),
+    extraMetadata: { contractAddress: BSC_TOKENS.BUSD.contract },
+  },
+  {
+    currency: "EURC",
+    addressField: "sidraAddress",
+    network: "Ethereum (ERC20)",
+    source: "ETH_MAINNET",
+    decimals: 4,
+    minDeposit: 0.01,
+    read: (a) => getEvmTokenBalance(a, "EURC"),
+    extraMetadata: { contractAddress: BSC_TOKENS.EURC.contract },
+  },
+  {
+    currency: "OUSD",
+    addressField: "sidraAddress",
+    network: "Ethereum (ERC20)",
+    source: "ETH_MAINNET",
+    decimals: 4,
+    minDeposit: 0.01,
+    read: (a) => getEvmTokenBalance(a, "OUSD"),
+    extraMetadata: { contractAddress: BSC_TOKENS.OUSD.contract },
+  },
+
+  // ── TRON ──────────────────────────────────────────────────────────────────
+  {
+    currency: "TRX",
+    addressField: "usdtAddress",
+    network: "TRON",
+    source: "TRON_MAINNET",
+    decimals: 6,
+    minDeposit: 0.001,
+    read: getTrxBalance,
+  },
+  {
+    currency: "USDT",
+    addressField: "usdtAddress",
+    network: "TRC20 (TRON)",
+    source: "TRON_MAINNET",
+    decimals: 6,
+    minDeposit: 0.01,
+    read: getUsdtBalance,
+    extraMetadata: { contractAddress: USDT_TRC20_CONTRACT },
+  },
+
+  // ── Chaines natives ───────────────────────────────────────────────────────
+  {
+    currency: "BTC",
+    addressField: "walletAddress",
+    network: "Bitcoin",
+    source: "BTC_MAINNET",
+    decimals: 8,
+    minDeposit: 0.00000546, // dust limit Bitcoin
+    read: getBtcBalance,
+  },
+  {
+    currency: "SOL",
+    addressField: "solAddress",
+    network: "Solana",
+    source: "SOLANA_MAINNET",
+    decimals: 8,
+    minDeposit: 0.000001,
+    read: getSolBalance,
+  },
+  {
+    currency: "XRP",
+    addressField: "xrpAddress",
+    network: "XRP Ledger",
+    source: "XRP_MAINNET",
+    decimals: 6,
+    minDeposit: 0.000001,
+    read: getXrpBalance,
+  },
+  {
+    currency: "XLM",
+    addressField: "xlmAddress",
+    network: "Stellar",
+    source: "STELLAR_MAINNET",
+    decimals: 7,
+    minDeposit: 0.0000001,
+    read: getXlmBalance,
+  },
+];
+
 export async function POST() {
   try {
     // ── 1. Auth ──────────────────────────────────────────────────────────────
@@ -41,124 +211,111 @@ export async function POST() {
       return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
-    // ── 2. Récupérer les adresses de l'utilisateur ───────────────────────────
+    // ── 2. Adresses de l'utilisateur ─────────────────────────────────────────
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { 
-        sidraAddress: true,  // Adresse EVM pour BNB
-        usdtAddress: true,   // Adresse TRON pour TRX et USDT
+      select: {
+        sidraAddress: true,   // EVM  : ETH, BNB, USDC, DAI, BUSD, EURC, OUSD
+        usdtAddress: true,    // TRON : TRX, USDT
+        walletAddress: true,  // BTC
+        solAddress: true,     // SOL
+        xrpAddress: true,     // XRP
+        xlmAddress: true,     // XLM
       },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
+      return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
     }
 
+    // ── 3. Lecture on-chain en PARALLELE (les RPC sont independants) ──────────
+    // On lit d'abord tous les soldes en parallele pour la latence, puis on
+    // credite en SERIE : creditOnchainDeposit ouvre une transaction Prisma et
+    // les paralleliser epuiserait le pool de connexions.
+    const reads = await Promise.all(
+      ASSET_SPECS.map(async (spec) => {
+        const address = user[spec.addressField];
+        if (!address) {
+          return { spec, address: null, balance: null, failed: false };
+        }
+        try {
+          const balance = await spec.read(address);
+          return { spec, address, balance, failed: balance === null };
+        } catch (err: any) {
+          console.error(`[SYNC_ALL] ${spec.currency} read error:`, err?.message);
+          return { spec, address, balance: null, failed: true };
+        }
+      })
+    );
+
+    // ── 4. Credit sequentiel ─────────────────────────────────────────────────
     const results: SyncResult[] = [];
 
-    // ── 3. Sync BNB (BSC/EVM) ─────────────────────────────────────────────────
-    if (user.sidraAddress) {
-      try {
-        const bnbBalance = await getBnbBalance(user.sidraAddress);
-        const bnbResult = await syncCryptoBalance({
-          userId,
-          currency: "BNB",
-          blockchainBalance: parseFloat(bnbBalance),
-          network: "BSC (BEP20)",
-          source: "BSC_MAINNET",
-          decimals: 8,
-        });
-        results.push(bnbResult);
-      } catch (err: any) {
-        console.error("[SYNC_ALL] BNB error:", err.message);
+    for (const { spec, address, balance, failed } of reads) {
+      if (!address) {
         results.push({
-          currency: "BNB",
+          currency: spec.currency,
+          success: true,
+          total: 0,
+          added: 0,
+          message: `Aucune adresse ${spec.network} configuree`,
+        });
+        continue;
+      }
+
+      if (failed || balance === null) {
+        const existing = await prisma.wallet.findUnique({
+          where: { userId_currency: { userId, currency: spec.currency } },
+        });
+        results.push({
+          currency: spec.currency,
+          success: false,
+          total: existing?.balance ?? 0,
+          added: 0,
+          message: `Reseau ${spec.network} indisponible`,
+        });
+        continue;
+      }
+
+      try {
+        const credited = await creditOnchainDeposit({
+          userId,
+          currency: spec.currency,
+          blockchainBalance: balance,
+          network: spec.network,
+          source: spec.source,
+          decimals: spec.decimals,
+          minDeposit: spec.minDeposit,
+          extraMetadata: (spec.extraMetadata ?? {}) as any,
+        });
+
+        results.push({
+          currency: spec.currency,
+          success: true,
+          total: credited.total,
+          added: credited.added,
+          reference: credited.reference ?? undefined,
+          message:
+            credited.added > 0
+              ? `Depot detecte (+${credited.added.toFixed(spec.decimals)} ${spec.currency})`
+              : "Solde deja a jour",
+        });
+      } catch (err: any) {
+        console.error(`[SYNC_ALL] ${spec.currency} credit error:`, err?.message);
+        results.push({
+          currency: spec.currency,
           success: false,
           total: 0,
           added: 0,
-          message: "Erreur lors de la synchronisation BNB",
+          message: `Erreur lors du credit ${spec.currency}`,
         });
       }
-    } else {
-      results.push({
-        currency: "BNB",
-        success: true,
-        total: 0,
-        added: 0,
-        message: "Aucune adresse BNB configurée",
-      });
     }
 
-    // ── 4. Sync TRX (TRON) ────────────────────────────────────────────────────
-    if (user.usdtAddress) {
-      try {
-        const trxBalance = await getTrxBalance(user.usdtAddress);
-        const trxResult = await syncCryptoBalance({
-          userId,
-          currency: "TRX",
-          blockchainBalance: trxBalance,
-          network: "TRON",
-          source: "TRON_MAINNET",
-          decimals: 6,
-        });
-        results.push(trxResult);
-      } catch (err: any) {
-        console.error("[SYNC_ALL] TRX error:", err.message);
-        results.push({
-          currency: "TRX",
-          success: false,
-          total: 0,
-          added: 0,
-          message: "Erreur lors de la synchronisation TRX",
-        });
-      }
-    } else {
-      results.push({
-        currency: "TRX",
-        success: true,
-        total: 0,
-        added: 0,
-        message: "Aucune adresse TRON configurée",
-      });
-    }
-
-    // ── 5. Sync USDT (TRC20) ──────────────────────────────────────────────────
-    if (user.usdtAddress) {
-      try {
-        const usdtBalance = await getUsdtBalance(user.usdtAddress);
-        const usdtResult = await syncCryptoBalance({
-          userId,
-          currency: "USDT",
-          blockchainBalance: usdtBalance,
-          network: "TRC20 (TRON)",
-          source: "TRON_MAINNET",
-          decimals: 6,
-          contractAddress: USDT_TRC20_CONTRACT,
-        });
-        results.push(usdtResult);
-      } catch (err: any) {
-        console.error("[SYNC_ALL] USDT error:", err.message);
-        results.push({
-          currency: "USDT",
-          success: false,
-          total: 0,
-          added: 0,
-          message: "Erreur lors de la synchronisation USDT",
-        });
-      }
-    } else {
-      results.push({
-        currency: "USDT",
-        success: true,
-        total: 0,
-        added: 0,
-        message: "Aucune adresse USDT configurée",
-      });
-    }
-
-    // ── 6. Résumé ─────────────────────────────────────────────────────────────
+    // ── 5. Resume ────────────────────────────────────────────────────────────
     const totalAdded = results.reduce((sum, r) => sum + (r.added > 0 ? r.added : 0), 0);
-    const successCount = results.filter(r => r.success).length;
+    const successCount = results.filter((r) => r.success).length;
+    const deposits = results.filter((r) => r.added > 0);
 
     return NextResponse.json({
       success: true,
@@ -166,6 +323,7 @@ export async function POST() {
         synced: successCount,
         total: results.length,
         totalAdded,
+        depositsDetected: deposits.length,
       },
       results,
     });
@@ -176,150 +334,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
-
-/**
- * Fonction centralisée pour synchroniser le solde d'une crypto
- * ✅ FIX: Utilise Math.max() pour préserver les crédits internes (swap, transfert P2P)
- */
-async function syncCryptoBalance({
-  userId,
-  currency,
-  blockchainBalance,
-  network,
-  source,
-  decimals,
-  contractAddress,
-}: {
-  userId: string;
-  currency: string;
-  blockchainBalance: number;
-  network: string;
-  source: string;
-  decimals: number;
-  contractAddress?: string;
-}): Promise<SyncResult> {
-  const threshold = Math.pow(10, -decimals);
-
-  const result = await prisma.$transaction(
-    async (tx) => {
-      // Upsert du wallet
-      const wallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId, currency } },
-        update: { type: WalletType.CRYPTO },
-        create: {
-          userId,
-          currency,
-          balance: 0,
-          type: WalletType.CRYPTO,
-        },
-      });
-
-      const currentBalance = wallet.balance;
-      
-      // ✅ FIX: Prendre le MAX entre blockchain et DB pour préserver les crédits internes
-      // Les swaps et transferts internes ne sont pas sur la blockchain
-      const safeBalance = Math.max(blockchainBalance, currentBalance);
-      
-      // Calcul du diff: ce qui vient de la blockchain (dépôt externe)
-      const depositDiff = blockchainBalance - currentBalance;
-      
-      // Déjà synchronisé ou solde DB plus élevé (crédit interne)
-      if (depositDiff <= threshold) {
-        return {
-          currency,
-          success: true,
-          total: currentBalance,
-          added: 0,
-          message: currentBalance > blockchainBalance 
-            ? "Solde interne préservé (crédit swap/P2P)" 
-            : "Solde déjà à jour",
-        };
-      }
-
-      // Anti-spam : 30 secondes entre deux syncs pour cette devise
-      const lastSync = await tx.transaction.findFirst({
-        where: {
-          toUserId: userId,
-          currency,
-          type: TransactionType.DEPOSIT,
-          createdAt: { gte: new Date(Date.now() - 30_000) },
-        },
-      });
-
-      if (lastSync) {
-        return {
-          currency,
-          success: true,
-          total: currentBalance,
-          added: 0,
-          message: "Synchronisation récente, veuillez patienter",
-        };
-      }
-
-      // Mettre à jour le solde avec le MAX (préserve les crédits internes)
-      const updated = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: safeBalance },
-      });
-
-      const reference = `${currency}-DEP-${nanoid(10).toUpperCase()}`;
-
-      // Créer une transaction DEPOSIT uniquement si dépôt blockchain détecté
-      if (depositDiff > 0) {
-        await tx.transaction.create({
-          data: {
-            reference,
-            amount: depositDiff,
-            currency,
-            type: TransactionType.DEPOSIT,
-            status: TransactionStatus.SUCCESS,
-            description: `Dépôt ${currency} (+${depositDiff.toFixed(decimals)} ${currency})`,
-            toUserId: userId,
-            toWalletId: updated.id,
-            metadata: {
-              blockchainBalance,
-              previousBalance: currentBalance,
-              syncType: "AUTOMATIC_BLOCKCHAIN",
-              source,
-              network,
-              ...(contractAddress && { contractAddress }),
-            } as Prisma.JsonObject,
-          },
-        });
-
-        // Notification push dans l'app
-        await tx.notification.create({
-          data: {
-            userId,
-            title: `Dépôt ${currency} reçu !`,
-            message: `Vous avez reçu ${depositDiff.toFixed(decimals)} ${currency} sur votre wallet PIMOBIPAY.`,
-            type: "SUCCESS",
-            read: false,
-            metadata: JSON.stringify({
-              amount: depositDiff,
-              currency,
-              network,
-              reference,
-              status: "SUCCESS",
-              previousBalance: currentBalance,
-              newBalance: safeBalance,
-            }),
-          },
-        });
-      }
-
-      return {
-        currency,
-        success: true,
-        total: updated.balance,
-        added: depositDiff > 0 ? depositDiff : 0,
-        message: depositDiff > 0 ? `Synchronisation réussie (+${depositDiff.toFixed(decimals)} ${currency})` : "Solde mis à jour",
-        reference: depositDiff > 0 ? reference : undefined,
-      };
-    },
-    { timeout: 30_000, maxWait: 10_000 }
-  );
-
-  return result;
 }

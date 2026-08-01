@@ -3,9 +3,12 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/wallet/eth/sync
- * Synchronise le solde ETH (Ethereum Mainnet) du wallet PIMOBIPAY avec le
- * solde réel on-chain. L'adresse EVM (sidraAddress) est identique sur toutes
- * les chaînes EVM, elle est donc réutilisée ici comme pour BNB.
+ *
+ * Synchronise le solde ETH (Ethereum Mainnet) avec le solde reel on-chain.
+ * Utilise l'adresse EVM de l'utilisateur (sidraAddress), comme BNB.
+ *
+ * ⚠️ Cette route manquait : les depots ETH n'etaient JAMAIS credites alors que
+ * le retrait ETH etait deja operationnel (broadcast EVM dans /api/user/transfer).
  */
 
 import { NextResponse } from "next/server";
@@ -34,7 +37,7 @@ export async function POST() {
         success: true,
         total: existing?.balance ?? 0,
         added: 0,
-        message: "Aucune adresse EVM configurée",
+        message: "Aucune adresse EVM configuree",
       });
     }
 
@@ -47,7 +50,7 @@ export async function POST() {
         success: true,
         total: existing?.balance ?? 0,
         added: 0,
-        message: "Réseau Ethereum indisponible, réessayez plus tard",
+        message: "Reseau Ethereum indisponible, reessayez plus tard",
       });
     }
 
@@ -55,10 +58,11 @@ export async function POST() {
       userId,
       currency: "ETH",
       blockchainBalance,
-      network: "Ethereum (ERC20)",
-      source: "ETHEREUM_MAINNET",
+      network: "Ethereum",
+      source: "ETH_MAINNET",
       decimals: 8,
-      minDeposit: 0.00000001,
+      // Seuil anti-dust : en dessous de 0.00001 ETH on credite sans notifier
+      minDeposit: 0.00001,
     });
 
     return NextResponse.json({
@@ -68,8 +72,8 @@ export async function POST() {
       reference: result.reference,
       message:
         result.added > 0
-          ? `Synchronisation ETH réussie (+${result.added.toFixed(8)} ETH)`
-          : "Solde déjà à jour",
+          ? `Synchronisation ETH reussie (+${result.added.toFixed(8)} ETH)`
+          : "Solde deja a jour",
     });
   } catch (err: any) {
     console.error("[ETH_SYNC_FATAL]:", err);

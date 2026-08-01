@@ -15,6 +15,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { QRScanner } from "@/components/qr-scanner"; 
 import { toast } from "sonner";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
+import { CRYPTO_ASSETS, getSyncEndpoint } from "@/lib/crypto-config";
 
 /**
  * CONFIGURATION DES ACTIFS
@@ -487,44 +488,14 @@ export default function AssetDetailPage() {
   // balance so deposits are auto-detected and credited without the user refreshing.
   // On a detected deposit we reload and toast.
   useEffect(() => {
-    const SYNC_ENDPOINTS: Record<string, string> = {
-      SDA: "/api/wallet/sidra/sync",
-      TRX: "/api/wallet/trx/sync",
-      USDT: "/api/wallet/usdt/sync",
-      BNB: "/api/wallet/bnb/sync",
-      ETH: "/api/wallet/eth/sync",
-      BTC: "/api/wallet/btc/sync",
-      SOL: "/api/wallet/sol/sync",
-      XRP: "/api/wallet/xrp/sync",
-      XLM: "/api/wallet/xlm/sync",
-      USDC: "/api/wallet/usdc/sync",
-      BUSD: "/api/wallet/busd/sync",
-      DAI: "/api/wallet/dai/sync",
-      EURC: "/api/wallet/eurc/sync",
-      OUSD: "/api/wallet/ousd/sync",
-    };
-    // Display precision per asset
-    const SYNC_DECIMALS: Record<string, number> = {
-      SDA: 4,
-      TRX: 6,
-      USDT: 6,
-      BNB: 8,
-      ETH: 8,
-      BTC: 8,
-      SOL: 8,
-      XRP: 6,
-      XLM: 7,
-      USDC: 4,
-      BUSD: 4,
-      DAI: 4,
-      EURC: 4,
-      OUSD: 4,
-    };
+    // Endpoints et precisions viennent de lib/crypto-config.ts (source unique)
+    // pour eviter qu'un actif synchronisable soit oublie ici — c'etait le cas
+    // d'ETH, dont les depots n'etaient donc jamais detectes.
     // Assets whose sync endpoint is throttled server-side to 30s
-    const SLOW_SYNC = new Set(["SDA", "BNB", "USDC", "BUSD", "DAI", "EURC", "OUSD"]);
-    const endpoint = SYNC_ENDPOINTS[assetId];
+    const SLOW_SYNC = new Set(["SDA", "BNB", "ETH", "USDC", "BUSD", "DAI", "EURC", "OUSD"]);
+    const endpoint = getSyncEndpoint(assetId);
     if (!endpoint) return;
-    const decimals = SYNC_DECIMALS[assetId] ?? 6;
+    const decimals = CRYPTO_ASSETS[assetId]?.decimals ?? 6;
     const syncOnChain = async () => {
       try {
         const res = await fetch(endpoint, { method: "POST" });
