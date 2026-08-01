@@ -251,6 +251,7 @@ model Vault {
 
   @@index([userId])
   @@index([status])
+  @@index([userId, status])
 }
 
 model VaultTransaction {
@@ -910,6 +911,7 @@ model SavingsAccount {
   @@index([userId])
   @@index([accountNumber])
   @@index([status])
+  @@index([userId, status])
 }
 
 model SavingsTransaction {
@@ -1075,6 +1077,10 @@ enum TransactionType {
   WITHDRAWAL
   CARD_RECHARGE
   CARD_WITHDRAW
+  SAVINGS_DEPOSIT
+  SAVINGS_WITHDRAW
+  VAULT_LOCK
+  VAULT_UNLOCK
 }
 
 enum TransactionStatus {
