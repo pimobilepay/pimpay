@@ -232,15 +232,43 @@ model DailyStats {
 }
 
 model Vault {
-  id           String    @id @default(cuid())
-  userId       String
-  name         String
-  amount       Float     @default(0)
-  targetAmount Float?
-  interestRate Float     @default(0)
-  lockUntil    DateTime?
-  createdAt    DateTime  @default(now())
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String             @id @default(cuid())
+  userId         String
+  name           String
+  amount         Float              @default(0)
+  targetAmount   Float?
+  interestRate   Float              @default(0)
+  lockUntil      DateTime?
+  createdAt      DateTime           @default(now())
+  currency       String             @default("XAF")
+  status         VaultStatus        @default(ACTIVE)
+  penaltyRate    Float              @default(5)
+  totalInterest  Float              @default(0)
+  lastInterestAt DateTime?
+  updatedAt      DateTime           @default(now()) @updatedAt
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   VaultTransaction[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model VaultTransaction {
+  id        String       @id @default(cuid())
+  vaultId   String
+  userId    String
+  type      SavingsTxType
+  amount    Float
+  penalty   Float        @default(0)
+  balance   Float
+  currency  String       @default("XAF")
+  reference String       @unique
+  note      String?
+  createdAt DateTime     @default(now())
+  vault     Vault        @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId])
+  @@index([userId])
 }
 
 model Staking {
@@ -859,21 +887,47 @@ model LoanPayment {
 }
 
 model SavingsAccount {
-  id            String        @id @default(cuid())
-  userId        String
-  accountNumber String        @unique
-  type          SavingsType   @default(REGULAR)
-  balance       Float         @default(0)
-  interestRate  Float         @default(3.5)
-  currency      String        @default("XAF")
-  maturityDate  DateTime?
-  status        SavingsStatus @default(ACTIVE)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String               @id @default(cuid())
+  userId          String
+  accountNumber   String               @unique
+  type            SavingsType          @default(REGULAR)
+  balance         Float                @default(0)
+  interestRate    Float                @default(3.5)
+  currency        String               @default("XAF")
+  maturityDate    DateTime?
+  status          SavingsStatus        @default(ACTIVE)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  name            String?
+  targetAmount    Float?
+  totalInterest   Float                @default(0)
+  lastInterestAt  DateTime?
+  autoDebitAmount Float?
+  autoDebitDay    Int?
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    SavingsTransaction[]
 
   @@index([userId])
   @@index([accountNumber])
+  @@index([status])
+}
+
+model SavingsTransaction {
+  id        String         @id @default(cuid())
+  accountId String
+  userId    String
+  type      SavingsTxType
+  amount    Float
+  penalty   Float          @default(0)
+  balance   Float
+  currency  String         @default("XAF")
+  reference String         @unique
+  note      String?
+  createdAt DateTime       @default(now())
+  account   SavingsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([userId])
 }
 
 model InterestRate {
@@ -1095,6 +1149,20 @@ enum SavingsStatus {
   MATURED
   CLOSED
   FROZEN
+}
+
+enum VaultStatus {
+  ACTIVE
+  LOCKED
+  UNLOCKED
+  CLOSED
+}
+
+enum SavingsTxType {
+  DEPOSIT
+  WITHDRAWAL
+  INTEREST
+  PENALTY
 }
 
 enum SystemWalletType {
