@@ -181,11 +181,23 @@ type FeeBreakdown = {
   items: FeeItem[];
 };
 
+type CentralAddressInfo = {
+  network: "STELLAR" | "TRON" | "BTC" | "EVM";
+  label: string;
+  currencies: string;
+  address: string;
+  source: string;
+  configured: boolean;
+};
+
 type CentralizedFeesData = {
   totalFeesUSD: number;
   totalFeesPi: number;
   totalFeesXAF: number;
   centralAddress: string;
+  centralAddressSource?: string;
+  centralAddresses?: CentralAddressInfo[];
+  adminWalletDbAddress?: string | null;
   breakdown: FeeBreakdown[];
   lastUpdated: string;
   conversionRate: {
@@ -738,11 +750,19 @@ function FeeConversionModal({
                 {/* Central Address */}
                 <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Adresse Centrale (Admin Wallet)
+                    Adresse Centrale (Pi / Stellar)
                   </p>
                   <code className="text-xs font-mono text-amber-400 break-all">
                     {feesData?.centralAddress || "Chargement..."}
                   </code>
+                  {feesData?.centralAddressSource && (
+                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1.5">
+                      Source:{" "}
+                      <span className="text-slate-400 font-mono normal-case">
+                        {feesData.centralAddressSource}
+                      </span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Current Balances */}
@@ -3215,25 +3235,83 @@ export default function TreasuryPage() {
               </div>
             ) : feesData ? (
               <>
-                {/* Central Address */}
+                {/* Central Addresses per network (from env vars) */}
                 <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-4 mb-4">
-                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Adresse Centrale (Admin Wallet)
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+                    Adresses Centrales de Collecte (par reseau)
                   </p>
-                  <div className="flex items-center justify-between gap-2">
-                    <code className="text-xs font-mono text-amber-400 break-all">
-                      {feesData.centralAddress}
-                    </code>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(feesData.centralAddress);
-                        toast.success("Adresse copiee");
-                      }}
-                      className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors shrink-0"
-                    >
-                      <Copy size={14} className="text-slate-400" />
-                    </button>
+                  <div className="flex flex-col gap-3">
+                    {(feesData.centralAddresses?.length
+                      ? feesData.centralAddresses
+                      : [
+                          {
+                            network: "STELLAR" as const,
+                            label: "Stellar / Pi Network",
+                            currencies: "PI, XLM",
+                            address: feesData.centralAddress,
+                            source: feesData.centralAddressSource || "-",
+                            configured: true,
+                          },
+                        ]
+                    ).map((addr) => (
+                      <div
+                        key={addr.network}
+                        className="bg-slate-900/60 border border-white/5 rounded-xl p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[10px] font-black text-white uppercase tracking-wider truncate">
+                              {addr.label}
+                            </span>
+                            <span className="text-[8px] font-bold text-slate-500 uppercase shrink-0">
+                              {addr.currencies}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                              addr.configured
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "bg-red-500/10 text-red-400"
+                            }`}
+                          >
+                            {addr.configured ? "Env OK" : "Manquante"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <code
+                            className={`text-[11px] font-mono break-all ${
+                              addr.configured ? "text-amber-400" : "text-red-400"
+                            }`}
+                          >
+                            {addr.address || "Non configuree"}
+                          </code>
+                          {addr.address && (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(addr.address);
+                                toast.success("Adresse copiee");
+                              }}
+                              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors shrink-0"
+                            >
+                              <Copy size={14} className="text-slate-400" />
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1.5">
+                          Source: <span className="text-slate-400 font-mono normal-case">{addr.source}</span>
+                        </p>
+                      </div>
+                    ))}
                   </div>
+
+                  {feesData.adminWalletDbAddress && (
+                    <p className="text-[8px] font-bold text-slate-600 uppercase tracking-wider mt-3">
+                      SystemWallet ADMIN (base):{" "}
+                      <span className="text-slate-500 font-mono normal-case">
+                        {feesData.adminWalletDbAddress}
+                      </span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Total Fees Summary - Exact amounts per currency */}

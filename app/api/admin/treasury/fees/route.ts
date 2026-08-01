@@ -10,6 +10,45 @@ type FeeCategory =
   | "PAYMENT_FEES"
   | "OTHER_FEES";
 
+interface CentralAddressInfo {
+  network: "STELLAR" | "TRON" | "BTC" | "EVM";
+  label: string;
+  currencies: string;
+  address: string;
+  /** Nom de la variable d'environnement effectivement utilisee (ou fallback) */
+  source: string;
+  configured: boolean;
+}
+
+/**
+ * Resout les adresses centrales REELLES depuis les variables d'environnement,
+ * dans le meme ordre de priorite que lib/fee-collector.ts.
+ */
+function resolveCentralAddresses(): CentralAddressInfo[] {
+  const pick = (vars: string[], fallback?: string) => {
+    for (const name of vars) {
+      const value = process.env[name];
+      if (value && value.trim()) return { address: value.trim(), source: name, configured: true };
+    }
+    return { address: fallback || "", source: fallback ? "fallback (code)" : "non configuree", configured: false };
+  };
+
+  const stellar = pick(
+    ["PI_WALLET_PUBLIC_KEY", "PI_MASTER_WALLET_ADDRESS", "PI_OPERATOR_ADDRESS"],
+    "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB",
+  );
+  const tron = pick(["TRON_OPERATOR_ADDRESS"]);
+  const btc = pick(["BTC_OPERATOR_ADDRESS"]);
+  const evm = pick(["SDA_OPERATOR_ADDRESS"], "0xe72cC1d1698497440D06B1256216CEEad07Ea3DB");
+
+  return [
+    { network: "STELLAR", label: "Stellar / Pi Network", currencies: "PI, XLM", ...stellar },
+    { network: "TRON", label: "Tron", currencies: "TRX, USDT", ...tron },
+    { network: "BTC", label: "Bitcoin", currencies: "BTC", ...btc },
+    { network: "EVM", label: "EVM / Sidra Chain", currencies: "SDA, BNB, ETH, USDC, DAI, BUSD", ...evm },
+  ];
+}
+
 interface FeeBreakdown {
   category: FeeCategory;
   categoryLabel: string;
@@ -43,6 +82,9 @@ export async function GET(req: NextRequest) {
         balanceXAF: true,
       },
     });
+
+    // Adresses centrales reelles (variables d'environnement)
+    const centralAddresses = resolveCentralAddresses();
 
     // Get Pi consensus price
     const systemConfig = await prisma.systemConfig.findUnique({
@@ -186,7 +228,16 @@ export async function GET(req: NextRequest) {
         totalFeesUSD,
         totalFeesPi,
         totalFeesXAF,
-        centralAddress: adminWallet?.publicAddress || "ADMIN_WALLET_NOT_CONFIGURED",
+        // Adresse centrale principale = adresse Pi/Stellar reelle (env), fallback DB
+        centralAddress:
+          centralAddresses[0].address ||
+          adminWallet?.publicAddress ||
+          "ADMIN_WALLET_NOT_CONFIGURED",
+        centralAddressSource: centralAddresses[0].source,
+        // Toutes les adresses centrales par reseau + variable d'env utilisee
+        centralAddresses,
+        // Valeur enregistree en base pour le SystemWallet ADMIN (placeholder possible)
+        adminWalletDbAddress: adminWallet?.publicAddress || null,
         breakdown: [cryptoFees, fiatFees, paymentFees, otherFees].filter((b) => b.items.length > 0),
         lastUpdated: new Date().toISOString(),
         conversionRate: {
