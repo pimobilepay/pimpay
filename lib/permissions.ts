@@ -39,6 +39,8 @@ export const PERMISSIONS = {
   RBAC_MANAGE: "rbac.manage",
   SETTINGS_MANAGE: "settings.manage",
   SECURITY_VIEW: "security.view",
+  SAVINGS_VIEW: "savings.view",
+  SAVINGS_MANAGE: "savings.manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -72,6 +74,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   "rbac.manage": "Gérer les rôles & permissions",
   "settings.manage": "Gérer la configuration",
   "security.view": "Voir la sécurité",
+  "savings.view": "Voir l'épargne & coffres",
+  "savings.manage": "Gérer l'épargne & coffres",
 };
 
 // Rôles prédéfinis (presets) appliqués via l'UI RBAC.
@@ -103,6 +107,8 @@ export const ROLE_PRESETS: Record<string, { label: string; permissions: Permissi
       PERMISSIONS.EXCHANGE_MANAGE,
       PERMISSIONS.WITHDRAWALS_VIEW,
       PERMISSIONS.WITHDRAWALS_MANAGE,
+      PERMISSIONS.SAVINGS_VIEW,
+      PERMISSIONS.SAVINGS_MANAGE,
     ],
   },
   SUPPORT: {
