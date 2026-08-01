@@ -224,16 +224,27 @@ async function main() {
   // -----------------------------------------------------------------------------
   console.log("💰 Création des wallets système...");
 
+  // Adresses REELLES chargées depuis les variables d'environnement.
+  // Les soldes restent à 0 : ils sont synchronisés on-chain par
+  // GET /api/admin/system-wallets. Aucune valeur fictive n'est injectée.
+  const walletAddress = (...vars: string[]): string => {
+    for (const name of vars) {
+      const value = process.env[name];
+      if (value && value.trim()) return value.trim();
+    }
+    return "";
+  };
+
   const systemWalletsData = [
     {
       type: SystemWalletType.ADMIN,
       name: "Admin Revenue Wallet",
       nameFr: "Revenus Admin",
       description: "Frais collectés sur toutes les transactions",
-      publicAddress: "GAPIMPAY_ADMIN_WALLET_PI_NETWORK",
-      balanceUSD: 14250.45,
-      balancePi: 8542.75,
-      balanceXAF: 8750000,
+      publicAddress: walletAddress("PI_WALLET_PUBLIC_KEY", "PI_OPERATOR_ADDRESS", "PI_MASTER_WALLET_ADDRESS"),
+      balanceUSD: 0,
+      balancePi: 0,
+      balanceXAF: 0,
       dailyLimit: 100000,
       monthlyLimit: 1000000,
     },
@@ -242,10 +253,10 @@ async function main() {
       name: "Treasury Secure Wallet",
       nameFr: "Trésorerie Sécurisée",
       description: "Profits à long terme et réserves stratégiques",
-      publicAddress: "GAPIMPAY_TREASURY_WALLET_PI_NETWORK",
-      balanceUSD: 85000.00,
-      balancePi: 45000.00,
-      balanceXAF: 52000000,
+      publicAddress: walletAddress("PI_TREASURY_WALLET_ADDRESS", "PI_COLD_WALLET_ADDRESS"),
+      balanceUSD: 0,
+      balancePi: 0,
+      balanceXAF: 0,
       dailyLimit: 50000,
       monthlyLimit: 500000,
     },
@@ -254,10 +265,10 @@ async function main() {
       name: "Hot Wallet",
       nameFr: "Gas & Payouts",
       description: "Fonds pour transactions automatiques et frais de gas",
-      publicAddress: "GAPIMPAY_HOT_WALLET_PI_NETWORK",
-      balanceUSD: 5420.80,
-      balancePi: 3200.50,
-      balanceXAF: 3250000,
+      publicAddress: walletAddress("PI_HOT_WALLET_ADDRESS", "PI_MASTER_WALLET_ADDRESS"),
+      balanceUSD: 0,
+      balancePi: 0,
+      balanceXAF: 0,
       dailyLimit: 75000,
       monthlyLimit: 750000,
     },
@@ -266,10 +277,10 @@ async function main() {
       name: "Liquidity Reserve",
       nameFr: "Réserve de Liquidité",
       description: "Buffer pour retraits USD/Orange Money",
-      publicAddress: "GAPIMPAY_LIQUIDITY_WALLET_PI_NETWORK",
-      balanceUSD: 25000.00,
-      balancePi: 12500.00,
-      balanceXAF: 15000000,
+      publicAddress: walletAddress("PI_LIQUIDITY_WALLET_ADDRESS"),
+      balanceUSD: 0,
+      balancePi: 0,
+      balanceXAF: 0,
       dailyLimit: 100000,
       monthlyLimit: 1000000,
     },

@@ -233,6 +233,11 @@ type SystemWalletData = {
   lockReason: string | null;
   lockedAt: string | null;
   lastActivity: string | null;
+  addressSource?: string;
+  addressConfigured?: boolean;
+  onChainNetwork?: string | null;
+  onChainError?: string | null;
+  isLive?: boolean;
 };
 
 type WalletInfo = {
@@ -255,6 +260,11 @@ type WalletInfo = {
   monthlyLimit: number;
   isLocked: boolean;
   lockReason: string | null;
+  addressSource: string;
+  addressConfigured: boolean;
+  onChainNetwork: string | null;
+  onChainError: string | null;
+  isLive: boolean;
 };
 
 type WalletAction = "transfer" | "block" | "adjust" | null;
@@ -407,6 +417,11 @@ function transformWalletData(apiWallet: SystemWalletData): WalletInfo {
     monthlyLimit: apiWallet.monthlyLimit,
     isLocked: apiWallet.isLocked,
     lockReason: apiWallet.lockReason,
+    addressSource: apiWallet.addressSource || "non configuree",
+    addressConfigured: apiWallet.addressConfigured ?? Boolean(apiWallet.publicAddress),
+    onChainNetwork: apiWallet.onChainNetwork ?? null,
+    onChainError: apiWallet.onChainError ?? null,
+    isLive: apiWallet.isLive ?? false,
   };
 }
 
@@ -1018,24 +1033,52 @@ function WalletDrawer({
             
             {/* Public Address */}
             <div className="bg-slate-800/50 rounded-xl p-3">
-              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Adresse Publique
-              </p>
-              <div className="flex items-center justify-between gap-2">
-                <code className="text-xs font-mono text-cyan-400 break-all">
-                  {wallet.publicAddress}
-                </code>
-                <button
-                  onClick={copyAddress}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors shrink-0"
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+                  Adresse Publique
+                </p>
+                <span
+                  className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    wallet.isLive
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "bg-amber-500/10 text-amber-400"
+                  }`}
                 >
-                  {copiedAddress ? (
-                    <CheckCircle2 size={14} className="text-emerald-400" />
-                  ) : (
-                    <Copy size={14} className="text-slate-400" />
-                  )}
-                </button>
+                  {wallet.isLive
+                    ? `On-chain ${wallet.onChainNetwork ?? ""}`.trim()
+                    : "Hors chaine"}
+                </span>
               </div>
+              <div className="flex items-center justify-between gap-2">
+                <code
+                  className={`text-xs font-mono break-all ${
+                    wallet.addressConfigured ? "text-cyan-400" : "text-red-400"
+                  }`}
+                >
+                  {wallet.publicAddress || "Adresse non configuree (variable d'environnement manquante)"}
+                </code>
+                {wallet.publicAddress && (
+                  <button
+                    onClick={copyAddress}
+                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors shrink-0"
+                  >
+                    {copiedAddress ? (
+                      <CheckCircle2 size={14} className="text-emerald-400" />
+                    ) : (
+                      <Copy size={14} className="text-slate-400" />
+                    )}
+                  </button>
+                )}
+              </div>
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1.5">
+                Source:{" "}
+                <span className="text-slate-400 font-mono normal-case">{wallet.addressSource}</span>
+              </p>
+              {wallet.onChainError && (
+                <p className="text-[8px] font-bold text-amber-400/80 mt-1">
+                  {wallet.onChainError}
+                </p>
+              )}
             </div>
 
             {/* XAF Balance if available */}
