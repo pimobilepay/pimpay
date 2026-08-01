@@ -1,6 +1,11 @@
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { validateAddress, CRYPTO_RULES } from "@/lib/crypto-validator";
 import { CRYPTO_ASSETS } from "@/lib/crypto-config";
+import { getAuthUserId } from "@/lib/auth";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * API to verify if a blockchain address exists and is valid
@@ -368,15 +373,53 @@ async function verifySolanaAddress(address: string): Promise<VerifyResult> {
 
 export async function POST(request: Request) {
   try {
-    const { address, currency } = await request.json();
-    
+    // ─────────────────────────────────────────────────────────────────────────
+    // SÉCURITÉ — Cette route relaie des appels vers des RPC/API blockchain
+    // tiers (minepi, TronGrid, Horizon, Blockstream, RPC EVM/Solana). Sans
+    // authentification ni limitation, n'importe qui pouvait s'en servir comme
+    // proxy anonyme et épuiser nos quotas RPC (déni de service indirect).
+    // ─────────────────────────────────────────────────────────────────────────
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Session invalide" }, { status: 401 });
+    }
+
+    // 20 vérifications / 60 s par utilisateur (saisie d'adresse = usage humain).
+    const ip = getClientIp(request);
+    const { limited } = checkRateLimit(`verify-address:${userId}:${ip}`, 20, 60_000);
+    if (limited) {
+      return NextResponse.json(
+        { error: "Trop de vérifications. Patientez une minute." },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    const address = typeof body?.address === "string" ? body.address.trim() : "";
+    const currency = typeof body?.currency === "string" ? body.currency.trim() : "";
+
     if (!address || !currency) {
       return NextResponse.json(
         { error: "Adresse et devise requises" },
         { status: 400 }
       );
     }
-    
+
+    // Garde-fou anti-abus : une adresse blockchain ne dépasse jamais ~130
+    // caractères. Sans borne, une chaîne arbitraire était interpolée dans les
+    // URLs des API tierces.
+    if (address.length > 130 || currency.length > 10) {
+      return NextResponse.json(
+        { error: "Adresse ou devise invalide" },
+        { status: 400 }
+      );
+    }
+    if (!/^[A-Za-z0-9:_-]+$/.test(address)) {
+      return NextResponse.json(
+        { valid: false, exists: false, network: currency, address, error: "Format d'adresse invalide" },
+      );
+    }
+
     const upperCurrency = currency.toUpperCase();
     
     // First, validate the address format

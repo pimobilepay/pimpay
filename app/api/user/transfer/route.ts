@@ -15,6 +15,10 @@ import { parseAmount } from "@/lib/amount-guard";
 import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { enforcePiPolicy, WithdrawalPolicyError } from "@/lib/withdrawal-limits";
+// Matrice de capacites depot/retrait (source de verite unique).
+// Sans cet import, la garde ligne ~170 levait un ReferenceError qui remontait
+// dans le catch generique : tout transfert echouait avec une erreur 500 opaque.
+import { UNSUPPORTED_ONCHAIN_ASSETS } from "@/lib/crypto-config";
 
 // Import TronWeb pour les transferts USDT TRC20
 const TronWebModule = require("tronweb");

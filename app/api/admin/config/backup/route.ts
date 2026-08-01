@@ -25,8 +25,18 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. SAUVEGARDE COMPLÈTE : TOUTES LES TABLES DE LA BASE
-    // ?redact=true → masque les champs sensibles (clés privées, mots de passe…)
-    const redactSecrets = req.nextUrl.searchParams.get("redact") === "true";
+    //
+    // ⚠️ SÉCURITÉ — La rédaction est désormais ACTIVE PAR DÉFAUT.
+    // Avant : le cron nocturne n'envoyait jamais `?redact=true`, la sauvegarde
+    // uploadée sur Google Drive contenait donc TOUTES les clés privées de
+    // wallets et les hash de mots de passe en clair. Un accès au Drive suffisait
+    // à vider les portefeuilles des utilisateurs.
+    //
+    // Un export brut (non rédigé) reste possible pour un ADMIN authentifié via
+    // `?redact=false`, jamais pour le cron.
+    const redactSecrets = isCron
+      ? true
+      : req.nextUrl.searchParams.get("redact") !== "false";
 
     const backup = await createFullBackup({
       source: isCron ? "AUTOMATIC_CRON" : "MANUAL_ADMIN",

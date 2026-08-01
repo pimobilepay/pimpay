@@ -13,7 +13,14 @@ const BATCH_SIZE = Number(process.env.BACKUP_BATCH_SIZE || 1000);
 /** Garde-fou memoire : lignes max exportees par table. */
 const MAX_ROWS_PER_TABLE = Number(process.env.BACKUP_MAX_ROWS_PER_TABLE || 100000);
 
-/** Champs sensibles masques uniquement quand `redactSecrets` est actif. */
+/**
+ * Champs sensibles masques quand `redactSecrets` est actif.
+ *
+ * ⚠️ SECURITE — Cette liste couvre desormais aussi les codes PIN, OTP/2FA et
+ * donnees de carte. Auparavant un export non redige (ou redige) laissait fuiter
+ * les PIN de transaction et les secrets TOTP, permettant a quiconque obtenant
+ * le fichier de rejouer des paiements.
+ */
 const SENSITIVE_FIELD_PATTERNS = [
   /password/i,
   /privatekey/i,
@@ -23,6 +30,17 @@ const SENSITIVE_FIELD_PATTERNS = [
   /apikey/i,
   /accesstoken/i,
   /refreshtoken/i,
+  /token$/i,
+  /^pin$/i,
+  /pinhash/i,
+  /transactionpin/i,
+  /otp/i,
+  /twofactor/i,
+  /mfa/i,
+  /totp/i,
+  /cvv/i,
+  /cardnumber/i,
+  /iban/i,
 ];
 
 export interface BackupTableReport {
@@ -90,7 +108,10 @@ export async function createFullBackup(options: {
   triggeredBy?: string | null;
 }): Promise<FullBackupResult> {
   const startedAt = Date.now();
-  const redactSecrets = options.redactSecrets ?? false;
+  // ⚠️ SECURITE — Defaut inverse (etait `false`) : un export accidentel ne doit
+  // jamais contenir de cles privees en clair. Le mode brut doit etre demande
+  // explicitement (redactSecrets: true -> false) par l'appelant.
+  const redactSecrets = options.redactSecrets ?? true;
 
   const models = Prisma.dmmf.datamodel.models;
   const data: Record<string, any[]> = {};
