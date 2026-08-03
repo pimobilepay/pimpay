@@ -77,6 +77,7 @@ export const en: TranslationKeys = {
     pimpayServices: "PIMOBIPAY Services",
     mpay: "Mpay",
     swap: "Swap",
+    savings: "Savings & Vaults",
     virtualCard: "Virtual Card",
     mobileRecharge: "Mobile Top-up",
     transactions: "Transactions",
@@ -2074,6 +2075,9 @@ export const en: TranslationKeys = {
     benefit2Prefix: "Limit raised to",
     benefit2Suffix: "per transaction",
     benefit3: "Priority and secure processing of your operations",
+    currentLimitLabel: "Your current limit",
+    perOperation: "per operation",
+    perDay: "ops/day",
     compliancePrefix:
       "Your data is encrypted and processed in strict compliance with our",
     complianceSuffix: "and privacy obligations.",

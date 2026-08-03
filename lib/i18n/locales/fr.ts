@@ -75,6 +75,7 @@ export const fr = {
     pimpayServices: "Services PIMOBIPAY",
     mpay: "Mpay",
     swap: "Swap",
+    savings: "Epargne & Coffres",
     virtualCard: "Carte virtuelle",
     mobileRecharge: "Recharge Mobile",
     transactions: "Transactions",
@@ -2117,6 +2118,9 @@ export const fr = {
     benefit2Prefix: "Plafond porte a",
     benefit2Suffix: "par transaction",
     benefit3: "Traitement prioritaire et securise de vos operations",
+    currentLimitLabel: "Votre plafond actuel",
+    perOperation: "par operation",
+    perDay: "op/jour",
     compliancePrefix:
       "Vos donnees sont chiffrees et traitees dans le strict respect de nos obligations",
     complianceSuffix: "et de la confidentialite.",

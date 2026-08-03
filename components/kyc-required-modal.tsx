@@ -3,16 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ShieldCheck, X, Lock, BadgeCheck, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
-
-/**
- * Plafonds appliques cote serveur (lib/withdrawal-limits.ts).
- * Affiches ici a titre informatif pour l'utilisateur.
- */
-const LIMITS = {
-  KYC_FREE_LIMIT_PI: 5,
-  KYC_MAX_PER_TX_PI: 100,
-  MAX_PER_DAY: 10,
-};
+import { useLimits, formatPi, type LimitChannel } from "@/hooks/use-limits";
 
 export interface KycRequiredModalProps {
   open: boolean;
@@ -21,15 +12,19 @@ export interface KycRequiredModalProps {
   message?: string | null;
   /** Code de politique renvoye par l'API: KYC_REQUIRED, PER_TX_LIMIT, DAILY_LIMIT_REACHED. */
   code?: string | null;
+  /** Canal concerne : les plafonds affiches suivent la politique de ce canal. */
+  channel?: LimitChannel;
 }
 
 /**
  * Modale professionnelle invitant l'utilisateur a completer sa verification KYC
  * pour augmenter ses limites de retrait/transfert.
  */
-export function KycRequiredModal({ open, onClose, message, code }: KycRequiredModalProps) {
+export function KycRequiredModal({ open, onClose, message, code, channel }: KycRequiredModalProps) {
   const router = useRouter();
   const { t } = useLanguage();
+  // Plafonds reels du compte (politiques admin incluses), plus aucune constante.
+  const { limits, isLoading } = useLimits(channel);
 
   if (!open) return null;
 
@@ -77,14 +72,20 @@ export function KycRequiredModal({ open, onClose, message, code }: KycRequiredMo
             <BadgeCheck size={18} className="text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-300 leading-relaxed">
               {t("kycModal.benefit1Prefix")}{" "}
-              <span className="font-bold text-white">{LIMITS.KYC_FREE_LIMIT_PI} Pi</span> {t("kycModal.benefit1Suffix")}
+              <span className="font-bold text-white">
+                {isLoading ? "…" : formatPi(limits.kycFreeLimitPi)}
+              </span>{" "}
+              {t("kycModal.benefit1Suffix")}
             </p>
           </div>
           <div className="flex items-start gap-3">
             <BadgeCheck size={18} className="text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-300 leading-relaxed">
               {t("kycModal.benefit2Prefix")}{" "}
-              <span className="font-bold text-white">{LIMITS.KYC_MAX_PER_TX_PI} Pi</span> {t("kycModal.benefit2Suffix")}
+              <span className="font-bold text-white">
+                {isLoading ? "…" : formatPi(limits.kycMaxPerTxPi)}
+              </span>{" "}
+              {t("kycModal.benefit2Suffix")}
             </p>
           </div>
           <div className="flex items-start gap-3">
@@ -93,6 +94,22 @@ export function KycRequiredModal({ open, onClose, message, code }: KycRequiredMo
               {t("kycModal.benefit3")}
             </p>
           </div>
+
+          {/* Plafond effectif du compte, politiques admin incluses. */}
+          {!isLoading && (
+            <div className="flex items-baseline justify-between gap-3 border-t border-white/5 pt-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-relaxed">
+                {t("kycModal.currentLimitLabel")}
+              </p>
+              <p className="text-[11px] font-black text-white shrink-0">
+                {formatPi(limits.maxPerTx)}{" "}
+                <span className="text-slate-500 font-bold">{t("kycModal.perOperation")}</span>
+                <span className="text-slate-700"> · </span>
+                {limits.maxPerDay}{" "}
+                <span className="text-slate-500 font-bold">{t("kycModal.perDay")}</span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Mention conformité */}
