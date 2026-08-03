@@ -75,9 +75,22 @@ export async function POST(
       // Payeur
       const payer = await tx.user.findUnique({
         where: { id: payerId },
-        select: { name: true, username: true },
+        select: { name: true, username: true, role: true, kycStatus: true },
       });
       const payerName = payer?.name || payer?.username || "Un utilisateur PIMOBIPAY";
+
+      // Plafonds administres (/admin/limits, canal MPAY) : la franchise KYC et
+      // le plafond par transaction s'appliquent aussi au reglement d'une demande.
+      if (currency === "PI") {
+        await enforcePiPolicy(tx, {
+          userId: payerId,
+          amountPi: amount,
+          kycStatus: payer?.kycStatus,
+          role: payer?.role,
+          channel: "MPAY",
+          countDaily: false,
+        });
+      }
 
       const payerWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId: payerId, currency } },

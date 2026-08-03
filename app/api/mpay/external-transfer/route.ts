@@ -649,13 +649,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (internalRecipient) {
-    // Transfert P2P interne : KYC obligatoire (>5 Pi) + plafond 100 Pi/tx (verifies).
+    // Transfert P2P interne : plafonds administres (/admin/limits, canal MPAY).
     // Pas de limite journaliere (countDaily=false) ni de validation admin.
     try {
       await enforcePiPolicy(prisma, {
         userId: senderId,
         amountPi: amountNum,
         kycStatus: senderKyc,
+        channel: "MPAY",
         countDaily: false,
       });
     } catch (e: any) {
@@ -764,9 +765,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RETRAIT EXTERNE : politique complete (KYC > 5 Pi, plafond 100 Pi/tx,
-  // 10 retraits/jour pour comptes non verifies) + retenue admin pour les gros
-  // montants des comptes verifies.
+  // RETRAIT EXTERNE : politique complete administree (/admin/limits) —
+  // franchise KYC, plafond par transaction, nombre et volume journaliers,
+  // + retenue admin pour les gros montants.
   // ─────────────────────────────────────────────────────────────────────────
   let requiresAdminApproval = false;
   try {
@@ -774,6 +775,7 @@ export async function POST(req: NextRequest) {
       userId: senderId,
       amountPi: amountNum,
       kycStatus: senderKyc,
+      channel: "WITHDRAW",
       countDaily: true,
     });
     requiresAdminApproval = policy.requiresAdminApproval;

@@ -9,8 +9,7 @@ import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import {
-  assertDailyWithdrawalCount,
-  evaluatePiWithdrawal,
+  enforcePiPolicy,
   WithdrawalPolicyError,
 } from "@/lib/withdrawal-limits";
 import {
@@ -108,11 +107,14 @@ export async function POST(req: NextRequest) {
           throw new Error("Solde Pi insuffisant pour cette opération");
         }
 
-        // Politique de retrait (KYC + plafonds + limite journalière)
-        await assertDailyWithdrawalCount(tx, userId);
-        const { requiresAdminApproval } = evaluatePiWithdrawal({
+        // Politique de retrait administree (/admin/limits) : plafonds resolus
+        // dynamiquement, exceptions possibles par role ou par utilisateur.
+        const { requiresAdminApproval } = await enforcePiPolicy(tx, {
+          userId,
           amountPi: piAmount,
           kycStatus: user?.kycStatus,
+          role: user?.role,
+          channel: "WITHDRAW",
         });
 
         const updatedWallet = await tx.wallet.update({

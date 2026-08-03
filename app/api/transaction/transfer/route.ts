@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
         id: true,
         name: true,
         username: true,
-        kycStatus: true
+        kycStatus: true,
+        role: true
       }
     });
 
@@ -104,14 +105,16 @@ export async function POST(req: NextRequest) {
     const { feeAmount: transferFeeAmount, totalDebit } = calculateFee(amountNum, feeConfig, "transfer");
     const valueInUsd = amountNum * piPrice;
 
-    // POLITIQUE KYC + PLAFONDS (denominee en Pi)
-    // Transfert P2P interne instantane : on applique le KYC obligatoire (>5 Pi)
-    // et le plafond de 100 Pi/tx pour les comptes verifies. La limite journaliere
-    // (countDaily) ne s'applique pas aux transferts P2P, uniquement aux retraits.
+    // POLITIQUE KYC + PLAFONDS ADMINISTRES (/admin/limits, canal TRANSFER)
+    // Les seuils ne sont pas codes en dur : l'admin peut definir des exceptions
+    // globales, par role ou pour une selection d'utilisateurs. La limite
+    // journaliere en nombre ne s'applique pas aux transferts P2P internes.
     await enforcePiPolicy(prisma, {
       userId: sender.id,
       amountPi: amountNum,
       kycStatus: sender.kycStatus,
+      role: (sender as any).role,
+      channel: "TRANSFER",
       countDaily: false,
     });
 

@@ -8,8 +8,8 @@ import crypto from "crypto";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import {
   assertDailyWithdrawalCount,
-  evaluatePiWithdrawal,
-  isKycVerified,
+  enforcePiPolicy,
+  resolveUserLimits,
   WithdrawalPolicyError,
 } from "@/lib/withdrawal-limits";
 
@@ -59,9 +59,31 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // c. Limites quotidiennes (Exemple 1000 USD/PI)
-    if (amount > user.dailyLimit) {
-      return NextResponse.json({ error: "Limite quotidienne dépassée" }, { status: 400 });
+    // c. Plafonds administres (/admin/limits) : aucune valeur codee en dur.
+    //    L'admin peut definir une exception globale, par role ou par utilisateur.
+    const limits = await resolveUserLimits({
+      userId,
+      role: user.role,
+      kycStatus: user.kycStatus,
+      channel: "WALLET",
+    });
+
+    if (currency.toUpperCase() === "PI") {
+      await enforcePiPolicy(prisma, {
+        userId,
+        amountPi: amount,
+        kycStatus: user.kycStatus,
+        role: user.role,
+        channel: "WALLET",
+      });
+    } else {
+      // Devises non-Pi : limite du nombre d'operations quotidiennes.
+      await assertDailyWithdrawalCount(prisma, userId, limits.maxPerDay);
+      // Le plafond individuel du compte ne s'applique que si aucune politique
+      // admin ne cible cet utilisateur (une exception admin est prioritaire).
+      if (limits.usingDefaults && !limits.bypassKyc && amount > user.dailyLimit) {
+        return NextResponse.json({ error: "Limite quotidienne dépassée" }, { status: 400 });
+      }
     }
 
     // 5. EXÉCUTION DE LA TRANSACTION (ATOMIQUE)
@@ -128,6 +150,13 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
+    // Violation de plafond administre : message + code exploitables par l'UI.
+    if (error instanceof WithdrawalPolicyError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
     console.error("WITHDRAW_CRITICAL_ERROR:", error);
     return NextResponse.json({ error: "Erreur lors du traitement du retrait" }, { status: 500 });
   }

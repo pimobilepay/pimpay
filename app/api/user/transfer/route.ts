@@ -243,6 +243,7 @@ export async function POST(req: NextRequest) {
           userId: senderId,
           amountPi: amount,
           kycStatus,
+          channel: isExternalPiWithdrawal ? "WITHDRAW" : "TRANSFER",
           countDaily: isExternalPiWithdrawal,
         });
         piRequiresAdminApproval = isExternalPiWithdrawal && policy.requiresAdminApproval;
@@ -356,7 +357,7 @@ export async function POST(req: NextRequest) {
           data: { balance: { decrement: totalDebit } },
         });
 
-        // ─── Transfert INTERNE (P2P entre utilisateurs PIMOBIPAY) ───────────
+        // ─── Transfert INTERNE (P2P entre utilisateurs PIMOBIPAY) ─────────��─
         // Mise à jour des soldes DB. Pour TRX/USDT, si le destinataire possède
         // une adresse TRON, on diffusera AUSSI le transfert sur la blockchain
         // TRON (hors transaction Prisma) afin que le solde reçu soit visible

@@ -8,8 +8,7 @@ import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import {
-  assertDailyWithdrawalCount,
-  evaluatePiWithdrawal,
+  enforcePiPolicy,
   WithdrawalPolicyError,
 } from "@/lib/withdrawal-limits";
 import {
@@ -114,15 +113,16 @@ export async function POST(req: NextRequest) {
         throw new Error("Solde Pi insuffisant pour cette opération");
       }
 
-      // B. POLITIQUE DE RETRAIT (KYC + plafonds + limite journaliere)
-      // - > 5 Pi : KYC verifie obligatoire
-      // - compte verifie : max 100 Pi / transaction
-      // - max 10 retraits / jour
-      // - > 50 Pi (verifie) : validation admin obligatoire
-      await assertDailyWithdrawalCount(tx, userId);
-      const { requiresAdminApproval } = evaluatePiWithdrawal({
+      // B. POLITIQUE DE RETRAIT ADMINISTREE (/admin/limits)
+      // Les plafonds (franchise KYC, max par transaction, seuil de validation
+      // admin, nombre et volume journaliers) sont resolus dynamiquement et
+      // peuvent faire l'objet d'exceptions par role ou par utilisateur.
+      const { requiresAdminApproval } = await enforcePiPolicy(tx, {
+        userId,
         amountPi: piAmount,
         kycStatus: user?.kycStatus,
+        role: user?.role,
+        channel: "WITHDRAW",
       });
 
       // C. Débiter le montant du wallet immédiatement (Sécurité Anti-Double dépense)

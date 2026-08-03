@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
           userId: senderId,
           amountPi: amount,
           kycStatus: senderKyc,
+          channel: isExternalPiWithdrawal ? "WITHDRAW" : "WALLET",
           countDaily: isExternalPiWithdrawal,
         });
         piRequiresAdminApproval = isExternalPiWithdrawal && policy.requiresAdminApproval;

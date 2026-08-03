@@ -1435,3 +1435,50 @@ model ReferralEarning {
   @@index([referrerId])
   @@index([status])
 }
+
+// ============================================================================
+// PLAFONDS & LIMITES DYNAMIQUES (retrait / transfert / mpay / wallet)
+// ============================================================================
+
+// Politique de plafonds pilotée par l'admin.
+// Remplace les constantes codées en dur de lib/withdrawal-limits.ts.
+//
+// scope :
+//   ALL   -> s'applique à tous les utilisateurs
+//   ROLES -> s'applique aux rôles listés dans `roles` (ADMIN, USER, AGENT, MERCHANT, ...)
+//   USERS -> s'applique uniquement aux utilisateurs listés dans `userIds`
+//
+// kycTier : ALL | NON_KYC | KYC  (cible les comptes vérifiés ou non)
+// channels : WITHDRAW | TRANSFER | MPAY | WALLET (vide = tous les canaux)
+//
+// Résolution : USERS > ROLES > ALL, puis `priority` décroissante.
+// Chaque champ nul hérite de la valeur de la politique moins spécifique.
+model LimitPolicy {
+  id                       String    @id @default(cuid())
+  name                     String
+  description              String?
+  scope                    String    @default("ALL") // ALL | ROLES | USERS
+  roles                    String[]  @default([])
+  userIds                  String[]  @default([])
+  kycTier                  String    @default("ALL") // ALL | NON_KYC | KYC
+  channels                 String[]  @default([])
+  // Plafonds (en Pi). null = hérite de la politique parente / des valeurs par défaut.
+  kycFreeLimitPi           Float?
+  kycMaxPerTxPi            Float?
+  adminApprovalThresholdPi Float?
+  maxPerDay                Int?
+  dailyTotalPi             Float?
+  minPerTxPi               Float?
+  // Autorise un compte non vérifié à dépasser la franchise KYC (exception admin).
+  bypassKyc                Boolean?
+  priority                 Int       @default(0)
+  active                   Boolean   @default(true)
+  startsAt                 DateTime?
+  endsAt                   DateTime?
+  createdById              String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([active])
+  @@index([scope])
+}
