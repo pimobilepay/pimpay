@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { grantReferrerBonusIfEligible } from "@/app/api/referral/route";
 import { adminAuth } from "@/lib/adminAuth";
 import { sendNotification } from "@/lib/notifications";
+import { getOrCreateKycTicket, buildUserDisplayName } from "@/lib/kyc-ticket";
 
 export async function POST(req: NextRequest) {
   const adminPayload = await adminAuth(req);
@@ -33,23 +34,44 @@ export async function POST(req: NextRequest) {
     }
 
     // Notifier l'utilisateur du resultat de la verification KYC
+    // avec le ticket cree lors de la soumission, son nom et son avatar
+    const kycTicket = await getOrCreateKycTicket(userId);
+    const displayName = buildUserDisplayName(updatedUser);
+    const decidedAt = new Date().toISOString();
+
     if (status === "APPROVED") {
       await sendNotification({
         userId,
-        title: "KYC approuve !",
-        message: "Felicitations ! Votre identite a ete verifiee avec succes. Vous avez maintenant acces a toutes les fonctionnalites de PIMOBIPAY.",
-        type: "SUCCESS",
-        metadata: { status: "APPROVED" },
+        title: "Verification d'identite approuvee",
+        message: `Bonjour ${displayName}, votre piece d'identite a ete approuvee. Vous pouvez poursuivre normalement votre parcours de creation de carte.`,
+        type: "KYC_APPROVED",
+        metadata: {
+          status: "APPROVED",
+          ticket: kycTicket,
+          reference: kycTicket,
+          decidedAt,
+          userName: displayName,
+          userAvatar: updatedUser.avatar || undefined,
+          kycLevel: "VERIFIE",
+        },
       });
     } else {
       await sendNotification({
         userId,
-        title: "KYC refuse",
+        title: "Verification d'identite refusee",
         message: reason
-          ? `Votre verification d'identite a ete refusee. Motif : ${reason}. Veuillez soumettre a nouveau votre dossier.`
-          : "Votre verification d'identite a ete refusee. Veuillez soumettre a nouveau votre dossier.",
-        type: "warning",
-        metadata: { status: "REJECTED", reason: reason || undefined },
+          ? `Bonjour ${displayName}, votre verification d'identite a ete refusee. Motif : ${reason}. Veuillez soumettre a nouveau votre dossier.`
+          : `Bonjour ${displayName}, votre verification d'identite a ete refusee. Veuillez soumettre a nouveau votre dossier.`,
+        type: "KYC_REJECTED",
+        metadata: {
+          status: "REJECTED",
+          reason: reason || undefined,
+          ticket: kycTicket,
+          reference: kycTicket,
+          decidedAt,
+          userName: displayName,
+          userAvatar: updatedUser.avatar || undefined,
+        },
       });
     }
 

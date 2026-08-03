@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, KycStatus } from "@prisma/client";
+import { generateKycTicket, buildUserDisplayName } from "@/lib/kyc-ticket";
 
 export const dynamic = 'force-dynamic';
 
@@ -269,19 +270,32 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Ticket unique cree a la soumission — sert de reference dans toutes
+    // les notifications KYC (accuse de reception puis decision)
+    const kycTicket = generateKycTicket();
+    const displayName = buildUserDisplayName(updatedUser);
+
     // Create notification
     await prisma.notification.create({
       data: {
         userId,
-        title: "KYC Soumis",
-        message: "Votre dossier KYC est en cours de verification. Delai: 24-48h.",
-        type: "info",
+        title: "Dossier KYC soumis",
+        message: `Bonjour ${displayName}, votre dossier de verification d'identite a bien ete recu. Delai de traitement : 24-48h.`,
+        type: "KYC_PENDING",
+        metadata: {
+          ticket: kycTicket,
+          status: "PENDING",
+          submittedAt: new Date().toISOString(),
+          userName: displayName,
+          userAvatar: updatedUser.avatar || undefined,
+        },
       }
     });
 
     return NextResponse.json({
       success: true,
       status: updatedUser.kycStatus,
+      ticket: kycTicket,
       fraudCheck: {
         score: fraudResult.score,
         riskLevel: fraudResult.riskLevel,

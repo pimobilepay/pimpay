@@ -6,7 +6,8 @@ import {
   CheckCheck, Info, ShieldCheck, ArrowDownLeft,
   ArrowUpRight, Store, LogIn, Clock, Loader2,
   Smartphone, Globe, MapPin, Repeat, User, Building2, Wifi,
-  ChevronRight, TrendingUp, Coins, MessageSquare, Send, X, Headphones
+  ChevronRight, TrendingUp, Coins, MessageSquare, Send, X, Headphones,
+  Ticket, BadgeCheck, CalendarClock
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr as frLocale, enUS } from "date-fns/locale";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 import TransactionConfirmModal from "@/components/TransactionConfirmModal";
 import SupportChatModal from "@/components/SupportChatModal";
 import { useLanguage } from "@/context/LanguageContext";
+import KycDecisionCard from "@/components/notifications/kyc-decision-card";
 
 type NotificationType = "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING" | "STAKING" | "STAKING_REWARD" | "STAKING_UNSTAKE" | "SUPPORT_MESSAGE" | "SUPPORT_NOTIFICATION" | "TRANSACTION_CONFIRM" | string;
 
@@ -84,8 +86,19 @@ interface Notification {
     canReply?: boolean;
     sentAt?: string;
     ticketId?: string;
+    // KYC specific
+    ticket?: string;
+    reason?: string;
+    decidedAt?: string;
+    submittedAt?: string;
+    userName?: string;
+    userAvatar?: string;
+    kycLevel?: string;
   };
 }
+
+// Types de notifications relatives au KYC
+const KYC_TYPES = ["KYC", "KYC_APPROVED", "KYC_REJECTED", "KYC_PENDING"];
 
 // Couleur de fond et bordure laterale selon le type (style page mpay)
 function getNotifCardClass(type: NotificationType, read: boolean): string {
@@ -273,6 +286,8 @@ export default function NotificationsPage() {
   // MFA Transaction Confirmation
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  // Profil courant utilise comme repli pour l'avatar / nom dans les cartes KYC
+  const [currentUser, setCurrentUser] = useState<{ name: string; avatar?: string }>({ name: "" });
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
   const [confirmTx, setConfirmTx] = useState<{
     id: string;
@@ -331,6 +346,12 @@ export default function NotificationsPage() {
         if (data?.user?.id) {
           setCurrentUserId(data.user.id);
           setTwoFactorEnabled(data.user.twoFactorEnabled || false);
+          const u = data.user;
+          const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+          setCurrentUser({
+            name: u.name || fullName || u.username || u.email || "",
+            avatar: u.avatar || undefined,
+          });
         }
       })
       .catch(() => {});
@@ -520,6 +541,22 @@ export default function NotificationsPage() {
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("notifications.message")}</p>
               <p className="text-sm text-white leading-relaxed">{notification.message}</p>
             </div>
+
+            {/* Decision KYC — avatar, badge, ticket, date et heure */}
+            {KYC_TYPES.includes(notification.type) && (
+              <KycDecisionCard
+                type={notification.type}
+                metadata={metadata}
+                createdAt={notification.createdAt}
+                fallbackName={currentUser.name}
+                fallbackAvatar={currentUser.avatar}
+                locale={locale}
+                onAction={() => {
+                  onClose();
+                  router.push("/settings/kyc");
+                }}
+              />
+            )}
 
             {/* Transaction Details for Payment */}
             {(notification.type === "PAYMENT_RECEIVED" || notification.type === "SUCCESS" || notification.type === "PAYMENT_SENT") && (() => {
@@ -1019,11 +1056,15 @@ export default function NotificationsPage() {
                       )}
 
                       {/* Badges inline — KYC */}
-                      {(notif.type === "KYC" || notif.type === "KYC_APPROVED" || notif.type === "KYC_REJECTED" || notif.type === "KYC_PENDING") && (() => {
+                      {KYC_TYPES.includes(notif.type) && (() => {
                         const isApproved = notif.type === "KYC_APPROVED" || notif.metadata?.status === "APPROVED";
                         const isRejected = notif.type === "KYC_REJECTED" || notif.metadata?.status === "REJECTED";
+                        const ticket = notif.metadata?.ticket || notif.metadata?.reference;
+                        const holder = notif.metadata?.userName || currentUser.name;
+                        const holderAvatar = notif.metadata?.userAvatar || currentUser.avatar;
+                        const decidedAt = notif.metadata?.decidedAt || notif.metadata?.submittedAt || notif.createdAt;
                         return (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             <span className={cn(
                               "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black border uppercase tracking-wide",
                               isApproved ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/15"
@@ -1032,6 +1073,30 @@ export default function NotificationsPage() {
                             )}>
                               <ShieldCheck size={9} />
                               {isApproved ? t("notifications.kycVerified") : isRejected ? t("notifications.kycRejected") : t("notifications.kycPending")}
+                            </span>
+
+                            {holder && (
+                              <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-1 bg-white/5 text-slate-300 rounded-lg text-[9px] font-bold border border-white/10">
+                                {holderAvatar ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={holderAvatar || "/placeholder.svg"} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                ) : (
+                                  <User size={9} className="text-slate-400" />
+                                )}
+                                <span className="max-w-[100px] truncate">{holder}</span>
+                                {isApproved && <BadgeCheck size={10} className="text-emerald-400 shrink-0" />}
+                              </span>
+                            )}
+
+                            {ticket && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-[9px] font-mono font-bold border border-blue-500/15">
+                                <Ticket size={9} /> {ticket}
+                              </span>
+                            )}
+
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 text-slate-400 rounded-lg text-[9px] font-bold border border-white/5">
+                              <CalendarClock size={9} />
+                              {new Date(decidedAt).toLocaleString(locale === "en" ? "en-US" : "fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
                         );

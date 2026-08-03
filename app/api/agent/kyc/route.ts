@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { sendNotification } from "@/lib/notifications";
+import { getOrCreateKycTicket, buildUserDisplayName } from "@/lib/kyc-ticket";
 
 /** Vérifie que l'utilisateur est bien un agent SUPERVISOR */
 async function supervisorAuth(req: NextRequest) {
@@ -107,24 +108,34 @@ export async function POST(req: NextRequest) {
 
     // Notifier l'utilisateur du résultat de la pré-validation
     try {
+      const kycTicket = await getOrCreateKycTicket(userId);
+      const displayName = buildUserDisplayName(updatedUser);
+      const decidedAt = new Date().toISOString();
+      const baseMeta = {
+        ticket: kycTicket,
+        reference: kycTicket,
+        decidedAt,
+        userName: displayName,
+        userAvatar: updatedUser.avatar || undefined,
+      };
+
       if (status === "APPROVED") {
         await sendNotification({
           userId,
-          title: "KYC pré-validé",
-          message:
-            "Votre dossier d'identité a été pré-validé par un superviseur. Il est maintenant en attente de la validation finale de l'administration.",
-          type: "INFO",
-          metadata: { status: "APPROVED" },
+          title: "Vérification d'identité pré-validée",
+          message: `Bonjour ${displayName}, votre dossier d'identité a été pré-validé par un superviseur. Il est maintenant en attente de la validation finale de l'administration.`,
+          type: "KYC_PENDING",
+          metadata: { ...baseMeta, status: "PENDING" },
         });
       } else {
         await sendNotification({
           userId,
-          title: "KYC refusé",
+          title: "Vérification d'identité refusée",
           message: reason
-            ? `Votre vérification d'identité a été refusée. Motif : ${reason}. Veuillez soumettre à nouveau votre dossier.`
-            : "Votre vérification d'identité a été refusée. Veuillez soumettre à nouveau votre dossier.",
-          type: "warning",
-          metadata: { status: "REJECTED", reason: reason || undefined },
+            ? `Bonjour ${displayName}, votre vérification d'identité a été refusée. Motif : ${reason}. Veuillez soumettre à nouveau votre dossier.`
+            : `Bonjour ${displayName}, votre vérification d'identité a été refusée. Veuillez soumettre à nouveau votre dossier.`,
+          type: "KYC_REJECTED",
+          metadata: { ...baseMeta, status: "REJECTED", reason: reason || undefined },
         });
       }
     } catch (notifErr) {

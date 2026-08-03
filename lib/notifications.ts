@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-type NotificationType = "info" | "success" | "warning" | "error" | "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "SALARY";
+type NotificationType = "info" | "success" | "warning" | "error" | "SECURITY" | "PAYMENT_RECEIVED" | "PAYMENT_SENT" | "MERCHANT" | "LOGIN" | "SYSTEM" | "SWAP" | "SUCCESS" | "SALARY" | "KYC" | "KYC_APPROVED" | "KYC_REJECTED" | "KYC_PENDING";
 
 interface NotificationMetadata {
   // Transaction metadata
@@ -30,6 +30,14 @@ interface NotificationMetadata {
   location?: string;
   os?: string;
   browser?: string;
+  // KYC metadata
+  ticket?: string;
+  reason?: string;
+  decidedAt?: string;
+  submittedAt?: string;
+  userName?: string;
+  userAvatar?: string;
+  kycLevel?: string;
 }
 
 interface SendNotificationProps {
