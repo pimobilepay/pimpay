@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ArrowDownLeft, Check, Copy, Clock, Loader2, Plus,
   Share2, ShieldCheck, Trash2, HandCoins, Hourglass, ChevronRight,
+  Radio, CheckCircle2,
 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
+import { usePaymentRequestWatch, type WatchedRequest } from "@/hooks/usePaymentRequestWatch";
 import {
   REQUEST_CURRENCIES,
   REQUEST_DURATIONS,
@@ -81,6 +83,66 @@ export default function PaymentRequestPage() {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  /* ─── ECOUTE TEMPS REEL DES DEMANDES EN ATTENTE ─────────────────────────
+     On surveille uniquement les codes encore PENDING. Des qu'un payeur
+     regle une demande, le statut bascule sur "Payee" sans rechargement,
+     avec une notification a l'ecran. */
+  const pendingCodes = useMemo(
+    () => requests.filter((r) => r.status === "PENDING").map((r) => r.code),
+    [requests]
+  );
+
+  // Demande fraichement reglee, mise en avant en haut de page.
+  const [justPaid, setJustPaid] = useState<WatchedRequest | null>(null);
+
+  const handlePaid = useCallback(
+    (paid: WatchedRequest) => {
+      const payerName = paid.payer?.name || paid.payer?.username;
+      setJustPaid(paid);
+      toast.success(
+        `${t("mpay.request.paidLive")} ${formatRequestAmount(paid.amount, paid.currency)} ${paid.currency}${
+          payerName ? ` — ${payerName}` : ""
+        }`,
+        { duration: 6000 }
+      );
+      // Resynchronise la liste complete (payeur, reference, horodatage).
+      fetchRequests();
+    },
+    [fetchRequests, t]
+  );
+
+  const handleExpiredLive = useCallback(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  const { live, listening, lastCheck } = usePaymentRequestWatch({
+    codes: pendingCodes,
+    intervalMs: 4000,
+    onPaid: handlePaid,
+    onStatusChange: handleExpiredLive,
+  });
+
+  // Fusionne l'etat en direct par-dessus la liste chargee.
+  const displayRequests = useMemo(
+    () =>
+      requests.map((r) => {
+        const l = live[r.code];
+        if (!l || l.status === r.status) return r;
+        return {
+          ...r,
+          status: l.status,
+          paidAt: l.paidAt ?? r.paidAt,
+          reference: l.reference ?? r.reference,
+          payer: l.payer ? { username: l.payer.username, name: l.payer.name || "" } : r.payer,
+        };
+      }),
+    [requests, live]
+  );
+
+  // Statut en direct de la demande affichee sur l'ecran de partage.
+  const createdLive = created ? live[created.code] : undefined;
+  const createdPaid = createdLive?.status === "PAID";
 
   const shareUrl = created ? buildRequestUrl(created.code) : "";
 
@@ -197,14 +259,20 @@ export default function PaymentRequestPage() {
               <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600/40 to-teal-600/40 rounded-[2rem] blur-sm opacity-70" />
               <div className="relative bg-slate-900/60 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md flex flex-col items-center gap-5">
                 <div className="flex flex-col items-center gap-1.5">
-                  <div className="w-12 h-12 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400">
-                    <Check size={24} />
+                  <div className={`w-12 h-12 border rounded-2xl flex items-center justify-center ${
+                    createdPaid
+                      ? "bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-600/40"
+                      : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                  }`}>
+                    {createdPaid ? <CheckCircle2 size={24} /> : <Check size={24} />}
                   </div>
                   <h2 className="text-sm font-black uppercase tracking-tight mt-1">
-                    {t("mpay.request.shareTitle")}
+                    {createdPaid ? t("mpay.request.paidTitle") : t("mpay.request.shareTitle")}
                   </h2>
                   <p className="text-[10px] font-medium text-slate-500 text-center leading-relaxed text-pretty max-w-[16rem]">
-                    {t("mpay.request.shareDesc")}
+                    {createdPaid
+                      ? `${t("mpay.request.paidBy")} ${createdLive?.payer?.name || createdLive?.payer?.username || "—"}`
+                      : t("mpay.request.shareDesc")}
                   </p>
                 </div>
 
@@ -216,10 +284,29 @@ export default function PaymentRequestPage() {
                   <span className="text-lg font-black text-emerald-500">{created.currency}</span>
                 </div>
 
-                {/* QR */}
-                <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-500/20">
-                  <QRCodeSVG value={shareUrl} size={176} level="H" includeMargin={false} />
-                </div>
+                {/* QR ou confirmation de paiement recu en direct */}
+                {createdPaid ? (
+                  <div className="w-full bg-emerald-500/10 border border-emerald-500/30 rounded-3xl p-6 flex flex-col items-center gap-3 animate-in fade-in zoom-in-95 duration-500">
+                    <CheckCircle2 size={44} className="text-emerald-400" />
+                    <span className="text-xs font-black uppercase tracking-widest text-emerald-300">
+                      {t("mpay.request.statusPaid")}
+                    </span>
+                    {createdLive?.paidAt && (
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {new Date(createdLive.paidAt).toLocaleString(dateLocale)}
+                      </span>
+                    )}
+                    {createdLive?.reference && (
+                      <span className="text-[9px] font-mono font-bold text-emerald-400/80 break-all text-center">
+                        {createdLive.reference}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-500/20">
+                    <QRCodeSVG value={shareUrl} size={176} level="H" includeMargin={false} />
+                  </div>
+                )}
 
                 {created.note && (
                   <p className="text-[10px] font-bold text-slate-400 text-center leading-relaxed text-pretty">
@@ -227,39 +314,70 @@ export default function PaymentRequestPage() {
                   </p>
                 )}
 
-                <div className="flex items-center gap-2 text-amber-300">
-                  <Hourglass size={12} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">
-                    {timeLeft(created.expiresAt, t)
-                      ? `${t("mpay.request.expiresIn")} ${timeLeft(created.expiresAt, t)}`
-                      : t("mpay.request.expired")}
-                  </span>
-                </div>
+                {!createdPaid && (
+                  <div className="flex items-center gap-2 text-amber-300">
+                    <Hourglass size={12} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">
+                      {timeLeft(created.expiresAt, t)
+                        ? `${t("mpay.request.expiresIn")} ${timeLeft(created.expiresAt, t)}`
+                        : t("mpay.request.expired")}
+                    </span>
+                  </div>
+                )}
+
+                {/* Indicateur d'ecoute : le statut basculera tout seul */}
+                {!createdPaid && listening && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/25 rounded-full"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-300">
+                      {t("mpay.request.waitingPayment")}
+                    </span>
+                  </div>
+                )}
 
                 {/* Lien */}
-                <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-3">
-                  <p className="text-[10px] font-mono font-bold text-emerald-400 break-all leading-relaxed">
-                    {shareUrl}
-                  </p>
-                </div>
+                {!createdPaid && (
+                  <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[10px] font-mono font-bold text-emerald-400 break-all leading-relaxed">
+                      {shareUrl}
+                    </p>
+                  </div>
+                )}
 
                 {/* Actions */}
-                <div className="grid grid-cols-2 gap-3 w-full">
+                {createdPaid ? (
                   <button
-                    onClick={handleCopy}
-                    className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-wider hover:bg-white/10 active:scale-95 transition-all"
+                    onClick={() => router.push(`/mpay/request/${created.code}`)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-emerald-600 rounded-2xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 active:scale-95 transition-all shadow-lg shadow-emerald-600/25"
                   >
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? t("common.copied") : t("mpay.request.copyLink")}
+                    <ChevronRight size={14} />
+                    {t("mpay.request.viewDetails")}
                   </button>
-                  <button
-                    onClick={handleShare}
-                    className="flex items-center justify-center gap-2 px-4 py-3.5 bg-emerald-600 rounded-2xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 active:scale-95 transition-all shadow-lg shadow-emerald-600/25"
-                  >
-                    <Share2 size={14} />
-                    {t("mpay.request.share")}
-                  </button>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 w-full">
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-wider hover:bg-white/10 active:scale-95 transition-all"
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                      {copied ? t("common.copied") : t("mpay.request.copyLink")}
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className="flex items-center justify-center gap-2 px-4 py-3.5 bg-emerald-600 rounded-2xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 active:scale-95 transition-all shadow-lg shadow-emerald-600/25"
+                    >
+                      <Share2 size={14} />
+                      {t("mpay.request.share")}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -409,6 +527,46 @@ export default function PaymentRequestPage() {
           </section>
         )}
 
+        {/* ─── NOTIFICATION EN DIRECT : DEMANDE REGLEE ───────────── */}
+        {justPaid && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="relative bg-emerald-500/10 border border-emerald-500/30 rounded-[2rem] p-5 flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-500"
+          >
+            <div className="w-11 h-11 flex-shrink-0 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-600/30">
+              <CheckCircle2 size={22} className="text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black uppercase tracking-tight text-emerald-300">
+                {t("mpay.request.paidTitle")}
+              </p>
+              <p className="text-[11px] font-bold text-white mt-1">
+                {formatRequestAmount(justPaid.amount, justPaid.currency)} {justPaid.currency}
+                {(justPaid.payer?.name || justPaid.payer?.username) &&
+                  ` — ${justPaid.payer?.name || justPaid.payer?.username}`}
+              </p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                {justPaid.paidAt
+                  ? new Date(justPaid.paidAt).toLocaleString(dateLocale)
+                  : new Date().toLocaleString(dateLocale)}
+              </p>
+              {justPaid.reference && (
+                <p className="text-[9px] font-mono font-bold text-emerald-400/80 break-all mt-1">
+                  {justPaid.reference}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setJustPaid(null)}
+              className="p-2 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white transition-all flex-shrink-0"
+              aria-label={t("common.close")}
+            >
+              <Check size={12} />
+            </button>
+          </div>
+        )}
+
         {/* ─── MES DEMANDES ──────────────────────────────────────── */}
         <section aria-labelledby="my-requests-heading">
           <div className="flex items-center justify-between mb-4">
@@ -420,6 +578,21 @@ export default function PaymentRequestPage() {
               >
                 {t("mpay.request.myRequests")}
               </h2>
+              {listening && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/25 rounded-lg"
+                  title={
+                    lastCheck
+                      ? `${t("mpay.request.lastCheck")} ${lastCheck.toLocaleTimeString(dateLocale)}`
+                      : undefined
+                  }
+                >
+                  <Radio size={9} className="text-emerald-400 animate-pulse" />
+                  <span className="text-[8px] font-black uppercase tracking-widest text-emerald-300">
+                    {t("mpay.request.live")}
+                  </span>
+                </span>
+              )}
             </div>
             {requests.length > 0 && (
               <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
@@ -447,14 +620,19 @@ export default function PaymentRequestPage() {
             </div>
           ) : (
             <ul className="space-y-3">
-              {requests.map((r) => {
+              {displayRequests.map((r) => {
                 const meta = statusMeta(r.status);
                 const remaining = timeLeft(r.expiresAt, t);
                 const payerName = r.payer?.name || r.payer?.username;
+                const isLivePaid = justPaid?.code === r.code;
                 return (
                   <li
                     key={r.id}
-                    className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 hover:border-white/20 transition-all"
+                    className={`border rounded-2xl p-4 transition-all ${
+                      isLivePaid
+                        ? "bg-emerald-500/[0.07] border-emerald-500/40 animate-in fade-in zoom-in-95 duration-500"
+                        : "bg-white/[0.03] border-white/10 hover:border-white/20"
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button

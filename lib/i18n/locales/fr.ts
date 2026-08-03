@@ -861,6 +861,13 @@ export const fr = {
       statusPaid: "Payee",
       statusCancelled: "Annulee",
       statusExpired: "Expiree",
+      // Ecoute temps reel du paiement
+      live: "En direct",
+      lastCheck: "Derniere verification",
+      waitingPayment: "En attente du paiement...",
+      paidTitle: "Demande payee !",
+      paidLive: "Paiement recu :",
+      viewDetails: "Voir les details",
       // Page de paiement
       payTitle: "Regler la demande",
       requestedBy: "Demande par",
