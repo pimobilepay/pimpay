@@ -9,6 +9,7 @@ import { Toaster } from "sonner";
 import ClientLayout from "@/components/ClientLayout";
 import GlobalAnnouncement from "@/components/GlobalAnnouncement";
 import GlobalAlert from "@/components/GlobalAlert";
+import SystemAlertBanner from "@/components/system-alert-banner";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
@@ -112,6 +113,9 @@ export default async function RootLayout({
               </div>
 
               <GlobalAnnouncement />
+
+              {/* Alertes système : maintenance, annonces, sécurité (ciblées par rôle/utilisateur) */}
+              <SystemAlertBanner />
 
               <ClientLayout>{children}</ClientLayout>
 
