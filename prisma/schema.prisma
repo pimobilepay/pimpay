@@ -219,6 +219,58 @@ model SystemConfig {
   riskScoreThreshold    Int      @default(75) // 0-100, au-delà = blocage (75 = équilibré, anti faux positifs)
   ipWhitelist           String?  // IP/CIDR de confiance, séparés par virgule
   autoBlockOnDetection  Boolean  @default(false) // ajoute l'IP à la liste noire
+
+  // ─── DÉTAILS DE MAINTENANCE (annoncés aux utilisateurs) ───────────────────
+  /// Titre affiché sur la page de maintenance et dans la notification.
+  maintenanceTitle      String?
+  /// Message détaillé rédigé par l'admin (raison, périmètre, consignes).
+  maintenanceMessage    String?
+  /// Niveau d'alerte : INFO | SUCCESS | WARNING | URGENT | CRITICAL
+  maintenanceSeverity   String   @default("WARNING")
+  /// Début (réel ou planifié) de la fenêtre de maintenance.
+  maintenanceStartsAt   DateTime?
+  /// Services impactés (RETRAIT, TRANSFERT, MPAY, DEPOT...).
+  maintenanceScopes     String[] @default([])
+  /// Rôles autorisés à continuer d'utiliser la plateforme pendant la coupure.
+  maintenanceAllowedRoles String[] @default(["ADMIN"])
+  /// Dernière campagne de notification liée à la maintenance en cours.
+  maintenanceBroadcastId String?
+}
+
+/// Campagne de notification diffusée par un administrateur.
+/// Sert d'historique et de source pour la bannière globale in-app.
+model Broadcast {
+  id             String    @id @default(cuid())
+  title          String
+  message        String
+  /// INFO | SUCCESS | WARNING | URGENT | CRITICAL
+  severity       String    @default("INFO")
+  /// ANNOUNCEMENT | MAINTENANCE | SECURITY | PROMO | SYSTEM
+  category       String    @default("ANNOUNCEMENT")
+  /// ALL | ROLES | USERS
+  scope          String    @default("ALL")
+  roles          String[]  @default([])
+  userIds        String[]  @default([])
+  recipientCount Int       @default(0)
+  link           String?
+  /// Fenêtre annoncée (maintenance planifiée) + durée calculée en minutes.
+  startsAt       DateTime?
+  endsAt         DateTime?
+  durationMin    Int?
+  /// Détails libres additionnels (services impactés, consignes, contact...).
+  details        Json?
+  /// L'utilisateur peut-il masquer la bannière ? (false pour URGENT/CRITICAL)
+  dismissible    Boolean   @default(true)
+  /// Affiche la bannière globale in-app tant que active = true.
+  active         Boolean   @default(true)
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([active])
+  @@index([category])
+  @@index([createdAt])
 }
 
 model DailyStats {
