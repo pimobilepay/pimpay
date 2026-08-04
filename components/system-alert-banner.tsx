@@ -68,7 +68,65 @@ const STYLES: Record<
   },
 };
 
+interface MaintenanceState {
+  active: boolean;
+  title?: string | null;
+  message?: string | null;
+  severity?: Severity | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  durationLabel?: string | null;
+  scopes?: string[] | null;
+  /** true si CE visiteur garde l'accès pendant la maintenance. */
+  exempt?: boolean;
+}
+
 const STORAGE_KEY = "pimpay-dismissed-alerts";
+
+/**
+ * Transforme l'état de maintenance renvoyé par l'API en alerte affichable.
+ * C'est la source autoritaire : elle remplace toute bannière de catégorie
+ * MAINTENANCE issue de l'historique des diffusions.
+ */
+function maintenanceToAlert(m: MaintenanceState): Alert {
+  const severity: Severity = m.severity ?? "URGENT";
+  const window = m.durationLabel ? ` Durée annoncée : ${m.durationLabel}.` : "";
+  return {
+    id: "system-maintenance",
+    title: m.title || "Maintenance en cours",
+    message:
+      (m.message ||
+        "La plateforme est momentanément indisponible le temps d'une intervention technique.") +
+      window +
+      (m.exempt ? " Votre rôle conserve l'accès pendant l'intervention." : ""),
+    severity,
+    category: "MAINTENANCE",
+    link: null,
+    startsAt: m.startsAt ?? null,
+    endsAt: m.endsAt ?? null,
+    durationLabel: m.durationLabel ?? null,
+    details: m.scopes?.length ? { services: m.scopes } : null,
+    // Un exempté (admin) peut masquer la bannière ; un utilisateur bloqué non.
+    dismissible: Boolean(m.exempt),
+  };
+}
+
+/** Annonce globale texte libre configurée dans les paramètres système. */
+function announcementToAlert(text: string): Alert {
+  return {
+    id: `system-announcement-${text.slice(0, 24)}`,
+    title: "Annonce PimPay",
+    message: text,
+    severity: "INFO",
+    category: "ANNOUNCEMENT",
+    link: null,
+    startsAt: null,
+    endsAt: null,
+    durationLabel: null,
+    details: null,
+    dismissible: true,
+  };
+}
 
 function readDismissed(): string[] {
   try {
@@ -215,6 +273,8 @@ function AlertCard({ alert, onDismiss }: { alert: Alert; onDismiss: () => void }
  */
 export default function SystemAlertBanner() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceState | null>(null);
+  const [announcement, setAnnouncement] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
 
   useEffect(() => {
@@ -227,7 +287,10 @@ export default function SystemAlertBanner() {
       fetch("/api/system/alerts", { credentials: "include" })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
-          if (!cancelled && d?.alerts) setAlerts(d.alerts);
+          if (cancelled || !d) return;
+          setAlerts(d.alerts ?? []);
+          setMaintenance(d.maintenance ?? null);
+          setAnnouncement(typeof d.announcement === "string" ? d.announcement : null);
         })
         .catch(() => {});
     };
@@ -250,7 +313,16 @@ export default function SystemAlertBanner() {
     }
   };
 
-  const visible = alerts.filter((a) => !a.dismissible || !dismissed.includes(a.id));
+  // La maintenance issue de la config système est prioritaire et remplace toute
+  // bannière de catégorie MAINTENANCE provenant de l'historique des diffusions.
+  const maintenanceActive = Boolean(maintenance?.active);
+  const composed: Alert[] = [
+    ...(maintenanceActive ? [maintenanceToAlert(maintenance as MaintenanceState)] : []),
+    ...alerts.filter((a) => !maintenanceActive || a.category !== "MAINTENANCE"),
+    ...(announcement && !maintenanceActive ? [announcementToAlert(announcement)] : []),
+  ];
+
+  const visible = composed.filter((a) => !a.dismissible || !dismissed.includes(a.id));
   if (visible.length === 0) return null;
 
   return (

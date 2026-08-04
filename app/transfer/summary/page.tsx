@@ -23,6 +23,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { usePiPrice } from "@/hooks/usePiPrice";
 import { toast } from "sonner";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
+import { LimitsBanner } from "@/components/limits-banner";
 function detectExternalAddress(identifier: string): boolean {
   const clean = (identifier || "").trim();
   if (!clean || clean.length < 20) return false;
@@ -410,6 +411,7 @@ const data = useMemo(() => {
         open={kycModal.open}
         message={kycModal.message}
         code={kycModal.code}
+        channel="TRANSFER"
         onClose={() => setKycModal({ open: false })}
       />
       {/* Glow décoratif */}
@@ -442,6 +444,9 @@ const data = useMemo(() => {
       </header>
 
       <main className="relative px-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* PLAFONDS APPLICABLES (politiques admin incluses) */}
+        <LimitsBanner channel="TRANSFER" />
+
         {/* BLOC UNIQUE : MONTANT + SOLDE + BÉNÉFICIAIRE + DÉTAILS */}
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-blue-600/15 via-slate-900/60 to-slate-900/80 p-6 shadow-2xl">
           <div className="absolute -top-6 -right-6 opacity-[0.07] pointer-events-none">

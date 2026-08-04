@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AudienceSelector, type AudienceValue, ROLE_LABELS } from "@/components/admin/audience-selector";
+import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
 const CHANNELS = [
   { value: "WITHDRAW", label: "Retrait" },
@@ -198,6 +199,13 @@ export default function AdminLimitsPage() {
   };
 
   return (
+    <div className="min-h-screen bg-[#020617] text-white">
+      <AdminTopNav
+        title="Plafonds & Exceptions"
+        subtitle="Conformite"
+        backPath="/admin"
+        onRefresh={load}
+      />
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-4 pb-24">
       <header className="flex items-center gap-3">
         <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400">
@@ -483,5 +491,6 @@ export default function AdminLimitsPage() {
         )}
       </section>
     </main>
+    </div>
   );
 }

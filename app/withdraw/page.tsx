@@ -22,6 +22,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { CRYPTO_ASSETS, isWithdrawSupported } from "@/lib/crypto-config";
 import { validateAddress, CRYPTO_RULES } from "@/lib/crypto-validator";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
+import { LimitsBanner } from "@/components/limits-banner";
 import "flag-icons/css/flag-icons.min.css";
 
 // Ordered list of cryptos available for withdrawal
@@ -356,6 +357,7 @@ export default function WithdrawPage() {
         open={kycModal.open}
         message={kycModal.message}
         code={kycModal.code}
+        channel="WITHDRAW"
         onClose={() => setKycModal({ open: false })}
       />
 
@@ -447,6 +449,9 @@ export default function WithdrawPage() {
             </div>
           </div>
         </section>
+
+        {/* PLAFONDS APPLICABLES (politiques admin incluses) */}
+        <LimitsBanner channel="WITHDRAW" />
 
         {/* TABS */}
         <nav className="grid grid-cols-3 bg-slate-900/50 p-1.5 rounded-2xl border border-white/5">

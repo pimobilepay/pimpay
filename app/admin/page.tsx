@@ -7,7 +7,8 @@ import {
   TrendingUp, AlertTriangle, Zap, Search, Loader2, LayoutGrid, Headphones,
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
   BarChart3, ArrowLeft, History, Eye, Bell, Crosshair,
-  ShieldAlert, UserCog, Vault, BookOpen, Snowflake, Gavel, Gift
+  ShieldAlert, UserCog, Vault, BookOpen, Snowflake, Gavel, Gift,
+  Megaphone, SlidersHorizontal
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -73,6 +74,8 @@ export default function AdminDashboard() {
           {[
             { label: "Dashboard", desc: "Vue detaillee", icon: <LayoutGrid size={20} />, path: "/admin/dashboard", color: "blue" },
             { label: "Notifications", desc: "Alertes temps reel", icon: <Bell size={20} />, path: "/admin/notifications", color: "rose" },
+            { label: "Diffusion", desc: "Groupes & maintenance", icon: <Megaphone size={20} />, path: "/admin/broadcast", color: "amber" },
+            { label: "Plafonds", desc: "Limites & exceptions", icon: <SlidersHorizontal size={20} />, path: "/admin/limits", color: "indigo" },
             { label: "Utilisateurs", desc: "Gestion comptes", icon: <Users size={20} />, path: "/admin/users", color: "purple" },
             { label: "Transactions", desc: "Flux financiers", icon: <ArrowRightLeft size={20} />, path: "/admin/transactions", color: "emerald" },
             { label: "Historique", desc: "Toutes les transactions", icon: <History size={20} />, path: "/admin/historique", color: "teal" },
