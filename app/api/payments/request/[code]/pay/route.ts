@@ -46,6 +46,48 @@ export async function POST(
 
     const feeConfig = await getFeeConfig();
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRE-VOL (HORS TRANSACTION)
+    // La resolution des plafonds administres (/admin/limits) interroge la base.
+    // Executee A L'INTERIEUR de `prisma.$transaction`, elle reclamait une
+    // seconde connexion au pool pendant que la transaction en detenait une :
+    // en serverless la requete imbriquee attendait, la transaction interactive
+    // expirait (P2028) et le reglement renvoyait « Le paiement a echoue. ».
+    // On verifie donc la politique AVANT d'ouvrir la transaction ; les regles
+    // metier (statut, expiration, solde) restent verifiees dans la transaction.
+    // ─────────────────────────────────────────────────────────────────────────
+    const preRequest = await prisma.paymentRequest.findUnique({
+      where: { code },
+      select: {
+        amount: true,
+        currency: true,
+        status: true,
+        expiresAt: true,
+        requesterId: true,
+      },
+    });
+    if (!preRequest) throw new Error("NOT_FOUND");
+    if (preRequest.requesterId === payerId) throw new Error("SELF_PAY");
+
+    const payer = await prisma.user.findUnique({
+      where: { id: payerId },
+      select: { name: true, username: true, role: true, kycStatus: true },
+    });
+    const payerName = payer?.name || payer?.username || "Un utilisateur PIMOBIPAY";
+
+    // Plafonds administres (/admin/limits, canal MPAY) : la franchise KYC et
+    // le plafond par transaction s'appliquent aussi au reglement d'une demande.
+    if (preRequest.currency === "PI" && preRequest.status === "PENDING") {
+      await enforcePiPolicy(prisma, {
+        userId: payerId,
+        amountPi: preRequest.amount,
+        kycStatus: payer?.kycStatus,
+        role: payer?.role,
+        channel: "MPAY",
+        countDaily: false,
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       // Verrou logique : on relit la demande dans la transaction.
       const request = await tx.paymentRequest.findUnique({
@@ -72,26 +114,6 @@ export async function POST(
 
       const { amount, currency } = request;
       const { feeAmount: fee, totalDebit } = calculateFee(amount, feeConfig, "transfer");
-
-      // Payeur
-      const payer = await tx.user.findUnique({
-        where: { id: payerId },
-        select: { name: true, username: true, role: true, kycStatus: true },
-      });
-      const payerName = payer?.name || payer?.username || "Un utilisateur PIMOBIPAY";
-
-      // Plafonds administres (/admin/limits, canal MPAY) : la franchise KYC et
-      // le plafond par transaction s'appliquent aussi au reglement d'une demande.
-      if (currency === "PI") {
-        await enforcePiPolicy(tx, {
-          userId: payerId,
-          amountPi: amount,
-          kycStatus: payer?.kycStatus,
-          role: payer?.role,
-          channel: "MPAY",
-          countDaily: false,
-        });
-      }
 
       const payerWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId: payerId, currency } },
@@ -174,12 +196,21 @@ export async function POST(
         newBalance: updatedPayer.balance,
         requesterUsername: request.requester.username,
       };
-    });
+    },
+    // Le reglement enchaine plusieurs ecritures (wallets, transaction,
+    // notification) : le timeout par defaut de 5 s est trop court en serverless
+    // lors d'un demarrage a froid de la base.
+    { maxWait: 10000, timeout: 20000 });
 
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
     // Plafonds / KYC : on remonte le message exact de la politique au payeur.
-    if (err instanceof WithdrawalPolicyError) {
+    // Le test `name` couvre le cas ou l'erreur traverse une couche qui perd le
+    // prototype (transaction Prisma, serialisation).
+    if (
+      err instanceof WithdrawalPolicyError ||
+      err?.name === "WithdrawalPolicyError"
+    ) {
       return NextResponse.json(
         { error: err.message, code: err.code },
         { status: err.status }
@@ -205,7 +236,25 @@ export async function POST(
         { status: 400 }
       );
     }
-    console.log("[v0] payment request pay error:", msg);
+    // Diagnostic : sans le code Prisma, un timeout de transaction (P2028) ou
+    // une table absente (P2021) etait indiscernable d'un vrai refus metier.
+    console.log(
+      "[v0] payment request pay error:",
+      err?.code || err?.name || "UNKNOWN",
+      msg
+    );
+
+    // Timeout / connexion : l'operation peut aboutir en reessayant.
+    if (["P2028", "P2024", "P1001", "P1017"].includes(err?.code)) {
+      return NextResponse.json(
+        {
+          error:
+            "Le service est momentanement surcharge. Aucun montant n'a ete debite, reessayez.",
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Le paiement a echoue." },
       { status: 500 }

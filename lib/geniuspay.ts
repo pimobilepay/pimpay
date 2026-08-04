@@ -226,6 +226,77 @@ export async function geniusPayFetch<T = any>(
 }
 
 // -----------------------------------------------------------------------------
+// Diagnostic des réponses d'erreur GeniusPay
+// -----------------------------------------------------------------------------
+/**
+ * Extrait un message lisible d'une réponse GeniusPay, quelle que soit la forme :
+ *   { error: { code, message } } | { error: "..." } | { message } |
+ *   { message, errors: { champ: [...] } }
+ */
+export function extractGeniusPayMessage(data: any): string | null {
+  if (!data) return null;
+  if (typeof data === "string") return data;
+  const errObj = data.error;
+  const base =
+    (typeof errObj === "object" ? errObj?.message : errObj) || data.message;
+  const errorsObj =
+    data.errors || (typeof errObj === "object" ? errObj?.errors : undefined);
+  let fields = "";
+  if (errorsObj && typeof errorsObj === "object") {
+    fields = Object.entries(errorsObj)
+      .map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(", ") : m}`)
+      .join(" | ");
+  }
+  if (!base && !fields) return null;
+  return fields ? `${base || "Requête refusée"} (${fields})` : String(base);
+}
+
+/**
+ * Quota Sandbox épuisé côté GeniusPay :
+ *   { error: { code: "PAYMENT_INIT_FAILED",
+ *              message: "Sandbox access denied: No tokens remaining (0)" } }
+ *
+ * Ce n'est PAS une erreur d'intégration : le compte marchand n'a plus de jetons
+ * de test. Aucun paiement ni payout ne peut aboutir tant que les jetons ne sont
+ * pas rechargés OU que l'on ne passe pas en LIVE (clés pk_live_/sk_live_ +
+ * GENIUSPAY_ENV=production). On doit donc basculer sur l'agrégateur de secours.
+ */
+export function isGeniusPaySandboxQuotaError(data: any): boolean {
+  const msg = `${extractGeniusPayMessage(data) || ""} ${
+    typeof data === "string" ? data : JSON.stringify(data ?? "")
+  }`;
+  return /no tokens remaining|sandbox access denied|quota (exceeded|epuise)/i.test(
+    msg
+  );
+}
+
+/** Message explicite (FR) à afficher / journaliser pour un quota sandbox épuisé. */
+export const GENIUSPAY_SANDBOX_QUOTA_MESSAGE =
+  "Le compte GeniusPay Sandbox n'a plus de jetons de test (No tokens remaining). " +
+  "Rechargez les jetons dans le tableau de bord GeniusPay ou passez en production " +
+  "(clés pk_live_/sk_live_ + GENIUSPAY_ENV=production).";
+
+/**
+ * true quand GeniusPay est INDISPONIBLE (et non pas quand il refuse
+ * légitimement l'opération) : quota sandbox épuisé, blocage anti-bot
+ * Imunify360, endpoint absent (404/405/501) ou panne serveur (5xx).
+ *
+ * Dans ces cas, l'opération doit être ré-essayée chez PawaPay (agrégateur de
+ * secours) au lieu d'échouer : c'est la cause des dépôts/retraits qui
+ * échouaient systématiquement avec « Sandbox access denied ».
+ */
+export function isGeniusPayUnavailable(resp: {
+  status: number;
+  data: any;
+}): boolean {
+  if (!resp) return true;
+  if ((resp.data as any)?.blocked === "IMUNIFY360") return true;
+  if ([404, 405, 501, 502, 503, 504].includes(resp.status)) return true;
+  if (resp.status >= 500) return true;
+  return isGeniusPaySandboxQuotaError(resp.data);
+}
+
+// -----------------------------------------------------------------------------
 // Normalisation du numéro de téléphone
 // GeniusPay recommande le format international (+225...). On garde le "+" et les
 // chiffres uniquement.

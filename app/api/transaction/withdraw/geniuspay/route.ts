@@ -17,8 +17,16 @@ import {
   unwrapPayout,
   normalizePhone,
   GENIUSPAY_MIN_AMOUNT,
+  extractGeniusPayMessage,
+  isGeniusPayUnavailable,
+  isGeniusPaySandboxQuotaError,
+  GENIUSPAY_SANDBOX_QUOTA_MESSAGE,
 } from "@/lib/geniuspay";
 import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
+import { requestPayout, newPawaPayId } from "@/lib/pawapay";
+import { resolveProvider } from "@/lib/pawapay-catalog";
+import { convert } from "@/lib/exchange";
+import { logSystemEvent } from "@/lib/systemLogger";
 
 /**
  * POST /api/transaction/withdraw/geniuspay
@@ -38,6 +46,92 @@ import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
  * si GeniusPay refuse, on rembourse immédiatement. La finalisation (SUCCESS /
  * FAILED) est confirmée par le webhook /api/transaction/webhook (events cashout.*).
  */
+/**
+ * Repli automatique vers PawaPay quand GeniusPay est INDISPONIBLE (quota
+ * sandbox epuise, endpoint payout absent, blocage Imunify360, 5xx).
+ *
+ * Sans ce repli, tout retrait echouait avec « Sandbox access denied: No tokens
+ * remaining (0) » : le wallet etait debite puis rembourse et l'utilisateur ne
+ * pouvait jamais retirer. On rejoue donc le payout chez l'agregateur de secours
+ * avec le MEME solde deja debite ; le webhook /api/webhooks/pawapay/payout
+ * finalise la transaction (il retrouve la transaction via `externalId`).
+ */
+async function retryPayoutWithPawaPay(params: {
+  countryCode: string;
+  operatorHint: string;
+  phone: string;
+  localAmount: number;
+  localCurrency: string;
+  transactionId: string;
+  reference: string;
+  userId: string;
+  metadata: any;
+}): Promise<{ ok: boolean; reason?: string; provider?: string }> {
+  const resolved = resolveProvider(params.countryCode, params.operatorHint);
+  if (!resolved.supported || !resolved.provider) {
+    return {
+      ok: false,
+      reason:
+        "L'agregateur de secours ne couvre pas cet operateur pour ce pays.",
+    };
+  }
+
+  // La devise PawaPay du pays peut differer de celle utilisee par GeniusPay.
+  const amount =
+    resolved.currency === params.localCurrency
+      ? params.localAmount
+      : Math.round(
+          convert(params.localCurrency, resolved.currency, params.localAmount)
+        );
+  if (!amount || amount <= 0) {
+    return { ok: false, reason: "Montant converti invalide pour le secours." };
+  }
+
+  const payoutId = newPawaPayId();
+  const pp = await requestPayout({
+    payoutId,
+    amount: String(amount),
+    currency: resolved.currency,
+    phoneNumber: params.phone,
+    provider: resolved.provider,
+    metadata: { reference: params.reference, userId: params.userId },
+  });
+
+  const status = String((pp.data as any)?.status || "").toUpperCase();
+  const accepted =
+    pp.ok && ["ACCEPTED", "SUBMITTED", "ENQUEUED", "PENDING"].includes(status);
+
+  if (!accepted) {
+    return {
+      ok: false,
+      reason:
+        (pp.data as any)?.rejectionReason?.rejectionMessage ||
+        (pp.data as any)?.failureReason?.failureMessage ||
+        (pp.data as any)?.message ||
+        "L'agregateur de secours a refuse le retrait.",
+    };
+  }
+
+  await prisma.transaction.update({
+    where: { id: params.transactionId },
+    data: {
+      externalId: payoutId,
+      statusClass: "AGGREGATOR_PENDING",
+      metadata: {
+        ...(params.metadata || {}),
+        aggregator: "PAWAPAY",
+        aggregatorFallbackFrom: "GENIUSPAY",
+        pawapayPayoutId: payoutId,
+        provider: resolved.provider,
+        localAmount: amount,
+        localCurrency: resolved.currency,
+      },
+    },
+  });
+
+  return { ok: true, provider: resolved.provider };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -253,6 +347,92 @@ export async function POST(req: NextRequest) {
             "successful",
           ].includes(gpStatus) ||
             (!gpStatus && rootIndicatesSuccess));
+
+        // ── GeniusPay INDISPONIBLE → repli automatique sur PawaPay ──────────
+        // (quota sandbox épuisé « No tokens remaining », endpoint payout absent,
+        //  blocage Imunify360, panne 5xx). Le solde reste débité : c'est le
+        //  secours qui exécute le payout.
+        if (!accepted && isGeniusPayUnavailable(gp)) {
+          const gpReason = isGeniusPaySandboxQuotaError(gp.data)
+            ? GENIUSPAY_SANDBOX_QUOTA_MESSAGE
+            : extractGeniusPayMessage(gp.data) ||
+              `GeniusPay indisponible (HTTP ${gp.status}).`;
+          console.error("[v0] GENIUSPAY_PAYOUT_UNAVAILABLE:", gpReason);
+
+          const fb = await retryPayoutWithPawaPay({
+            countryCode,
+            operatorHint: `${details?.operatorId || ""} ${
+              details?.provider || ""
+            }`,
+            phone: recipientPhone,
+            localAmount,
+            localCurrency: currency,
+            transactionId: result.transaction.id,
+            reference: result.transaction.reference,
+            userId,
+            metadata: result.transaction.metadata as any,
+          });
+
+          await logSystemEvent({
+            level: fb.ok ? "WARN" : "ERROR",
+            source: "GENIUSPAY_WITHDRAW",
+            action: fb.ok ? "FALLBACK_PAWAPAY" : "PAYOUT_UNAVAILABLE",
+            message: fb.ok
+              ? `GeniusPay indisponible : retrait basculé sur PawaPay (${fb.provider}). ${gpReason}`
+              : `${gpReason} Secours PawaPay impossible : ${fb.reason}`,
+            userId,
+            requestId: result.transaction.reference,
+            details: {
+              httpStatus: gp.status,
+              geniusPayResponse: gp.data,
+              fallbackProvider: fb.provider || null,
+              fallbackError: fb.reason || null,
+            },
+          }).catch(() => {});
+
+          if (fb.ok) {
+            return NextResponse.json({
+              success: true,
+              message:
+                "Demande de retrait transmise avec succès (agrégateur de secours).",
+              aggregator: "PAWAPAY",
+              requiresAdminApproval: false,
+              reference: result.transaction.reference,
+              localAmount,
+              currency,
+              newBalance: result.newBalance,
+            });
+          }
+
+          // Aucun secours possible : rembourser et expliquer précisément.
+          await prisma
+            .$transaction([
+              prisma.wallet.update({
+                where: { id: result.walletId },
+                data: { balance: { increment: piAmount } },
+              }),
+              prisma.transaction.update({
+                where: { id: result.transaction.id },
+                data: {
+                  status: TransactionStatus.FAILED,
+                  statusClass: "AGGREGATOR_UNAVAILABLE",
+                  metadata: {
+                    ...(result.transaction.metadata as any),
+                    geniusPayResponse: gp.data,
+                    fallbackError: fb.reason,
+                  },
+                },
+              }),
+            ])
+            .catch(() => {});
+
+          return NextResponse.json(
+            {
+              error: `${gpReason} Votre solde a été recrédité. (${fb.reason})`,
+            },
+            { status: 503 }
+          );
+        }
 
         if (!accepted) {
           // Refus immédiat → rembourser les Pi débités

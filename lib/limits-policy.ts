@@ -122,10 +122,20 @@ export function invalidateLimitPolicyCache() {
   cache = null;
 }
 
-async function loadPolicies(): Promise<PolicyRow[]> {
+/**
+ * `db` permet de reutiliser le client TRANSACTIONNEL de l'appelant.
+ *
+ * IMPORTANT : lorsqu'on est deja dans un `prisma.$transaction(...)`, faire une
+ * requete avec le client GLOBAL demande une SECONDE connexion au pool pendant
+ * que la transaction en detient une. En serverless (pool tres reduit) la
+ * requete imbriquee attend une connexion libre, la transaction interactive
+ * atteint son timeout (P2028) et l'operation entiere echoue avec une erreur
+ * generique. On interroge donc la base avec le client fourni.
+ */
+async function loadPolicies(db?: any): Promise<PolicyRow[]> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.rows;
   try {
-    const client = prisma as any;
+    const client = (db || prisma) as any;
     if (!client?.limitPolicy) return [];
     const rows = (await client.limitPolicy.findMany({
       where: { active: true },
@@ -197,12 +207,15 @@ export async function resolveUserLimits(params: {
   role?: string | null;
   kycStatus?: string | null;
   channel?: LimitChannel;
+  /** Client Prisma a utiliser (client transactionnel de l'appelant si besoin). */
+  db?: any;
 }): Promise<ResolvedLimits> {
   let { userId, role, kycStatus } = params;
+  const db = params.db || prisma;
 
   if (userId && (role === undefined || kycStatus === undefined)) {
     try {
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { id: userId },
         select: { role: true, kycStatus: true },
       });
@@ -214,7 +227,7 @@ export async function resolveUserLimits(params: {
   }
 
   const verified = isKycVerifiedStatus(kycStatus);
-  const rows = await loadPolicies();
+  const rows = await loadPolicies(db);
 
   const eligible = rows
     .filter((p) => matches(p, { userId, role, verified, channel: params.channel }))

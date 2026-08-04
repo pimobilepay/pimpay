@@ -11,11 +11,21 @@ import {
   unwrap,
   resolveMomoMethod,
   normalizePhone,
+  extractGeniusPayMessage,
+  isGeniusPayUnavailable,
+  isGeniusPaySandboxQuotaError,
+  GENIUSPAY_SANDBOX_QUOTA_MESSAGE,
   type GeniusPayPayment,
   type GeniusPayMomoMethod,
 } from "@/lib/geniuspay";
 import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 import { resolveProvider } from "@/lib/pawapay-catalog";
+import {
+  createPaymentPageSession,
+  newPawaPayId,
+  normalizeMsisdn,
+  getAppBaseUrl as getPawaPayAppBaseUrl,
+} from "@/lib/pawapay";
 import { logSystemEvent } from "@/lib/systemLogger";
 
 /**
@@ -238,6 +248,134 @@ export async function POST(req: NextRequest) {
       !!payment?.reference &&
       (["pending", "processing", "initiated"].includes(gpStatus) ||
         (!gpStatus && rootIndicatesSuccess));
+
+    // ── GeniusPay INDISPONIBLE → repli automatique sur PawaPay ──────────────
+    // Cas rencontré en production : « Sandbox access denied: No tokens
+    // remaining (0) » (quota de jetons sandbox épuisé côté GeniusPay). Ce n'est
+    // pas un refus légitime du paiement : on rejoue donc le dépôt chez
+    // l'agrégateur de secours (page de paiement hébergée PawaPay) au lieu de
+    // faire échouer l'utilisateur. Idem pour un blocage Imunify360 ou une 5xx.
+    if (!accepted && isGeniusPayUnavailable(gp)) {
+      const gpReason = isGeniusPaySandboxQuotaError(gp.data)
+        ? GENIUSPAY_SANDBOX_QUOTA_MESSAGE
+        : extractGeniusPayMessage(gp.data) ||
+          `GeniusPay indisponible (HTTP ${gp.status}).`;
+      console.error("[v0] GENIUSPAY_DEPOSIT_UNAVAILABLE:", gpReason);
+
+      const fb = resolveProvider(countryCode, operatorHint);
+      let fallbackError: string | null = null;
+
+      if (fb.supported && fb.provider) {
+        try {
+          const fbAmount =
+            fb.currency === currency
+              ? localAmount
+              : Math.round(convert(currency, fb.currency, localAmount));
+          const depositId = newPawaPayId();
+          const pp = await createPaymentPageSession({
+            depositId,
+            amount: String(fbAmount),
+            currency: fb.currency,
+            returnUrl: `${getPawaPayAppBaseUrl()}/deposit/summary?ref=${reference}&method=mobile&amount=${usd}`,
+            phoneNumber: normalizedPhone
+              ? normalizeMsisdn(normalizedPhone)
+              : undefined,
+            country: fb.alpha3,
+            language: "FR",
+            reason: `Depot PimobiPay ${reference}`,
+            customerMessage: "PimobiPay Depot",
+            metadata: [{ reference }, { userId, isPII: true }],
+          });
+
+          const redirectUrl = (pp.data as any)?.redirectUrl || null;
+          if (pp.ok && redirectUrl) {
+            await prisma.transaction.update({
+              where: { id: transaction.id },
+              data: {
+                externalId: depositId,
+                amount: fbAmount,
+                currency: fb.currency,
+                metadata: {
+                  ...(transaction.metadata as any),
+                  aggregator: "PAWAPAY",
+                  aggregatorFallbackFrom: "GENIUSPAY",
+                  geniusPayError: gpReason,
+                  pawapayDepositId: depositId,
+                  provider: fb.provider,
+                  localAmount: fbAmount,
+                  localCurrency: fb.currency,
+                  checkoutUrl: redirectUrl,
+                },
+              },
+            });
+
+            await logSystemEvent({
+              level: "WARN",
+              source: "GENIUSPAY_DEPOSIT",
+              action: "FALLBACK_PAWAPAY",
+              message: `GeniusPay indisponible : dépôt basculé sur PawaPay (${fb.provider}). ${gpReason}`,
+              userId,
+              requestId: reference,
+              details: { httpStatus: gp.status, geniusPayResponse: gp.data },
+            }).catch(() => {});
+
+            return NextResponse.json({
+              success: true,
+              reference,
+              aggregator: "PAWAPAY",
+              status: "PENDING",
+              localAmount: fbAmount,
+              currency: fb.currency,
+              localCurrency: fb.currency,
+              provider: fb.provider,
+              checkoutUrl: redirectUrl,
+            });
+          }
+
+          fallbackError =
+            (pp.data as any)?.errorMessage ||
+            (pp.data as any)?.message ||
+            "L'agrégateur de secours a refusé le dépôt.";
+        } catch (fbErr: any) {
+          fallbackError = fbErr?.message || "Erreur agrégateur de secours.";
+        }
+      } else {
+        fallbackError =
+          "Aucun agrégateur de secours ne couvre cet opérateur pour ce pays.";
+      }
+
+      await prisma.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: "FAILED",
+          statusClass: "AGGREGATOR_UNAVAILABLE",
+          metadata: {
+            ...(transaction.metadata as any),
+            geniusPayResponse: gp.data,
+            fallbackError,
+          },
+        },
+      });
+
+      await logSystemEvent({
+        level: "ERROR",
+        source: "GENIUSPAY_DEPOSIT",
+        action: "AGGREGATOR_UNAVAILABLE",
+        message: `${gpReason} Secours PawaPay impossible : ${fallbackError}`,
+        userId,
+        requestId: reference,
+        details: {
+          httpStatus: gp.status,
+          geniusPayResponse: gp.data,
+          fallbackError,
+        },
+      }).catch(() => {});
+
+      return NextResponse.json(
+        { error: `${gpReason} (${fallbackError})` },
+        { status: 503 }
+      );
+    }
 
     if (!accepted) {
       await prisma.transaction.update({

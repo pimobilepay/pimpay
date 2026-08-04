@@ -60,6 +60,9 @@ type TxCounter = {
     count: (args: Prisma.TransactionCountArgs) => Promise<number>;
     aggregate?: (args: any) => Promise<any>;
   };
+  /** Presents sur le client Prisma (global ou transactionnel). */
+  user?: any;
+  limitPolicy?: any;
 };
 
 const OUTGOING_TYPES = ["WITHDRAW", "WITHDRAWAL", "CARD_WITHDRAW"];
@@ -80,7 +83,8 @@ export async function assertDailyWithdrawalCount(
   max?: number
 ): Promise<void> {
   const effectiveMax =
-    max ?? (await resolveUserLimits({ userId, channel: "WITHDRAW" })).maxPerDay;
+    max ??
+    (await resolveUserLimits({ userId, channel: "WITHDRAW", db })).maxPerDay;
 
   const count = await db.transaction.count({
     where: {
@@ -200,12 +204,34 @@ export async function enforcePiPolicy(
     channel?: LimitChannel;
   }
 ): Promise<{ requiresAdminApproval: boolean; verified: boolean; limits: ResolvedLimits }> {
-  const limits = await resolveUserLimits({
-    userId: params.userId,
-    role: params.role,
-    kycStatus: params.kycStatus,
-    channel: params.channel,
-  });
+  // On passe `db` : si l'appelant est deja dans une transaction interactive, la
+  // resolution des plafonds doit utiliser LE MEME client, sinon la requete
+  // imbriquee reclame une seconde connexion au pool et la transaction expire
+  // (P2028) — l'operation echouait alors avec une erreur generique.
+  //
+  // Un incident d'infrastructure sur la table des politiques ne doit JAMAIS
+  // faire echouer un paiement : on retombe sur les plafonds par defaut.
+  let limits: ResolvedLimits;
+  try {
+    limits = await resolveUserLimits({
+      userId: params.userId,
+      role: params.role,
+      kycStatus: params.kycStatus,
+      channel: params.channel,
+      db,
+    });
+  } catch (err) {
+    console.log(
+      "[v0] enforcePiPolicy: resolution des plafonds indisponible, valeurs par defaut:",
+      (err as Error)?.message
+    );
+    limits = {
+      ...DEFAULT_LIMITS,
+      verified: isKycVerified(params.kycStatus),
+      applied: [],
+      usingDefaults: true,
+    };
+  }
 
   const verified = limits.verified || limits.bypassKyc;
 
