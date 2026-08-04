@@ -67,7 +67,7 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
     // 3. Une page de resultats + total filtre + stats globales.
     //    Les stats passent par count/groupBy cote base : on ne charge plus
     //    toute la table en memoire juste pour afficher des compteurs.
-    const [total, users, byStatus, kycVerified, piUsers, grandTotal, byRole] = await Promise.all([
+    const [total, users, byStatus, kycVerified, piUsers, grandTotal, byRole, piVolumeAgg] = await Promise.all([
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
@@ -105,6 +105,11 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
       prisma.user.count({ where: { piUserId: { not: null } } }),
       prisma.user.count(),
       prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
+      // Volume Pi total en circulation : agrege cote base, jamais en memoire
+      prisma.wallet.aggregate({
+        _sum: { balance: true },
+        where: { currency: { equals: "PI", mode: "insensitive" } },
+      }),
     ]);
 
     // 4. Transformation des données
@@ -142,6 +147,7 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
         banned: statusCount("BANNED") + statusCount("SUSPENDED"),
         kycVerified,
         piUsers,
+        piVolume: piVolumeAgg._sum.balance || 0,
         byRole: byRole.reduce<Record<string, number>>((acc, r) => {
           acc[r.role] = r._count._all;
           return acc;

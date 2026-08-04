@@ -100,3 +100,52 @@ export function buildRequestUrl(code: string): string {
     typeof window !== "undefined" ? window.location.origin : "https://pimobipay.com";
   return `${origin}/mpay/request/${code}`;
 }
+
+/**
+ * Un code de demande est genere par nanoid(10) : 10 caracteres pris dans
+ * [A-Za-z0-9_-]. On reste strict pour ne pas confondre avec un id utilisateur.
+ */
+const REQUEST_CODE_RE = /^[A-Za-z0-9_-]{10}$/;
+
+/**
+ * Extrait le code d'une demande de paiement a partir d'une valeur scannee.
+ *
+ * Formats acceptes :
+ *  - URL complete    : https://pimobipay.com/mpay/request/AbC123_x-9 (avec query/hash)
+ *  - Chemin relatif  : /mpay/request/AbC123_x-9
+ *  - Deep link       : pimpay://request/AbC123_x-9
+ *  - Payload JSON    : {"app":"PIMOBIPAY","type":"payment-request","code":"..."}
+ *
+ * Retourne null si la valeur n'est pas une demande de paiement (QR utilisateur,
+ * adresse Pi, identifiant marchand...), afin que l'appelant garde son
+ * comportement habituel.
+ */
+export function parsePaymentRequestCode(raw: string): string | null {
+  if (!raw) return null;
+  const value = raw.trim();
+
+  // 1. Payload JSON explicite
+  if (value.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value) as { type?: string; code?: string };
+      if (
+        typeof parsed?.code === "string" &&
+        (parsed.type === "payment-request" || parsed.type === "request") &&
+        REQUEST_CODE_RE.test(parsed.code)
+      ) {
+        return parsed.code;
+      }
+    } catch {
+      // pas du JSON valide : on continue
+    }
+    return null;
+  }
+
+  // 2. URL, chemin relatif ou deep link contenant .../request/<code>
+  //    Couvre https://host/mpay/request/CODE, /mpay/request/CODE?x=1
+  //    et pimpay://request/CODE.
+  const match = value.match(/request\/([A-Za-z0-9_-]{10})(?:[/?#]|$)/);
+  if (match?.[1]) return match[1];
+
+  return null;
+}

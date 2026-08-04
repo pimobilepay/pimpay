@@ -20,6 +20,8 @@ import { LimitsBanner } from "@/components/limits-banner";
 import { PaymentServices } from "@/components/mpay/payment-services";
 import { useLanguage } from "@/context/LanguageContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { parsePaymentRequestCode } from "@/lib/payment-request";
+import { parseUserQRValue } from "@/lib/agent-qr";
 
 // Types for Map of Pi merchants
 interface MapOfPiMerchant {
@@ -412,21 +414,44 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
   }, [fetchProfile, fetchTransactions, t]);
 
   const handleQRResult = useCallback((data: string) => {
-    if (data) {
-      setMerchantId(data);
+    if (!data) {
+      setActiveView("hub");
+      return;
+    }
+
+    // 1. Demande de paiement (QR genere par /mpay/request) : on ouvre
+    //    directement la page de reglement, le montant y est deja fixe.
+    const requestCode = parsePaymentRequestCode(data);
+    if (requestCode) {
+      setActiveView("hub");
+      toast.success(t("mpay.request.qrDetected"));
+      router.push(`/mpay/request/${requestCode}`);
+      return;
+    }
+
+    // 2. QR utilisateur PIMOBIPAY (payload JSON) : on retient le username
+    //    ou l'id, jamais le JSON brut.
+    const userQR = data.trim().startsWith("{") ? parseUserQRValue(data) : null;
+    if (userQR) {
+      const target = userQR.username || userQR.id;
+      setMerchantId(target);
       setActiveView("pay-merchant");
       setPayStep(2);
-      // Detecter si c'est une adresse Pi externe
-      const piAddressRegex = /^G[A-Z0-9]{55}$/;
-      if (piAddressRegex.test(data)) {
-        toast.success(t("mpay.piAddressDetected") + ": " + data.slice(0, 8) + "..." + data.slice(-4));
-      } else {
-        toast.success(t("mpay.merchantDetected") + ": " + data);
-      }
-    } else {
-      setActiveView("hub");
+      toast.success(t("mpay.merchantDetected") + ": " + (userQR.name || target));
+      return;
     }
-  }, [t]);
+
+    // 3. Adresse Pi externe ou identifiant marchand brut
+    setMerchantId(data);
+    setActiveView("pay-merchant");
+    setPayStep(2);
+    const piAddressRegex = /^G[A-Z0-9]{55}$/;
+    if (piAddressRegex.test(data)) {
+      toast.success(t("mpay.piAddressDetected") + ": " + data.slice(0, 8) + "..." + data.slice(-4));
+    } else {
+      toast.success(t("mpay.merchantDetected") + ": " + data);
+    }
+  }, [router, t]);
 
   const handleMerchantTap = (merchant: MapOfPiMerchant) => {
     setMerchantId(merchant.piPaymentId);

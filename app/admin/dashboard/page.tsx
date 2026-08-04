@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useMemo, Suspense } from "react";
+import React, { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";          import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";  import { toast } from "sonner";
@@ -44,6 +44,30 @@ type LedgerUser = {
   lastLoginAt?: string | null;
   createdAt: string;
 };
+
+/** Compteurs globaux renvoyes par /api/admin/users (non filtres par la page). */
+type UserStats = {
+  total: number;
+  active: number;
+  banned: number;
+  kycVerified: number;
+  piUsers: number;
+  piVolume: number;
+  byRole: Record<string, number>;
+};
+
+/** Taille de page de l'onglet Users du dashboard. */
+const USERS_PAGE_SIZE = 25;
+
+const ROLE_FILTERS = [
+  { value: "ALL", label: "Tous" },
+  { value: "USER", label: "User" },
+  { value: "MERCHANT", label: "Merchant" },
+  { value: "AGENT", label: "Agent" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "BANK_ADMIN", label: "Bank" },
+  { value: "BUSINESS_ADMIN", label: "Business" },
+];
 
 type Transaction = {
   id: string;
@@ -277,6 +301,16 @@ function DashboardContent() {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string>("");
   const [users, setUsers] = useState<LedgerUser[]>([]);
+  // Pagination serveur de l'onglet Users (l'API /api/admin/users renvoie une page)
+  const [userPage, setUserPage] = useState(1);
+  const [userTotal, setUserTotal] = useState(0);
+  const [userTotalPages, setUserTotalPages] = useState(1);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("ALL");
+  const [userStats, setUserStats] = useState<UserStats>({
+    total: 0, active: 0, banned: 0, kycVerified: 0, piUsers: 0, piVolume: 0, byRole: {},
+  });
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   // Réparation wallets USDT
   const [repairLoading, setRepairLoading] = useState(false);
@@ -359,18 +393,55 @@ function DashboardContent() {
     return () => clearInterval(timer);
   }, [maintenanceEnd, isMaintenanceMode]);
 
+  /**
+   * Charge une page d'utilisateurs. La recherche, le filtre de role et la
+   * pagination sont delegues au serveur : on ne recupere jamais toute la table.
+   */
+  const fetchUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      const params = new URLSearchParams({
+        page: String(userPage),
+        pageSize: String(USERS_PAGE_SIZE),
+      });
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (filterRole !== "ALL") params.set("role", filterRole);
+
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Erreur serveur");
+      const data = await res.json();
+      setUsers(Array.isArray(data.users) ? data.users : []);
+      setUserTotal(data.total ?? 0);
+      setUserTotalPages(data.totalPages ?? 1);
+      if (data.stats) setUserStats((prev) => ({ ...prev, ...data.stats }));
+    } catch {
+      toast.error("Impossible de charger les utilisateurs");
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [userPage, debouncedSearch, filterRole]);
+
+  // Anti-rebond de la recherche : une requete apres la saisie, pas par frappe
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
+  // Tout changement de filtre ramene a la premiere page
+  useEffect(() => { setUserPage(1); }, [debouncedSearch, filterRole]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [u, c, l, t, ch, sv] = await Promise.all([
-        fetch("/api/admin/users"),
+      const [c, l, t, ch, sv] = await Promise.all([
         fetch("/api/admin/config"),
         fetch("/api/admin/logs"),
         fetch("/api/admin/transactions?status=PENDING"),
         fetch("/api/admin/chart-data"),
         fetch("/api/admin/server-stats"),
       ]);
-      if (u.ok) setUsers(await u.json());
       if (l.ok) setLogs(await l.json());
       if (t.ok) setPendingTransactions(await t.json());
       if (c.ok) {
@@ -390,6 +461,8 @@ function DashboardContent() {
       }
     } catch (err) { toast.error("Erreur Sync"); }
     finally { setLoading(false); }
+    // La liste des utilisateurs a son propre cycle (pagination serveur)
+    fetchUsers();
   };
 
   const fetchUserSessions = async (user: LedgerUser) => {
@@ -599,9 +672,8 @@ function DashboardContent() {
         if (sessionInfo?.user.id === userId) {
           fetchUserSessions(sessionInfo.user);
         }
-        // Rafraîchir la liste des utilisateurs dans tous les cas
-        const usersRes = await fetch("/api/admin/users");
-        if (usersRes.ok) setUsers(await usersRes.json());
+        // Rafraîchir la page courante d'utilisateurs
+        fetchUsers();
       } else {
         const data = await res.json();
         toast.error(data.error || "Erreur lors de la deconnexion");
@@ -675,12 +747,8 @@ function DashboardContent() {
     setPending2FAAction(null);
   };
 
-  const filteredUsers = useMemo(() =>
-    users.filter(u =>
-      (u.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (u.username?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
-    ), [searchQuery, users]);
+  // La recherche et le filtrage sont faits cote serveur : `users` est deja la
+  // page a afficher, aucun filtre client ne doit la reduire.
 
   if (!isMounted) return null;
 
@@ -742,8 +810,8 @@ function DashboardContent() {
 
       <div className="px-4 pt-4 pb-8 bg-gradient-to-b from-blue-600/10 to-transparent">
         <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Volume Ledger" value={`π ${formatCompactPi(users.reduce((acc, u) => acc + (u.wallets?.find(w => w.currency === "PI")?.balance || 0), 0))}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
-          <StatCard label="Live Users" value={users.filter(u => u.status === 'ACTIVE').length.toString()} subText="Actifs" icon={<Users size={16} />} />
+          <StatCard label="Volume Ledger" value={`π ${formatCompactPi(userStats.piVolume)}`} subText="En circulation" icon={<Zap size={16} />} trend="+4.1%" />
+          <StatCard label="Live Users" value={userStats.active.toLocaleString("fr-FR")} subText={`Actifs / ${userStats.total.toLocaleString("fr-FR")}`} icon={<Users size={16} />} />
         </div>
       </div>
 
@@ -966,8 +1034,49 @@ function DashboardContent() {
 
            {activeTab === "users" && (
                 <div className="space-y-4">
-                    <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full h-16 bg-slate-900/50 border border-white/5 rounded-2xl px-6 text-xs font-bold text-white outline-none focus:border-blue-500/50" placeholder="RECHERCHER UN UTILISATEUR..." />
-                    {filteredUsers.map(user => (
+                    <div className="relative">
+                      <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full h-16 bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-12 text-xs font-bold text-white outline-none focus:border-blue-500/50 placeholder:text-slate-600"
+                        placeholder="ID, NOM, EMAIL, USERNAME, TELEPHONE..."
+                      />
+                      {usersLoading && (
+                        <RefreshCw size={16} className="absolute right-5 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" />
+                      )}
+                    </div>
+
+                    {/* Filtre par role (delegue au serveur) */}
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {ROLE_FILTERS.map(r => (
+                        <button
+                          key={r.value}
+                          onClick={() => setFilterRole(r.value)}
+                          className={`shrink-0 px-4 h-9 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-colors ${
+                            filterRole === r.value
+                              ? "bg-blue-600 border-blue-500 text-white"
+                              : "bg-slate-900/50 border-white/5 text-slate-400 hover:border-blue-500/30"
+                          }`}
+                        >
+                          {r.label}
+                          {r.value !== "ALL" && userStats.byRole?.[r.value] ? ` (${userStats.byRole[r.value]})` : ""}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                      {userTotal.toLocaleString("fr-FR")} resultat{userTotal > 1 ? "s" : ""}
+                      {userTotalPages > 1 ? ` // page ${userPage}/${userTotalPages}` : ""}
+                    </p>
+
+                    {!usersLoading && users.length === 0 && (
+                      <div className="p-14 border border-white/5 rounded-[2rem] text-center">
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Aucun utilisateur trouve</p>
+                      </div>
+                    )}
+
+                    {users.map(user => (
                         <UserRow key={`user-${user.id}`} user={user}
                             isSelected={selectedUserIds.includes(user.id)}
                             onSelect={() => setSelectedUserIds(prev => prev.includes(user.id) ? prev.filter(i => i !== user.id) : [...prev, user.id])}
@@ -1009,6 +1118,30 @@ function DashboardContent() {
                             onDisconnect={() => handleDisconnectUser(user.id, user.username || user.name || "Utilisateur")}
                         />
                     ))}
+
+                    {/* Pagination serveur */}
+                    {userTotalPages > 1 && (
+                      <div className="flex items-center justify-between gap-3 bg-slate-900/50 border border-white/5 rounded-2xl p-3">
+                        <button
+                          onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                          disabled={userPage <= 1 || usersLoading}
+                          className="flex items-center gap-2 h-11 px-4 bg-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-300 disabled:opacity-30"
+                        >
+                          <ChevronRight size={14} className="rotate-180" /> Prec.
+                        </button>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                          {userPage} / {userTotalPages}
+                        </span>
+                        <button
+                          onClick={() => setUserPage(p => Math.min(userTotalPages, p + 1))}
+                          disabled={userPage >= userTotalPages || usersLoading}
+                          className="flex items-center gap-2 h-11 px-4 bg-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-300 disabled:opacity-30"
+                        >
+                          Suiv. <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
+
                     <button
                       onClick={() => requireTwoFa(
                         "Supprimer tout le solde des utilisateurs",

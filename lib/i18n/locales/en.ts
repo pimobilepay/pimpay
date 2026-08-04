@@ -821,6 +821,7 @@ export const en: TranslationKeys = {
     actionRequest: "Request",
     // Payment request
     request: {
+      qrDetected: "Payment request detected",
       title: "Payment request",
       subtitle: "Claim a payment",
       newRequest: "New request",

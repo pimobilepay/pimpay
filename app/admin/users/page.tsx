@@ -389,6 +389,29 @@ export default function AdminUsersPage() {
           })
         )}
       </div>
+
+      {/* PAGINATION SERVEUR */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between gap-3 bg-slate-900/40 border border-white/5 rounded-2xl p-3">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1 || loading}
+            className="flex items-center gap-2 h-11 px-4 bg-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-300 disabled:opacity-30"
+          >
+            <ChevronLeft size={14} /> Precedent
+          </button>
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages || loading}
+            className="flex items-center gap-2 h-11 px-4 bg-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-300 disabled:opacity-30"
+          >
+            Suivant <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
       </div>
     </div>
   );

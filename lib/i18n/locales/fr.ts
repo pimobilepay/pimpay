@@ -819,6 +819,7 @@ export const fr = {
     actionRequest: "Demander",
     // Demande de paiement
     request: {
+      qrDetected: "Demande de paiement detectee",
       title: "Demande de paiement",
       subtitle: "Reclamez un paiement",
       newRequest: "Nouvelle demande",
