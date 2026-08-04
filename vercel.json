@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/savings-interest",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/collect-fees",
+      "schedule": "0 * * * *"
     }
   ]
 }

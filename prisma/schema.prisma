@@ -158,6 +158,9 @@ model SwapQuote {
   userId         String
   fromAmount     Float
   toAmount       Float
+  // Frais de plateforme preleve sur le swap, exprime en sourceCurrency.
+  fee            Float    @default(0)
+  feeRate        Float    @default(0)
   rate           Float
   targetCurrency String
   expiresAt      DateTime
@@ -1115,6 +1118,9 @@ enum WalletType {
   FIAT
   CRYPTO
   SIDRA
+  // Wallet interne de la plateforme (utilisateur systeme "pimpay_operator")
+  // qui recoit TOUS les frais preleves, une devise par wallet.
+  OPERATOR
 }
 
 enum TransactionType {
@@ -1133,6 +1139,10 @@ enum TransactionType {
   SAVINGS_WITHDRAW
   VAULT_LOCK
   VAULT_UNLOCK
+  // Encaissement d'un frais de plateforme sur le wallet operateur.
+  FEE_COLLECTION
+  // Conversion interne d'un frais deja encaisse (ex: vers Pi).
+  FEE_CONVERSION
 }
 
 enum TransactionStatus {

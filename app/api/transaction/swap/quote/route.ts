@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
-import { getPiPrice } from "@/lib/fees";
+import { getPiPrice, getFeeConfig, calculateFee } from "@/lib/fees";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
 
@@ -21,13 +21,33 @@ export async function POST(req: Request) {
     const fromCurr = sourceCurrency.toUpperCase();
     const toCurr = targetCurrency.toUpperCase();
 
-    // 1. Vérification du solde
+    const swapAmount = parseFloat(amount);
+    if (!Number.isFinite(swapAmount) || swapAmount <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400, headers: cors });
+    }
+
+    // FRAIS DE SWAP : taux administre (SystemConfig.exchangeFee), preleve en
+    // devise source et encaisse sur le wallet operateur a la confirmation.
+    const feeConfig = await getFeeConfig();
+    const { feeRate, feeAmount, totalDebit } = calculateFee(
+      swapAmount,
+      feeConfig,
+      "exchange"
+    );
+
+    // 1. Vérification du solde (montant + frais)
     const wallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId, currency: fromCurr } }
     });
 
-    if (!wallet || wallet.balance < parseFloat(amount)) {
-      return NextResponse.json({ error: `Solde ${fromCurr} insuffisant` }, { status: 400, headers: cors });
+    if (!wallet || wallet.balance < totalDebit) {
+      return NextResponse.json(
+        {
+          error: `Solde ${fromCurr} insuffisant pour couvrir le montant et les frais`,
+          details: `Requis: ${totalDebit} ${fromCurr} (dont ${feeAmount} de frais)`,
+        },
+        { status: 400, headers: cors }
+      );
     }
 
     // PRIX PI : source unique = prix configuré par l'admin (page Admin →
@@ -91,12 +111,14 @@ export async function POST(req: Request) {
 
     const finalRate = toAmount / parseFloat(amount);
 
-    // 4. Sauvegarde avec sourceCurrency
+    // 4. Sauvegarde avec sourceCurrency et frais figés pour la confirmation
     const quote = await prisma.swapQuote.create({
       data: {
         userId,
-        fromAmount: parseFloat(amount),
+        fromAmount: swapAmount,
         toAmount: toAmount,
+        fee: feeAmount,
+        feeRate,
         rate: finalRate,
         sourceCurrency: fromCurr,
         targetCurrency: toCurr,
@@ -110,6 +132,9 @@ export async function POST(req: Request) {
         convertedAmount: toAmount, 
         rate: finalRate, 
         fromCurrency: fromCurr,
+        fee: feeAmount,
+        feeRate,
+        totalDebit,
     }, { headers: cors });
 
   } catch (error: any) {

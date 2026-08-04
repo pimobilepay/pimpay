@@ -1,13 +1,32 @@
 /**
- * AUTO FEE CONVERSION SERVICE - PimPay
+ * ENCAISSEMENT AUTOMATIQUE DES FRAIS — PimPay
  *
- * Converts all platform fees automatically to Pi after each successful transaction.
- * This runs in the background without admin intervention.
+ * Ce module est la façade historique appelée par toutes les routes qui
+ * prélèvent un frais. Il délègue désormais à `lib/operator-wallet.ts`, qui
+ * crédite le **wallet opérateur** dans la **devise d'origine du frais**.
+ *
+ * Pourquoi ce changement :
+ *  - L'ancienne implémentation créditait un wallet `type: "ADMIN"` avec une
+ *    transaction `type: "FEE_CONVERSION"` et un utilisateur `"system"` — trois
+ *    valeurs absentes du schéma Prisma. Chaque appel levait une erreur
+ *    silencieuse (les appelants font `.catch(() => {})`) : AUCUN frais n'était
+ *    jamais encaissé.
+ *  - On crédite maintenant un wallet opérateur réel, par devise, de façon
+ *    atomique et idempotente, avec double écriture comptable.
+ *
+ * La conversion en Pi n'est plus faite à l'encaissement : elle reste
+ * disponible côté admin (Trésorerie), et l'équivalent Pi est tout de même
+ * calculé ici à titre indicatif pour les tableaux de bord.
  */
 
 import { prisma } from "@/lib/prisma";
 import { FIAT_RATES } from "@/lib/exchange";
 import { getPiPrice } from "@/lib/fees";
+import {
+  creditOperatorFee,
+  sweepUncollectedFees,
+  roundFee,
+} from "@/lib/operator-wallet";
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -17,354 +36,160 @@ export interface ConversionResult {
   success: boolean;
   originalAmount: number;
   originalCurrency: string;
+  /** Équivalent Pi indicatif du frais encaissé (aucune conversion réelle). */
   convertedPi: number;
   conversionRate: number;
   transactionRef: string;
+  /** true si le frais avait déjà été encaissé (idempotence). */
+  alreadyCollected?: boolean;
   error?: string;
 }
 
 /* ------------------------------------------------------------------ */
-/*  CONSTANTS                                                          */
+/*  HELPERS DE VALORISATION (indicatif)                                */
 /* ------------------------------------------------------------------ */
 
-// Admin wallet address for centralized fee collection
-const ADMIN_WALLET_ID = "admin_treasury";
-const SYSTEM_USER_ID = "system";
-
-// Conversion is triggered for fees above this threshold (in USD equivalent)
-const MIN_CONVERSION_THRESHOLD_USD = 0.001; // Very low to capture all fees
-
-/* ------------------------------------------------------------------ */
-/*  HELPERS                                                            */
-/* ------------------------------------------------------------------ */
-
-/**
- * Get the admin treasury wallet for PI
- */
-async function getOrCreateAdminPiWallet() {
-  let adminWallet = await prisma.wallet.findFirst({
-    where: {
-      OR: [
-        { userId: ADMIN_WALLET_ID },
-        { userId: SYSTEM_USER_ID },
-        { type: "ADMIN" },
-      ],
-      currency: "PI",
-    },
-  });
-
-  // If no admin wallet exists, find or create system user and wallet
-  if (!adminWallet) {
-    // Try to find any system/admin wallet
-    const systemConfig = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" },
-    });
-
-    const adminUserId = (systemConfig as any)?.adminWalletAddress || SYSTEM_USER_ID;
-
-    // Try to find wallet by admin user ID
-    adminWallet = await prisma.wallet.findFirst({
-      where: {
-        userId: adminUserId,
-        currency: "PI",
-      },
-    });
-
-    if (!adminWallet) {
-      // Create a system wallet for fee collection
-      try {
-        adminWallet = await prisma.wallet.create({
-          data: {
-            userId: SYSTEM_USER_ID,
-            currency: "PI",
-            type: "ADMIN",
-            balance: 0,
-          },
-        });
-      } catch {
-        // Wallet might already exist, try to fetch it
-        adminWallet = await prisma.wallet.findFirst({
-          where: { currency: "PI", type: "ADMIN" },
-        });
-      }
-    }
-  }
-
-  return adminWallet;
+/** Valeur en USD d'un montant, pour les agrégats admin. */
+function toUsd(amount: number, currency: string, piPrice: number): number {
+  const curr = (currency || "").toUpperCase();
+  if (curr === "USD") return amount;
+  if (curr === "PI") return amount * piPrice;
+  if (FIAT_RATES[curr]) return amount / FIAT_RATES[curr];
+  return amount;
 }
 
-/**
- * Convert any currency amount to PI using the admin-configured Pi price.
- * @param amount - montant à convertir
- * @param currency - devise source (PI, USD, XAF, ...)
- * @param piPrice - prix du Pi en USD (admin)
- */
-function convertToPi(amount: number, currency: string, piPrice: number): number {
-  if (currency === "PI") return amount;
-  if (piPrice <= 0) return 0;
-
-  // Convertir la devise source en USD puis en PI
-  let usdValue: number;
-  if (currency === "USD") {
-    usdValue = amount;
-  } else if (FIAT_RATES[currency]) {
-    // FIAT_RATES = combien de devise pour 1 USD
-    usdValue = amount / FIAT_RATES[currency];
-  } else {
-    // Devise inconnue -> on suppose équivalent USD
-    usdValue = amount;
-  }
-
-  return usdValue / piPrice;
-}
-
-/**
- * Get conversion rate from currency to PI using the admin-configured Pi price.
- */
+/** Taux devise → Pi, uniquement pour affichage. */
 function getConversionRate(currency: string, piPrice: number): number {
-  if (currency === "PI") return 1;
+  const curr = (currency || "").toUpperCase();
+  if (curr === "PI") return 1;
   if (piPrice <= 0) return 0;
-
-  // For fiat currencies
-  if (FIAT_RATES[currency]) {
-    // 1 PI = piPrice USD
-    // 1 USD = FIAT_RATES[currency] of that currency
-    // So: 1 currency = (1 / FIAT_RATES[currency]) USD = (1 / FIAT_RATES[currency]) / piPrice PI
-    return 1 / (FIAT_RATES[currency] * piPrice);
-  }
-
-  // For unknown currencies, assume USD equivalent
+  if (FIAT_RATES[curr]) return 1 / (FIAT_RATES[curr] * piPrice);
   return 1 / piPrice;
 }
 
 /* ------------------------------------------------------------------ */
-/*  MAIN CONVERSION FUNCTION                                           */
+/*  ENCAISSEMENT                                                       */
 /* ------------------------------------------------------------------ */
 
 /**
- * Automatically converts a transaction fee to Pi and credits the admin treasury.
- * This should be called after every successful transaction.
+ * Encaisse un frais de plateforme sur le wallet opérateur.
  *
- * @param feeAmount - The fee amount collected
- * @param feeCurrency - The currency of the fee (PI, USD, XAF, etc.)
- * @param transactionId - The original transaction ID
- * @param transactionRef - The original transaction reference
+ * Le nom est conservé pour compatibilité avec les routes existantes, mais le
+ * frais n'est plus converti : il est crédité dans sa devise d'origine.
+ *
+ * @param feeAmount     Montant du frais prélevé
+ * @param feeCurrency   Devise du frais (PI, XAF, USDT, BTC…)
+ * @param transactionId ID de la transaction d'origine (clé d'idempotence)
+ * @param transactionRef Référence lisible de la transaction d'origine
+ * @param feeType       Nature du frais (transfer, withdraw, exchange…)
  */
 export async function autoConvertFeeToPi(
   feeAmount: number,
   feeCurrency: string,
   transactionId: string,
-  transactionRef: string
+  transactionRef: string,
+  feeType?: string
 ): Promise<ConversionResult> {
-  // Skip if no fee or fee is already in PI
+  const currency = (feeCurrency || "USD").toUpperCase();
+
   if (!feeAmount || feeAmount <= 0) {
     return {
       success: true,
       originalAmount: 0,
-      originalCurrency: feeCurrency,
+      originalCurrency: currency,
       convertedPi: 0,
       conversionRate: 0,
       transactionRef,
     };
   }
 
+  const credit = await creditOperatorFee({
+    amount: feeAmount,
+    currency,
+    sourceTransactionId: transactionId,
+    sourceReference: transactionRef,
+    feeType,
+    description: `Frais plateforme ${feeType ? `${feeType} ` : ""}sur ${transactionRef}`,
+  });
+
+  // Équivalent Pi purement indicatif (dashboards) — n'affecte aucun solde.
+  let convertedPi = 0;
+  let conversionRate = 0;
   try {
-    // Prix Pi configuré par l'admin (source unique)
     const piPrice = await getPiPrice();
-
-    // Calculate USD equivalent for threshold check
-    let usdEquivalent = feeAmount;
-    if (feeCurrency !== "USD") {
-      if (feeCurrency === "PI") {
-        usdEquivalent = feeAmount * piPrice;
-      } else if (FIAT_RATES[feeCurrency]) {
-        usdEquivalent = feeAmount / FIAT_RATES[feeCurrency];
-      }
-    }
-
-    // Skip if below threshold
-    if (usdEquivalent < MIN_CONVERSION_THRESHOLD_USD) {
-      return {
-        success: true,
-        originalAmount: feeAmount,
-        originalCurrency: feeCurrency,
-        convertedPi: 0,
-        conversionRate: 0,
-        transactionRef,
-        error: "Below minimum threshold",
-      };
-    }
-
-    // Get admin wallet
-    const adminWallet = await getOrCreateAdminPiWallet();
-    if (!adminWallet) {
-      console.error("[AUTO_FEE_CONVERT] Admin wallet not found");
-      return {
-        success: false,
-        originalAmount: feeAmount,
-        originalCurrency: feeCurrency,
-        convertedPi: 0,
-        conversionRate: 0,
-        transactionRef,
-        error: "Admin wallet not found",
-      };
-    }
-
-    // Convert fee to PI
-    const piAmount = feeCurrency === "PI" ? feeAmount : convertToPi(feeAmount, feeCurrency, piPrice);
-    const conversionRate = getConversionRate(feeCurrency, piPrice);
-
-    // Round to 8 decimal places for precision
-    const roundedPiAmount = Math.round(piAmount * 100000000) / 100000000;
-
-    if (roundedPiAmount <= 0) {
-      return {
-        success: true,
-        originalAmount: feeAmount,
-        originalCurrency: feeCurrency,
-        convertedPi: 0,
-        conversionRate,
-        transactionRef,
-        error: "Converted amount too small",
-      };
-    }
-
-    // Atomic transaction to credit admin wallet and record conversion
-    await prisma.$transaction(async (tx) => {
-      // Credit admin wallet with converted PI
-      await tx.wallet.update({
-        where: { id: adminWallet.id },
-        data: { balance: { increment: roundedPiAmount } },
-      });
-
-      // Record the fee conversion as a system transaction
-      await tx.transaction.create({
-        data: {
-          reference: `FEE-CONV-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
-          amount: roundedPiAmount,
-          netAmount: roundedPiAmount,
-          currency: "PI",
-          type: "FEE_CONVERSION",
-          status: "SUCCESS",
-          fromUserId: SYSTEM_USER_ID,
-          toUserId: adminWallet.userId,
-          toWalletId: adminWallet.id,
-          fee: 0,
-          description: `Auto-conversion frais: ${feeAmount.toFixed(8)} ${feeCurrency} -> ${roundedPiAmount.toFixed(8)} PI`,
-          metadata: {
-            originalFee: feeAmount,
-            originalCurrency: feeCurrency,
-            convertedPi: roundedPiAmount,
-            conversionRate: conversionRate,
-            sourceTransactionId: transactionId,
-            sourceTransactionRef: transactionRef,
-            convertedAt: new Date().toISOString(),
-            autoConverted: true,
-          },
-        },
-      });
-    });
-
-    console.log(
-      `[AUTO_FEE_CONVERT] Success: ${feeAmount} ${feeCurrency} -> ${roundedPiAmount} PI (Ref: ${transactionRef})`
-    );
-
-    return {
-      success: true,
-      originalAmount: feeAmount,
-      originalCurrency: feeCurrency,
-      convertedPi: roundedPiAmount,
-      conversionRate,
-      transactionRef,
-    };
-  } catch (error: any) {
-    console.error("[AUTO_FEE_CONVERT] Error:", error.message);
-    return {
-      success: false,
-      originalAmount: feeAmount,
-      originalCurrency: feeCurrency,
-      convertedPi: 0,
-      conversionRate: 0,
-      transactionRef,
-      error: error.message,
-    };
+    conversionRate = getConversionRate(currency, piPrice);
+    convertedPi =
+      currency === "PI"
+        ? credit.amount
+        : roundFee(toUsd(credit.amount, currency, piPrice) / (piPrice || 1), "PI");
+  } catch {
+    // Valorisation indisponible : sans impact sur l'encaissement.
   }
+
+  return {
+    success: credit.success,
+    originalAmount: credit.amount,
+    originalCurrency: currency,
+    convertedPi,
+    conversionRate,
+    transactionRef,
+    alreadyCollected: credit.alreadyCollected,
+    error: credit.error,
+  };
 }
 
+/** Alias explicite, à préférer dans le nouveau code. */
+export const collectPlatformFee = autoConvertFeeToPi;
+
+/* ------------------------------------------------------------------ */
+/*  RATTRAPAGE                                                         */
+/* ------------------------------------------------------------------ */
+
 /**
- * Batch convert accumulated fees (for cleanup or manual trigger)
- * This can be called periodically to ensure all fees are converted
+ * Rattrape tous les frais réussis qui n'ont pas encore été crédités au
+ * wallet opérateur (historique ou incident réseau).
  */
-export async function batchConvertPendingFees(): Promise<{
+export async function batchConvertPendingFees(limit = 500): Promise<{
   processed: number;
   converted: number;
   totalPi: number;
   errors: number;
 }> {
-  let processed = 0;
-  let converted = 0;
+  const sweep = await sweepUncollectedFees(limit);
+
+  // Valorisation Pi indicative du montant rattrapé.
   let totalPi = 0;
-  let errors = 0;
-
   try {
-    // Find transactions with fees that haven't been converted yet
-    const transactionsWithFees = await prisma.transaction.findMany({
-      where: {
-        fee: { gt: 0 },
-        status: "SUCCESS",
-        type: { notIn: ["FEE_CONVERSION"] },
-        // Check if no conversion exists for this transaction
-        NOT: {
-          reference: {
-            startsWith: "FEE-CONV-",
-          },
-        },
-      },
-      select: {
-        id: true,
-        reference: true,
-        fee: true,
-        currency: true,
-      },
-      take: 100, // Process in batches
-      orderBy: { createdAt: "desc" },
-    });
-
-    for (const tx of transactionsWithFees) {
-      processed++;
-
-      // Check if already converted
-      const existingConversion = await prisma.transaction.findFirst({
-        where: {
-          type: "FEE_CONVERSION",
-          metadata: {
-            path: ["sourceTransactionId"],
-            equals: tx.id,
-          },
-        },
-      });
-
-      if (existingConversion) {
-        continue; // Skip already converted
-      }
-
-      const result = await autoConvertFeeToPi(
-        tx.fee || 0,
-        tx.currency,
-        tx.id,
-        tx.reference
-      );
-
-      if (result.success && result.convertedPi > 0) {
-        converted++;
-        totalPi += result.convertedPi;
-      } else if (!result.success) {
-        errors++;
-      }
+    const piPrice = await getPiPrice();
+    for (const [currency, amount] of Object.entries(sweep.totalsByCurrency)) {
+      totalPi +=
+        currency === "PI"
+          ? amount
+          : toUsd(amount, currency, piPrice) / (piPrice || 1);
     }
-  } catch (error: any) {
-    console.error("[BATCH_FEE_CONVERT] Error:", error.message);
+  } catch {
+    // sans impact
   }
 
-  return { processed, converted, totalPi, errors };
+  return {
+    processed: sweep.scanned,
+    converted: sweep.collected,
+    totalPi,
+    errors: sweep.failed,
+  };
+}
+
+/** Nombre de frais réussis encore non encaissés (supervision admin). */
+export async function countUncollectedFees(): Promise<number> {
+  const withFees = await prisma.transaction.count({
+    where: {
+      fee: { gt: 0 },
+      status: "SUCCESS",
+      type: { notIn: ["FEE_COLLECTION", "FEE_CONVERSION"] },
+    },
+  });
+  const collected = await prisma.transaction.count({
+    where: { type: "FEE_COLLECTION", status: "SUCCESS" },
+  });
+  return Math.max(0, withFees - collected);
 }

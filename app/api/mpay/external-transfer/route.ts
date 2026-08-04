@@ -732,6 +732,18 @@ export async function POST(req: NextRequest) {
         return { transaction, newBalance: debited.balance };
       });
 
+      // ENCAISSEMENT DU FRAIS sur le wallet operateur (devise PI).
+      if (fee > 0) {
+        creditOperatorFeeSafe({
+          amount: fee,
+          currency: "PI",
+          sourceTransactionId: internalResult.transaction.id,
+          sourceReference: internalRef,
+          feeType: "transfer",
+          description: `Frais transfert Pi interne — ${internalRef}`,
+        });
+      }
+
       await logSystemEvent({
         level: "INFO",
         source: "MPAY_EXTERNAL_TRANSFER",

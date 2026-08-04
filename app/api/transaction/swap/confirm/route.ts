@@ -39,13 +39,20 @@ export async function POST(req: Request) {
         where: { userId_currency: { userId, currency: fromCurrency } }
       });                                      
       
-      if (!sourceWallet || sourceWallet.balance < quote.fromAmount) {
-        throw new Error(`Solde ${fromCurrency} insuffisant pour cette opération`);
+      // FRAIS DE SWAP : figés lors du devis, prélevés en devise source en
+      // plus du montant échangé, puis encaissés sur le wallet opérateur.
+      const swapFee = quote.fee || 0;
+      const totalDebit = quote.fromAmount + swapFee;
+
+      if (!sourceWallet || sourceWallet.balance < totalDebit) {
+        throw new Error(
+          `Solde ${fromCurrency} insuffisant pour cette opération (requis: ${totalDebit} dont ${swapFee} de frais)`
+        );
       }
 
       await tx.wallet.update({
         where: { id: sourceWallet.id },
-        data: { balance: { decrement: quote.fromAmount } }
+        data: { balance: { decrement: totalDebit } }
       });
 
       // --- ETAPE B : CRÉDIT DU SOLDE CIBLE ---
@@ -75,6 +82,7 @@ export async function POST(req: Request) {
         data: {
           reference: `SWP-${Date.now()}-${userId.substring(0, 4).toUpperCase()}`,
           amount: quote.fromAmount,
+          fee: swapFee,
           netAmount: quote.toAmount,
           currency: fromCurrency,
           destCurrency: targetCurrency,
@@ -98,6 +106,19 @@ export async function POST(req: Request) {
       timeout: 30000,
     });
                                                    
+    // ENCAISSEMENT DU FRAIS sur le wallet opérateur (devise source).
+    if (result.fee && result.fee > 0) {
+      autoConvertFeeToPi(
+        result.fee,
+        result.currency,
+        result.id,
+        result.reference,
+        "exchange"
+      ).catch((e) =>
+        console.error("[SWAP_CONFIRM] Encaissement frais échoué:", e?.message)
+      );
+    }
+
     // Notification de swap
     await prisma.notification.create({
       data: {
