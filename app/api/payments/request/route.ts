@@ -71,7 +71,13 @@ export async function POST(req: NextRequest) {
     // n'importe qui : le destinataire n'est qu'une cible de notification.
     const recipientInput =
       typeof body.recipient === "string" ? body.recipient.trim() : "";
-    let recipient: { id: string; username: string; name: string | null } | null = null;
+    // `username` est nullable en base : le type doit le refleter, sinon
+    // l'affectation depuis Prisma est invalide (erreur de typage).
+    let recipient: {
+      id: string;
+      username: string | null;
+      name: string | null;
+    } | null = null;
 
     if (recipientInput) {
       const clean = recipientInput.startsWith("@")
@@ -139,7 +145,7 @@ export async function POST(req: NextRequest) {
           amount,
           currency,
           senderName: requesterName,
-          senderUsername: requester?.username,
+          senderUsername: requester?.username ?? undefined,
           reference: request.code,
         },
       });
