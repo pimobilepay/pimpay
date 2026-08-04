@@ -7,6 +7,7 @@ import { HubShell } from "@/components/hub/HubShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ReferralTree, type ReferralTopologyView } from "@/components/referral/ReferralTree";
 import {
   Copy,
   Check,
@@ -17,6 +18,8 @@ import {
   Clock,
   QrCode,
   Link2,
+  Network,
+  AlertTriangle,
 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -25,6 +28,16 @@ export default function AgentReferralPage() {
   const { data, isLoading } = useSWR("/api/agent/referral", fetcher);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [depth, setDepth] = useState(3);
+
+  const {
+    data: treeData,
+    isLoading: treeLoading,
+    error: treeError,
+  } = useSWR<{ topology?: ReferralTopologyView }>(`/api/referral/tree?depth=${depth}`, fetcher, {
+    keepPreviousData: true,
+  });
+  const topology = treeData?.topology;
 
   const agent = data?.agent;
   const stats = data?.stats || { totalReferred: 0, activatedCount: 0, pendingKyc: 0 };
@@ -202,6 +215,68 @@ export default function AgentReferralPage() {
           </CardContent>
         </Card>
 
+        {/* Topologie du reseau */}
+        <Card className="bg-slate-900/50 border-white/5 rounded-3xl">
+          <CardHeader className="flex flex-row items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2">
+                <Network className="h-5 w-5 text-blue-500" />
+                Mon réseau
+              </CardTitle>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Arbre de mes filleuls sur {depth} niveau(x)
+              </p>
+            </div>
+            <div
+              className="flex shrink-0 items-center gap-1 rounded-2xl border border-white/5 bg-slate-950/60 p-1"
+              role="group"
+              aria-label="Profondeur de l'arbre"
+            >
+              {[1, 2, 3, 4, 5].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDepth(d)}
+                  aria-pressed={depth === d}
+                  className={`h-7 w-7 rounded-xl text-[10px] font-black transition-colors ${
+                    depth === d
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-500 hover:text-white"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {treeLoading && !topology ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <Skeleton className="h-16 rounded-2xl bg-slate-700" />
+                  <Skeleton className="h-16 rounded-2xl bg-slate-700" />
+                  <Skeleton className="h-16 rounded-2xl bg-slate-700" />
+                </div>
+                <Skeleton className="h-14 rounded-2xl bg-slate-700" />
+                <Skeleton className="h-14 rounded-2xl bg-slate-700" />
+                <Skeleton className="h-14 rounded-2xl bg-slate-700" />
+              </div>
+            ) : treeError || !topology ? (
+              <div className="flex flex-col items-center py-12 text-slate-600">
+                <AlertTriangle size={26} className="mb-3 opacity-40" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-balance text-center">
+                  Réseau indisponible pour le moment
+                </p>
+              </div>
+            ) : (
+              <ReferralTree
+                topology={topology}
+                showUpline
+                defaultExpandedDepth={2}
+                emptyLabel="Aucun filleul pour l'instant — partagez votre lien"
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
     </HubShell>
   );

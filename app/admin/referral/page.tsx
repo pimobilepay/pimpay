@@ -4,8 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Gift, Loader2, AlertTriangle, Users, Trophy, Wallet, Settings2, Check, X, Power, Ban, Crown,
+  Network, Search, ChevronRight, UserX,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
+import { ReferralTree, type ReferralTopologyView } from "@/components/referral/ReferralTree";
 
 type UserLite = { id: string; username: string | null; name: string | null; email: string | null; avatar: string | null; referralCode?: string | null } | null;
 type Program = { id: string; enabled: boolean; signupBonus: number; commissionRate: number; currency: string; minPayout: number };
@@ -20,7 +22,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function ReferralPage() {
-  const [tab, setTab] = useState<"overview" | "earnings" | "config">("overview");
+  const [tab, setTab] = useState<"overview" | "earnings" | "topology" | "config">("overview");
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState<Program | null>(null);
   const [earnings, setEarnings] = useState<Earning[]>([]);
@@ -28,6 +30,16 @@ export default function ReferralPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [draft, setDraft] = useState<Program | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /* ── Topologie d'un utilisateur selectionne ─────────────── */
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<UserLite[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<UserLite>(null);
+  const [depth, setDepth] = useState(4);
+  const [topology, setTopology] = useState<ReferralTopologyView | null>(null);
+  const [topoLoading, setTopoLoading] = useState(false);
+  const [topoError, setTopoError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -44,6 +56,57 @@ export default function ReferralPage() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Recherche d'utilisateur (debounce 350ms)
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); setSearching(false); return; }
+    setSearching(true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(q)}`, {
+          signal: ctrl.signal, cache: "no-store",
+        });
+        const d = await res.json();
+        setResults(d.users || []);
+      } catch {
+        /* requete annulee */
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [query]);
+
+  // Chargement de la topologie de l'utilisateur selectionne
+  useEffect(() => {
+    if (!selected?.id) { setTopology(null); setTopoError(null); return; }
+    let cancelled = false;
+    setTopoLoading(true);
+    setTopoError(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${selected.id}/referral-tree?depth=${depth}`, { cache: "no-store" });
+        const d = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(d.error || "Topologie indisponible");
+        setTopology(d.topology);
+      } catch (e: any) {
+        if (!cancelled) { setTopology(null); setTopoError(e.message || "Erreur de chargement"); }
+      } finally {
+        if (!cancelled) setTopoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selected?.id, depth]);
+
+  function openTopology(user: UserLite) {
+    setSelected(user);
+    setQuery("");
+    setResults([]);
+    setTab("topology");
+  }
 
   async function post(payload: any, msg: string) {
     try {
@@ -87,13 +150,15 @@ export default function ReferralPage() {
 
         <div className="flex gap-2 mb-6 p-1 bg-slate-900/60 rounded-2xl border border-white/5">
           {[
-            { id: "overview", label: "Top parrains", icon: <Trophy size={14} /> },
+            { id: "overview", label: "Parrains", icon: <Trophy size={14} /> },
             { id: "earnings", label: "Gains", icon: <Gift size={14} /> },
+            { id: "topology", label: "Réseau", icon: <Network size={14} /> },
             { id: "config", label: "Réglages", icon: <Settings2 size={14} /> },
           ].map((t) => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${tab === t.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-white"}`}>
-              {t.icon}{t.label}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${tab === t.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-white"}`}>
+              <span className="shrink-0">{t.icon}</span>
+              <span className="truncate">{t.label}</span>
             </button>
           ))}
         </div>
@@ -104,7 +169,9 @@ export default function ReferralPage() {
           topReferrers.length === 0 ? <Empty label="Aucun parrain pour l'instant" /> : (
             <div className="space-y-3">
               {topReferrers.map((t, i) => (
-                <div key={t.referrerId} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <button key={t.referrerId} onClick={() => openTopology(t.user)}
+                  aria-label={`Voir la topologie de ${t.user?.username || t.user?.name || "cet utilisateur"}`}
+                  className="w-full text-left bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-3 hover:border-blue-500/30 transition-colors">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-[12px] ${i === 0 ? "bg-amber-500/20 text-amber-400" : i < 3 ? "bg-blue-500/10 text-blue-400" : "bg-white/5 text-slate-500"}`}>
                       {i === 0 ? <Crown size={14} /> : i + 1}
@@ -115,11 +182,14 @@ export default function ReferralPage() {
                       <p className="text-[9px] text-slate-500 font-mono truncate">{t.referralsCount} filleul(s) · {t.earningsCount} gain(s)</p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-black text-emerald-400 tabular-nums">{t.totalAmount.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
-                    <p className="text-[8px] text-slate-600 font-bold uppercase">{program?.currency || "PI"}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <p className="text-sm font-black text-emerald-400 tabular-nums">{t.totalAmount.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
+                      <p className="text-[8px] text-slate-600 font-bold uppercase">{program?.currency || "PI"}</p>
+                    </div>
+                    <ChevronRight size={14} className="text-slate-600" aria-hidden="true" />
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )
@@ -155,6 +225,98 @@ export default function ReferralPage() {
               ))}
             </div>
           )
+        ) : tab === "topology" ? (
+          <div className="space-y-4">
+            {/* Selecteur d'utilisateur */}
+            <div className="relative">
+              <label htmlFor="topo-search" className="sr-only">Rechercher un utilisateur</label>
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" aria-hidden="true" />
+              <input
+                id="topo-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Nom, @username, email ou téléphone…"
+                className="r-input"
+                style={{ paddingLeft: "2.25rem" }}
+                autoComplete="off"
+              />
+              {searching && <Loader2 size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" />}
+
+              {results.length > 0 && (
+                <ul className="absolute z-20 left-0 right-0 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/95 backdrop-blur p-1.5 shadow-2xl">
+                  {results.map((u) => (
+                    <li key={u!.id}>
+                      <button onClick={() => openTopology(u)}
+                        className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-white/5 transition-colors">
+                        <Avatar user={u} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-black text-white truncate uppercase tracking-tight">{u!.username || u!.name || "Sans nom"}</p>
+                          <p className="text-[9px] text-slate-500 font-mono truncate">{u!.email || u!.id}</p>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-600 shrink-0" aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* En-tete de la selection + profondeur */}
+            {selected && (
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar user={selected} />
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-black text-white truncate uppercase tracking-tight">{selected.username || selected.name || "Sans nom"}</p>
+                      <p className="text-[9px] text-slate-500 font-mono truncate">{selected.email || selected.id}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelected(null)}
+                    aria-label="Effacer la sélection"
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white transition-colors">
+                    <X size={12} /> Effacer
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/5">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Profondeur</span>
+                  <div className="flex items-center gap-1 rounded-xl border border-white/5 bg-slate-950/60 p-1" role="group" aria-label="Profondeur de l'arbre">
+                    {[1, 2, 3, 4, 5, 6].map((d) => (
+                      <button key={d} onClick={() => setDepth(d)} aria-pressed={depth === d}
+                        className={`h-7 w-7 rounded-lg text-[10px] font-black transition-colors ${depth === d ? "bg-blue-600 text-white" : "text-slate-500 hover:text-white"}`}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Arbre */}
+            {!selected ? (
+              <div className="flex flex-col items-center py-16 text-slate-600">
+                <UserX size={28} className="mb-3 opacity-30" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-center text-balance">
+                  Recherchez un utilisateur ou touchez un parrain du classement
+                </p>
+              </div>
+            ) : topoLoading ? (
+              <div className="flex justify-center py-16 text-blue-500"><Loader2 className="animate-spin" size={28} /></div>
+            ) : topoError || !topology ? (
+              <Empty label={topoError || "Topologie indisponible"} />
+            ) : (
+              <ReferralTree
+                topology={topology}
+                showUpline
+                defaultExpandedDepth={2}
+                onSelect={(node) => openTopology({
+                  id: node.id, username: node.username, name: node.name,
+                  email: null, avatar: node.avatar, referralCode: node.referralCode ?? null,
+                })}
+                emptyLabel="Cet utilisateur n'a aucun filleul"
+              />
+            )}
+          </div>
         ) : (
           draft && (
             <div className="space-y-4">
