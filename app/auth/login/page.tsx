@@ -60,8 +60,22 @@ export default function LoginPage() {
     setMounted(true);
   }, []);
 
+  // Destination de retour demandee (?redirect=/mpay/request/CODE), utilisee
+  // quand l'utilisateur ouvre un lien protege sans etre connecte.
+  const getPendingTarget = (): string | null => {
+    if (typeof window === "undefined") return null;
+    const raw = new URLSearchParams(window.location.search).get("redirect");
+    if (!raw) return null;
+    if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+    if (raw.startsWith("/auth") || raw === "/login") return null;
+    return raw;
+  };
+
   // Fonction helper pour determiner la destination selon le role
   const getRedirectPath = (role: string) => {
+    const requested = getPendingTarget();
+    if (requested) return requested;
+
     switch (role) {
       case "ADMIN": return "/admin";
       case "BANK_ADMIN": return "/bank";

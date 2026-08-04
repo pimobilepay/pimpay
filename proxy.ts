@@ -74,6 +74,15 @@ function getDestinationByRole(role: string): string {
   }
 }
 
+// Destination de retour apres connexion : uniquement un chemin interne
+// (protege contre les redirections ouvertes vers un domaine externe).
+function safeInternalPath(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  if (value.startsWith("/auth") || value === "/login" || value === "/") return null;
+  return value;
+}
+
 // Dans Next 16, la fonction exportée doit s'appeler 'proxy'
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -155,7 +164,11 @@ export async function proxy(req: NextRequest) {
 
   // Redirection depuis la page de login si deja connecte
   if (userPayload && isLoginPage) {
-    const dest = getDestinationByRole(userRole);
+    // Si un lien partage (ex: /mpay/request/CODE) a ete memorise avant la
+    // connexion, on y retourne au lieu de forcer le tableau de bord.
+    const dest =
+      safeInternalPath(req.nextUrl.searchParams.get("redirect")) ??
+      getDestinationByRole(userRole);
     // Utiliser redirect 302 au lieu de 307 pour eviter les problemes de cache
     const response = NextResponse.redirect(new URL(dest, req.url), 302);
     // Desactiver le cache pour les pages d'auth
@@ -185,8 +198,12 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/profile");
     
   if (!userPayload && isProtectedPath) {
+    // On memorise la page demandee pour y revenir apres la connexion : c'est
+    // indispensable pour les liens de demande de paiement partages.
+    const loginUrl = new URL("/auth/login", req.url);
+    loginUrl.searchParams.set("redirect", pathname + req.nextUrl.search);
     // Utiliser redirect 302 pour eviter les problemes de cache
-    const response = NextResponse.redirect(new URL("/auth/login", req.url), 302);
+    const response = NextResponse.redirect(loginUrl, 302);
     applyNoStore(response);
     applySecurityHeaders(response);
     return response;

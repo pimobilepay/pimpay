@@ -8,6 +8,7 @@ import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
+import { enforcePiPolicy, WithdrawalPolicyError } from "@/lib/withdrawal-limits";
 
 function getWalletType(currency: string): WalletType {
   if (currency === "PI") return WalletType.PI;
@@ -177,6 +178,14 @@ export async function POST(
 
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
+    // Plafonds / KYC : on remonte le message exact de la politique au payeur.
+    if (err instanceof WithdrawalPolicyError) {
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.status }
+      );
+    }
+
     const msg = String(err?.message || "");
     const map: Record<string, { status: number; error: string }> = {
       NOT_FOUND: { status: 404, error: "Demande introuvable." },

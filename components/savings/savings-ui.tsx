@@ -52,7 +52,7 @@ export function Sheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm"
           />
           <motion.div
             role="dialog"
@@ -62,7 +62,9 @@ export function Sheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 320 }}
-            className="fixed bottom-0 left-0 right-0 z-[90] max-h-[92vh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0f1a]"
+            /* z-index superieur a la barre de navigation basse (z-[90]) pour que
+               le bouton de validation ne soit jamais masque. */
+            className="fixed bottom-0 left-0 right-0 z-[130] max-h-[92vh] overflow-y-auto overscroll-contain rounded-t-3xl border-t border-white/10 bg-[#0a0f1a]"
           >
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/5 bg-[#0a0f1a]/95 px-5 py-4 backdrop-blur-xl">
               <div className="min-w-0">
@@ -83,7 +85,9 @@ export function Sheet({
                 <X size={16} />
               </button>
             </div>
-            <div className="px-5 pb-8 pt-5">{children}</div>
+            <div className="px-5 pt-5 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+              {children}
+            </div>
           </motion.div>
         </>
       )}
