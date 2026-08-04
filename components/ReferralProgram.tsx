@@ -13,8 +13,10 @@ import {
   ChevronRight,
   Sparkles,
   Link2,
+  Network,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ReferralTree, type ReferralTopologyView } from "@/components/referral/ReferralTree";
 
 interface Referral {
   id: string;
@@ -39,11 +41,43 @@ export function ReferralProgram({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const [applyCode, setApplyCode] = useState("");
   const [isApplying, setIsApplying] = useState(false);
-  const [activeTab, setActiveTab] = useState<"share" | "filleuls" | "apply">("share");
+  const [activeTab, setActiveTab] = useState<"share" | "filleuls" | "topology" | "apply">("share");
+  const [topology, setTopology] = useState<ReferralTopologyView | null>(null);
+  const [isTreeLoading, setIsTreeLoading] = useState(false);
+  const [treeError, setTreeError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchReferralData();
   }, []);
+
+  // Chargement paresseux de l'arbre : uniquement quand l'onglet est ouvert.
+  useEffect(() => {
+    if (activeTab !== "topology" || topology || isTreeLoading) return;
+
+    let cancelled = false;
+    setIsTreeLoading(true);
+    setTreeError(null);
+
+    fetch("/api/referral/tree?depth=4", { cache: "no-store" })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Erreur de chargement");
+        return json;
+      })
+      .then((json) => {
+        if (!cancelled) setTopology(json.topology as ReferralTopologyView);
+      })
+      .catch((err) => {
+        if (!cancelled) setTreeError(err?.message || "Erreur de chargement");
+      })
+      .finally(() => {
+        if (!cancelled) setIsTreeLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, topology, isTreeLoading]);
 
   async function fetchReferralData() {
     try {
