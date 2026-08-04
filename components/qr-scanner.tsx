@@ -1,28 +1,47 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Camera, ScanLine, FlashlightOff, Flashlight } from "lucide-react";
+import {
+  X,
+  Camera,
+  ScanLine,
+  FlashlightOff,
+  Flashlight,
+  ImageIcon,
+  Loader2,
+} from "lucide-react";
 
 interface QRScannerProps {
   onClose: (data?: string) => void;
   onResult?: (data: string) => void;
+  /** Texte affiche sous le cadre de visee. */
+  hint?: string;
 }
 
-export function QRScanner({ onClose, onResult }: QRScannerProps) {
+/** Largeur maximale utilisee pour le decodage logiciel (perf mobile). */
+const DECODE_MAX_WIDTH = 720;
+
+export function QRScanner({ onClose, onResult, hint }: QRScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanning, setScanning] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
+  const [decodingFile, setDecodingFile] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const detectedRef = useRef(false);
 
-  // BarcodeDetector support check
+  // Detecteur natif (Chrome / Android) et fallback logiciel jsQR (iOS, Pi Browser, Firefox)
   const barcodeDetectorRef = useRef<any>(null);
+  const jsQrRef = useRef<any>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (typeof window !== "undefined" && "BarcodeDetector" in window) {
       try {
         barcodeDetectorRef.current = new (window as any).BarcodeDetector({
@@ -32,6 +51,20 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
         barcodeDetectorRef.current = null;
       }
     }
+
+    // Le fallback est toujours charge : il sert aussi a l'import d'image
+    // et prend le relais quand BarcodeDetector echoue.
+    import("jsqr")
+      .then((mod) => {
+        if (!cancelled) jsQrRef.current = mod.default ?? mod;
+      })
+      .catch(() => {
+        if (!cancelled) jsQrRef.current = null;
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -63,7 +96,37 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
     [onClose, onResult, stopCamera]
   );
 
-  // Scan loop utilisant BarcodeDetector (Chrome, Edge, Android) sinon canvas fallback
+  /**
+   * Decode le contenu d'un canvas : detecteur natif d'abord, puis jsQR.
+   * jsQR tente aussi une passe en inversion pour les QR clairs sur fond sombre
+   * (cas frequent des captures d'ecran de demandes de paiement).
+   */
+  const decodeCanvas = useCallback(
+    async (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+      if (barcodeDetectorRef.current) {
+        try {
+          const barcodes = await barcodeDetectorRef.current.detect(canvas);
+          if (barcodes.length > 0 && barcodes[0].rawValue) return barcodes[0].rawValue as string;
+        } catch {
+          // on bascule sur jsQR
+        }
+      }
+
+      const jsQR = jsQrRef.current;
+      if (jsQR && canvas.width > 0 && canvas.height > 0) {
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const result =
+          jsQR(image.data, image.width, image.height, { inversionAttempts: "attemptBoth" }) ||
+          null;
+        if (result?.data) return result.data as string;
+      }
+
+      return null;
+    },
+    []
+  );
+
+  // Boucle de scan : dessine la frame dans un canvas reduit puis decode
   const startScanLoop = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -72,41 +135,24 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
 
+    let busy = false;
+
     const scan = async () => {
       if (detectedRef.current || !streamRef.current) return;
 
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+      if (!busy && video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+        busy = true;
+        const scale = Math.min(1, DECODE_MAX_WIDTH / video.videoWidth);
+        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Methode 1: BarcodeDetector natif (meilleure perf)
-        if (barcodeDetectorRef.current) {
-          try {
-            const barcodes = await barcodeDetectorRef.current.detect(canvas);
-            if (barcodes.length > 0 && barcodes[0].rawValue) {
-              handleDetected(barcodes[0].rawValue);
-              return;
-            }
-          } catch {
-            // Silently fail, retry next frame
-          }
-        }
+        const value = await decodeCanvas(canvas, ctx);
+        busy = false;
 
-        // Methode 2: ImageBitmap + BarcodeDetector sur video directement
-        if (!barcodeDetectorRef.current && typeof createImageBitmap !== "undefined") {
-          try {
-            const detector = barcodeDetectorRef.current;
-            if (detector) {
-              const barcodes = await detector.detect(video);
-              if (barcodes.length > 0 && barcodes[0].rawValue) {
-                handleDetected(barcodes[0].rawValue);
-                return;
-              }
-            }
-          } catch {
-            // fallback
-          }
+        if (value) {
+          handleDetected(value);
+          return;
         }
       }
 
@@ -114,7 +160,7 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
     };
 
     animationRef.current = requestAnimationFrame(scan);
-  }, [handleDetected]);
+  }, [decodeCanvas, handleDetected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,6 +217,47 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
     }
   };
 
+  /** Decode un QR depuis une image de la galerie (capture d'ecran d'une demande de paiement). */
+  const handleFilePick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setFileError(null);
+    setDecodingFile(true);
+
+    try {
+      const bitmapUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("image"));
+        img.src = bitmapUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(1, 1400 / Math.max(img.width, 1));
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("canvas");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(bitmapUrl);
+
+      const value = await decodeCanvas(canvas, ctx);
+      if (value) {
+        handleDetected(value);
+        return;
+      }
+      setFileError("Aucun QR code lisible dans cette image");
+    } catch {
+      setFileError("Impossible de lire cette image");
+    } finally {
+      setDecodingFile(false);
+    }
+  };
+
   const handleClose = () => {
     stopCamera();
     onClose("");
@@ -180,6 +267,13 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
       {/* Hidden canvas for decoding */}
       <canvas ref={canvasRef} className="hidden" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFilePick}
+        className="hidden"
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-12 pb-4 bg-black/80 backdrop-blur-sm z-10 relative">
@@ -221,11 +315,18 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
               Acces camera refuse
             </p>
             <p className="text-slate-500 text-[10px] text-center leading-relaxed">
-              Autorisez la camera dans les parametres de votre navigateur ou du Pi Browser pour scanner les QR codes.
+              Autorisez la camera dans les parametres de votre navigateur ou du Pi Browser, ou importez une capture du QR code.
             </p>
             <button
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2 px-6 py-3 bg-blue-600 rounded-2xl text-xs font-black uppercase text-white flex items-center gap-2"
+            >
+              <ImageIcon size={14} />
+              Importer une image
+            </button>
+            <button
               onClick={handleClose}
-              className="mt-4 px-6 py-3 bg-blue-600 rounded-2xl text-xs font-black uppercase text-white"
+              className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase text-slate-300"
             >
               Fermer
             </button>
@@ -282,9 +383,30 @@ export function QRScanner({ onClose, onResult }: QRScannerProps) {
             {scanning ? "Capteur actif" : "QR detecte"}
           </span>
         </div>
-        <p className="text-slate-500 text-[9px] uppercase tracking-widest font-bold">
-          Placez le QR code du destinataire dans le cadre
+        <p className="text-slate-500 text-[9px] uppercase tracking-widest font-bold text-balance">
+          {hint || "QR utilisateur, marchand ou demande de paiement"}
         </p>
+
+        {hasPermission !== false && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={decodingFile}
+            className="mx-auto flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-300 disabled:opacity-50 active:scale-95 transition-all"
+          >
+            {decodingFile ? (
+              <Loader2 size={14} className="animate-spin text-blue-400" />
+            ) : (
+              <ImageIcon size={14} className="text-blue-400" />
+            )}
+            {decodingFile ? "Lecture..." : "Importer une image"}
+          </button>
+        )}
+
+        {fileError && (
+          <p className="text-[9px] font-bold uppercase tracking-widest text-red-400">
+            {fileError}
+          </p>
+        )}
       </div>
 
       <style jsx>{`

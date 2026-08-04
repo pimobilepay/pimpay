@@ -560,7 +560,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
 
   // QR Scanner View
   if (activeView === "scanner") {
-    return <QRScanner onClose={handleQRResult} />;
+    return <QRScanner onClose={handleQRResult} hint={t("mpay.scanHint")} />;
   }
 
   // Receive QR View

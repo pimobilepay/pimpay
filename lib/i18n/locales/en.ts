@@ -819,6 +819,7 @@ export const en: TranslationKeys = {
     actionSend: "Send",
     actionReceive: "Receive",
     actionRequest: "Request",
+    scanHint: "User, merchant or payment request QR",
     // Payment request
     request: {
       qrDetected: "Payment request detected",

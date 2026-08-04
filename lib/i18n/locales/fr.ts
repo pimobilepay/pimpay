@@ -817,6 +817,7 @@ export const fr = {
     actionSend: "Envoyer",
     actionReceive: "Recevoir",
     actionRequest: "Demander",
+    scanHint: "QR utilisateur, marchand ou demande de paiement",
     // Demande de paiement
     request: {
       qrDetected: "Demande de paiement detectee",
@@ -1190,7 +1191,7 @@ export const fr = {
     },
     pdf: {
       reportTitle: "Rapport d'historique des transactions - PIMOBIPAY",
-      period: "Période",
+      period: "P��riode",
       colReference: "Référence",
       colType: "Type",
       colSender: "Expéditeur",

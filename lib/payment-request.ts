@@ -105,7 +105,7 @@ export function buildRequestUrl(code: string): string {
  * Un code de demande est genere par nanoid(10) : 10 caracteres pris dans
  * [A-Za-z0-9_-]. On reste strict pour ne pas confondre avec un id utilisateur.
  */
-const REQUEST_CODE_RE = /^[A-Za-z0-9_-]{10}$/;
+const REQUEST_CODE_RE = /^[A-Za-z0-9_-]{6,24}$/;
 
 /**
  * Extrait le code d'une demande de paiement a partir d'une valeur scannee.
@@ -127,13 +127,16 @@ export function parsePaymentRequestCode(raw: string): string | null {
   // 1. Payload JSON explicite
   if (value.startsWith("{")) {
     try {
-      const parsed = JSON.parse(value) as { type?: string; code?: string };
+      const parsed = JSON.parse(value) as { type?: string; code?: string; request?: string };
+      const candidate = parsed?.code ?? parsed?.request;
       if (
-        typeof parsed?.code === "string" &&
-        (parsed.type === "payment-request" || parsed.type === "request") &&
-        REQUEST_CODE_RE.test(parsed.code)
+        typeof candidate === "string" &&
+        (parsed.type === "payment-request" ||
+          parsed.type === "request" ||
+          parsed.type === "paymentRequest") &&
+        REQUEST_CODE_RE.test(candidate)
       ) {
-        return parsed.code;
+        return candidate;
       }
     } catch {
       // pas du JSON valide : on continue
@@ -142,10 +145,14 @@ export function parsePaymentRequestCode(raw: string): string | null {
   }
 
   // 2. URL, chemin relatif ou deep link contenant .../request/<code>
-  //    Couvre https://host/mpay/request/CODE, /mpay/request/CODE?x=1
-  //    et pimpay://request/CODE.
-  const match = value.match(/request\/([A-Za-z0-9_-]{10})(?:[/?#]|$)/);
-  if (match?.[1]) return match[1];
+  //    Couvre https://host/mpay/request/CODE, /mpay/request/CODE?x=1,
+  //    pimpay://request/CODE et pimpay:request=CODE.
+  const path = value.match(/request[/:=]([A-Za-z0-9_-]{6,24})(?:[/?#&]|$)/i);
+  if (path?.[1]) return path[1];
+
+  // 3. Parametre de requete explicite : ...?request=CODE ou ?requestCode=CODE
+  const query = value.match(/[?&]request(?:Code)?=([A-Za-z0-9_-]{6,24})(?:[&#]|$)/i);
+  if (query?.[1]) return query[1];
 
   return null;
 }
