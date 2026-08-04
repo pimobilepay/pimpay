@@ -105,6 +105,8 @@ const DASH_T = {
     multiChainActive: "Multi-Chain Actif",
     qaSend: "Envoyer", qaReceive: "Recevoir", qaSwap: "Swap", qaWithdraw: "Retrait",
     qaAirtime: "Airtime", qaCard: "Carte", qaStaking: "Staking", qaBills: "Factures",
+    qaSavings: "Epargne & Coffres",
+    qaSavingsSub: "Faites travailler vos fonds, bloquez-les en coffre",
     statTransactions: "Transactions",
     incoming: "entrantes",
     statUsdValue: "Valeur USD",
@@ -146,6 +148,8 @@ const DASH_T = {
     multiChainActive: "Multi-Chain Active",
     qaSend: "Send", qaReceive: "Receive", qaSwap: "Swap", qaWithdraw: "Withdraw",
     qaAirtime: "Airtime", qaCard: "Card", qaStaking: "Staking", qaBills: "Bills",
+    qaSavings: "Savings & Vaults",
+    qaSavingsSub: "Grow your funds, lock them in a vault",
     statTransactions: "Transactions",
     incoming: "incoming",
     statUsdValue: "USD Value",
@@ -187,6 +191,8 @@ const DASH_T = {
     multiChainActive: "多链已激活",
     qaSend: "发送", qaReceive: "接收", qaSwap: "兑换", qaWithdraw: "提现",
     qaAirtime: "话费", qaCard: "卡片", qaStaking: "质押", qaBills: "账单",
+    qaSavings: "储蓄与保险库",
+    qaSavingsSub: "让资金增值，锁入保险库",
     statTransactions: "交易",
     incoming: "笔收入",
     statUsdValue: "美元价值",
@@ -798,6 +804,21 @@ export default function UserDashboard() {
           <QuickActionBtn icon={<Lock size={20} />} label={tr.qaStaking} color="bg-slate-700" onClick={() => router.push("/wallet/staking")} />
           <QuickActionBtn icon={<Receipt size={20} />} label={tr.qaBills} color="bg-slate-700" onClick={() => router.push("/statements")} />
         </div>
+
+        {/* ── Acces Epargne & Coffres ── */}
+        <button
+          onClick={() => router.push("/savings")}
+          className="w-full mb-8 flex items-center gap-4 p-5 rounded-[28px] bg-slate-900/40 border border-emerald-500/15 text-left active:scale-[0.99] transition-transform"
+        >
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <PiggyBank size={20} className="text-emerald-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-white">{tr.qaSavings}</p>
+            <p className="text-[10px] font-medium text-slate-500 leading-relaxed text-pretty">{tr.qaSavingsSub}</p>
+          </div>
+          <ChevronRight size={16} className="text-emerald-400 shrink-0" />
+        </button>
 
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-2 gap-3 mb-8">

@@ -4,7 +4,7 @@ import {
   X, Home, Wallet, ArrowDown, ArrowUp, Send, Settings,
   Smartphone, Search, ChevronRight, User, LogOut, Clock,
   ShieldCheck, Repeat, CreditCard, HelpCircle, Facebook, Linkedin, Twitter,
-  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles, Gift
+  Users2, LifeBuoy, Lock, FileText, Globe, Info, Sparkles, Gift, PiggyBank
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -116,6 +116,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       items: [
         { label: t("sideMenu.mpay"), icon: <div className="flex flex-col items-center justify-center"><Smartphone size={14} className="text-blue-500" /><span className="text-[6px] font-black text-blue-500 uppercase tracking-tight mt-0.5">MPAY</span></div>, path: "/mpay" },
         { label: t("sideMenu.swap"), icon: <Repeat size={20} className="text-indigo-400" />, path: "/swap" },
+        { label: t("sideMenu.savings"), icon: <PiggyBank size={20} className="text-emerald-400" />, path: "/savings" },
         { label: t("sideMenu.virtualCard"), icon: <CreditCard size={20} className="text-pink-400" />, path: "/dashboard/card" },
         { label: t("sideMenu.mobileRecharge"), icon: <Smartphone size={20} className="text-orange-400" />, path: "/airtime" },
       ]

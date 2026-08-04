@@ -9,6 +9,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { useRouter } from "next/navigation";
 import SendModal from "@/components/SendModal";
+import { LimitsBanner } from "@/components/limits-banner";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -474,6 +475,9 @@ export default function WalletPage() {
           <QuickAction icon={<ArrowLeftRight size={20} />} label={t("wallet.swap")} onClick={() => router.push('/swap')} />
           <QuickAction icon={<Lock size={20} />} label="Staking" onClick={() => router.push('/wallet/staking')} />
         </div>
+
+        {/* Plafonds applicables au canal WALLET, servis par /api/user/limits */}
+        <LimitsBanner channel="WALLET" className="mb-8" />
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 p-1 bg-white/[0.03] rounded-2xl border border-white/[0.06]">

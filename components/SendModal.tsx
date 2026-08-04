@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import { X, Send, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
 import { validateAddress } from "@/lib/crypto-validator";
 import { getAssetConfig, getExplorerLink } from "@/lib/crypto-config";
+import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
+import { LimitsBanner } from "@/components/limits-banner";
 
 interface SendModalProps {
   isOpen: boolean;
@@ -28,6 +30,11 @@ export default function SendModal({
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [txHash, setTxHash] = useState("");
   const [validationError, setValidationError] = useState("");
+  // Politique KYC / plafonds : le serveur reste seul juge, on ne fait
+  // qu'expliquer son refus a l'utilisateur via la modale dediee.
+  const [kycModal, setKycModal] = useState<{ message?: string | null; code?: string | null } | null>(
+    null,
+  );
 
   const config = getAssetConfig(currency);
 
@@ -68,6 +75,12 @@ export default function SendModal({
         setStatus("success");
         setTxHash(result.hash);
         if (onRefresh) onRefresh();
+      } else if (isKycPolicyError(result)) {
+        // Refus lie a la verification d'identite ou a un plafond : on ouvre la
+        // modale KYC plutot que d'afficher une erreur technique peu claire.
+        setStatus("idle");
+        setValidationError("");
+        setKycModal({ message: result.error || result.message, code: result.code });
       } else {
         setStatus("error");
         setValidationError(result.error || "Erreur lors de l'envoi");
@@ -115,6 +128,13 @@ export default function SendModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
+      <KycRequiredModal
+        open={kycModal !== null}
+        onClose={() => setKycModal(null)}
+        message={kycModal?.message}
+        code={kycModal?.code}
+        channel="WALLET"
+      />
       <div className="bg-[#0a0a0a] w-full max-w-xs rounded-[2.5rem] border border-white/10 p-8 relative shadow-2xl">
         <button onClick={handleClose} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
           <X size={20} />
@@ -197,6 +217,9 @@ export default function SendModal({
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-600 uppercase tracking-tighter">{currency}</span>
               </div>
             </div>
+
+            {/* Plafonds reels du compte pour le canal WALLET (politiques admin incluses) */}
+            <LimitsBanner channel="WALLET" />
 
             {/* Validation Error */}
             {validationError && (
