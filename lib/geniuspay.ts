@@ -78,6 +78,32 @@ export function getGeniusPayBaseUrl(): string {
   );
 }
 
+/**
+ * Hôtes candidats pour l'API PAYOUT (retraits / cashout).
+ *
+ * L'API Payout n'est PAS servie par le même hôte que l'API Payments :
+ *   - `https://geniuspay.ci/docs/payout-api` affiche « Payouts API — Bientôt
+ *     disponible » : sur cet hôte, POST /payouts renvoie 404/405.
+ *   - La documentation Payout OPÉRATIONNELLE vit sur l'hôte historique
+ *     `https://pay.genius.ci/docs/payout-api` (POST /api/v1/merchant/payouts).
+ *
+ * On essaie donc les hôtes dans l'ordre et on bascule automatiquement sur le
+ * suivant quand l'endpoint est absent (404 / 405) ou bloqué (Imunify360).
+ * `GENIUSPAY_PAYOUT_BASE_URL` permet de forcer un hôte unique en production.
+ */
+export function getGeniusPayPayoutBaseUrls(): string[] {
+  const forced = (process.env.GENIUSPAY_PAYOUT_BASE_URL || "").replace(
+    /\/$/,
+    ""
+  );
+  const candidates = [
+    forced,
+    getGeniusPayBaseUrl(),
+    "https://pay.genius.ci/api/v1/merchant",
+  ].filter(Boolean);
+  return Array.from(new Set(candidates));
+}
+
 function getApiKey(): string {
   const key = process.env.GENIUSPAY_API_KEY;
   if (!key) {
@@ -126,16 +152,26 @@ export interface GeniusPayResponse<T = any> {
   data: T;
 }
 
+export interface GeniusPayFetchOptions extends RequestInit {
+  /** Hôte alternatif (ex: API Payout servie par pay.genius.ci). */
+  baseUrl?: string;
+}
+
 export async function geniusPayFetch<T = any>(
   path: string,
-  init?: RequestInit
+  init?: GeniusPayFetchOptions
 ): Promise<GeniusPayResponse<T>> {
-  const url = `${getGeniusPayBaseUrl()}${path}`;
+  const { baseUrl, ...rest } = init || {};
+  const url = `${baseUrl || getGeniusPayBaseUrl()}${path}`;
   const res = await fetch(url, {
-    ...init,
+    ...rest,
     headers: {
       "X-API-Key": getApiKey(),
       "X-API-Secret": getApiSecret(),
+      // L'API Payout exige `Authorization: Bearer <MERCHANT_API_KEY>` alors que
+      // l'API Payments utilise X-API-Key/X-API-Secret. On envoie les deux :
+      // l'API Payments ignore simplement l'en-tête Bearer supplémentaire.
+      Authorization: `Bearer ${getApiKey()}`,
       "Content-Type": "application/json",
       Accept: "application/json",
       // ---------------------------------------------------------------------
@@ -291,21 +327,39 @@ export async function checkPayment(reference: string) {
 // -----------------------------------------------------------------------------
 // PAYOUT (retrait / cashout vers Mobile Money) : POST /payouts
 // -----------------------------------------------------------------------------
+/** Montant minimum accepté par GeniusPay (identique aux paiements : 200 XOF). */
+export const GENIUSPAY_MIN_AMOUNT = 200;
+
 export interface CreatePayoutParams {
   /** UUID du wallet marchand débité (défaut : GENIUSPAY_WALLET_ID). */
   walletId?: string;
-  /** Montant en XOF (entier). */
+  /** Montant en devise locale (entier). */
   amount: number;
   currency?: string;
   recipient: {
     name?: string;
     phone: string;
+    email?: string;
+  };
+  /**
+   * Destination du payout. REQUISE par l'API : sans elle, GeniusPay renvoie un
+   * 422 VALIDATION_ERROR et le retrait échoue.
+   */
+  destination?: {
+    type?: "mobile_money" | "bank";
+    /** wave | orange_money | mtn_money | moov_money | airtel_money */
+    provider?: string;
+    /** Numéro Mobile Money ou IBAN. Défaut : téléphone du bénéficiaire. */
+    account?: string;
   };
   description?: string;
   metadata?: Record<string, any>;
+  /** Clé d'idempotence (évite tout double payout en cas de retry réseau). */
+  idempotencyKey?: string;
 }
 
 export interface GeniusPayPayout {
+  id?: string;
   reference: string;
   status: string;
   amount: number;
@@ -315,34 +369,94 @@ export interface GeniusPayPayout {
   metadata?: Record<string, any>;
 }
 
-export async function createPayout(params: CreatePayoutParams) {
+/**
+ * Enveloppe le corps `/payouts` conformément à la doc Payout API :
+ * { wallet_id, recipient{}, destination{type,provider,account}, amount,
+ *   currency, description, metadata, idempotency_key }
+ */
+function buildPayoutBody(params: CreatePayoutParams): Record<string, any> {
+  const phone = normalizePhone(params.recipient.phone);
+  const account = normalizePhone(params.destination?.account || phone) || phone;
+  // `provider` peut arriver sous forme de libellé libre ("Orange Money CI",
+  // "wave_ci"...) : on le normalise vers un code GeniusPay valide.
+  const rawProvider = (params.destination?.provider || "").trim();
+  const provider = GENIUSPAY_MOMO_METHODS.includes(
+    rawProvider.toLowerCase() as GeniusPayMomoMethod
+  )
+    ? rawProvider.toLowerCase()
+    : resolveMomoMethod(rawProvider) || "wave";
+
   const body: Record<string, any> = {
     wallet_id: params.walletId || getGeniusPayWalletId(),
     amount: Math.round(params.amount),
     currency: resolveApiCurrency(params.currency),
     recipient: {
-      phone: normalizePhone(params.recipient.phone),
-      ...(params.recipient.name ? { name: params.recipient.name } : {}),
+      phone,
+      // GeniusPay attend un nom de bénéficiaire : on retombe sur le numéro
+      // plutôt que d'omettre le champ (source de 422 en production).
+      name: params.recipient.name || phone,
+      ...(params.recipient.email ? { email: params.recipient.email } : {}),
     },
+    destination: {
+      type: params.destination?.type || "mobile_money",
+      provider,
+      account,
+    },
+    idempotency_key:
+      params.idempotencyKey ||
+      `${account}-${Math.round(params.amount)}-${Date.now()}`,
   };
   if (params.description) body.description = params.description.slice(0, 500);
   if (params.metadata) body.metadata = params.metadata;
+  return body;
+}
 
-  return geniusPayFetch<{ data: GeniusPayPayout } | GeniusPayPayout>(
-    "/payouts",
-    { method: "POST", body: JSON.stringify(body) }
+/**
+ * Appel Payout avec bascule automatique d'hôte : l'API Payout n'est pas encore
+ * exposée sur geniuspay.ci (404/405) alors qu'elle l'est sur pay.genius.ci.
+ * On essaie les hôtes dans l'ordre jusqu'à obtenir une réponse exploitable.
+ */
+async function payoutFetch<T = any>(
+  path: string,
+  init: GeniusPayFetchOptions
+): Promise<GeniusPayResponse<T>> {
+  const hosts = getGeniusPayPayoutBaseUrls();
+  let last: GeniusPayResponse<T> | null = null;
+
+  for (const baseUrl of hosts) {
+    const res = await geniusPayFetch<T>(path, { ...init, baseUrl });
+    last = res;
+    const endpointMissing =
+      res.status === 404 || res.status === 405 || res.status === 501;
+    const blocked = (res.data as any)?.blocked === "IMUNIFY360";
+    if (!endpointMissing && !blocked) return res;
+    console.warn(
+      `[v0] GENIUSPAY_PAYOUT: hôte ${baseUrl} indisponible (status ${res.status}), bascule sur l'hôte suivant.`
+    );
+  }
+  return last as GeniusPayResponse<T>;
+}
+
+export async function createPayout(params: CreatePayoutParams) {
+  const body = buildPayoutBody(params);
+  console.log(
+    "[v0] GENIUSPAY_CREATE_PAYOUT_BODY:",
+    JSON.stringify({ ...body, wallet_id: "***" })
   );
+  return payoutFetch<any>("/payouts", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function checkPayout(reference: string) {
-  return geniusPayFetch<{ data: GeniusPayPayout } | GeniusPayPayout>(
-    `/payouts/${encodeURIComponent(reference)}`,
-    { method: "GET" }
-  );
+  return payoutFetch<any>(`/payouts/${encodeURIComponent(reference)}`, {
+    method: "GET",
+  });
 }
 
 export async function listWallets() {
-  return geniusPayFetch<{ wallets: any[] } | any[]>("/wallets", {
+  return payoutFetch<{ wallets: any[] } | any[]>("/wallets", {
     method: "GET",
   });
 }
@@ -357,6 +471,23 @@ export function unwrap<T = any>(resp: any): T {
     return resp.data as T;
   }
   return resp as T;
+}
+
+/**
+ * Déballe un payout, dont la charge utile est DOUBLEMENT enveloppée :
+ * `{ success, data: { payout: { reference, status, ... } } }`.
+ *
+ * `unwrap()` seul ne retire qu'un niveau et renvoyait `{ payout: {...} }` :
+ * `reference` était donc toujours `undefined`, le payout était considéré comme
+ * refusé et le retrait passait en FAILED même quand GeniusPay l'avait accepté.
+ */
+export function unwrapPayout(resp: any): GeniusPayPayout | null {
+  const first = unwrap<any>(resp);
+  if (!first || typeof first !== "object") return null;
+  if (first.payout && typeof first.payout === "object") {
+    return first.payout as GeniusPayPayout;
+  }
+  return first as GeniusPayPayout;
 }
 
 /**

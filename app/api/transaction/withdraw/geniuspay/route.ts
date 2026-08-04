@@ -14,9 +14,9 @@ import {
 } from "@/lib/withdrawal-limits";
 import {
   createPayout,
-  unwrap,
+  unwrapPayout,
   normalizePhone,
-  type GeniusPayPayout,
+  GENIUSPAY_MIN_AMOUNT,
 } from "@/lib/geniuspay";
 import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 
@@ -91,6 +91,17 @@ export async function POST(req: NextRequest) {
     if (localAmount <= 0) {
       return NextResponse.json(
         { error: "Montant converti invalide" },
+        { status: 400 }
+      );
+    }
+    // Contrôle AVANT tout débit : GeniusPay refuse les montants < 200 (min API).
+    // Sans ce garde-fou, le wallet était débité puis remboursé, et l'utilisateur
+    // ne voyait qu'une transaction FAILED sans explication.
+    if (localAmount < GENIUSPAY_MIN_AMOUNT) {
+      return NextResponse.json(
+        {
+          error: `Montant trop faible : le minimum accepté est ${GENIUSPAY_MIN_AMOUNT} ${currency} (soit ${localAmount} ${currency} demandés).`,
+        },
         { status: 400 }
       );
     }
@@ -202,12 +213,21 @@ export async function POST(req: NextRequest) {
           amount: localAmount,
           currency,
           recipient: { phone: recipientPhone, name: recipientName || undefined },
+          // `destination` est OBLIGATOIRE côté API Payout (sinon 422).
+          destination: {
+            type: "mobile_money",
+            provider: details?.provider || details?.operatorId || "",
+            account: recipientPhone,
+          },
           description: `PimobiPay retrait ${result.transaction.reference}`,
+          // Idempotence basée sur notre référence : un retry réseau ne peut pas
+          // déclencher deux payouts pour la même transaction.
+          idempotencyKey: result.transaction.reference,
           metadata: { reference: result.transaction.reference, userId },
         });
 
         const rawGpResponse = gp.data as any;
-        const payout = unwrap<GeniusPayPayout>(gp.data);
+        const payout = unwrapPayout(gp.data);
         const gpStatus = (payout?.status || "").toLowerCase();
         // En Sandbox, `data.status` peut être `null` alors que la racine de la
         // réponse confirme le succès (`success: true`, `scenario: "success"`).
@@ -218,9 +238,20 @@ export async function POST(req: NextRequest) {
         const accepted =
           gp.ok &&
           !!payout?.reference &&
-          (["pending", "processing", "requested", "approved"].includes(
-            gpStatus
-          ) ||
+          ([
+            "pending",
+            "processing",
+            "requested",
+            "approved",
+            "created",
+            "initiated",
+            "queued",
+            "accepted",
+            "submitted",
+            "completed",
+            "success",
+            "successful",
+          ].includes(gpStatus) ||
             (!gpStatus && rootIndicatesSuccess));
 
         if (!accepted) {
@@ -242,10 +273,26 @@ export async function POST(req: NextRequest) {
               },
             }),
           ]);
+          // Message lisible : GeniusPay renvoie soit { error: { code, message } },
+          // soit { message, errors: { champ: [...] } } (422 VALIDATION_ERROR).
+          const errObj = (gp.data as any)?.error;
+          const fieldErrors = (gp.data as any)?.errors;
           const reason =
+            (typeof errObj === "object" ? errObj?.message : errObj) ||
             (gp.data as any)?.message ||
-            (gp.data as any)?.error ||
+            (fieldErrors && typeof fieldErrors === "object"
+              ? Object.entries(fieldErrors)
+                  .map(
+                    ([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`
+                  )
+                  .join(" | ")
+              : null) ||
             "Le retrait a été refusé par l'agrégateur GeniusPay.";
+          console.error(
+            "[v0] GENIUSPAY_PAYOUT_REJECTED:",
+            gp.status,
+            JSON.stringify(gp.data)
+          );
           return NextResponse.json({ error: reason }, { status: 400 });
         }
 
@@ -253,10 +300,11 @@ export async function POST(req: NextRequest) {
         await prisma.transaction.update({
           where: { id: result.transaction.id },
           data: {
-            externalId: payout.reference,
+            externalId: payout!.reference,
             metadata: {
               ...(result.transaction.metadata as any),
-              geniusPayReference: payout.reference,
+              geniusPayReference: payout!.reference,
+              geniusPayPayoutId: payout!.id || null,
             },
           },
         });
@@ -277,8 +325,17 @@ export async function POST(req: NextRequest) {
           ])
           .catch(() => {});
         console.error("[v0] GENIUSPAY_PAYOUT_ERROR:", payoutErr.message);
+        // Les erreurs de configuration (GENIUSPAY_WALLET_ID / clés absentes)
+        // sont remontées telles quelles : sinon le diagnostic est impossible.
+        const isConfigError = /GENIUSPAY_[A-Z_]+ non configuré/.test(
+          payoutErr.message || ""
+        );
         return NextResponse.json(
-          { error: "Erreur lors de l'envoi vers l'agrégateur GeniusPay." },
+          {
+            error: isConfigError
+              ? payoutErr.message
+              : "Erreur lors de l'envoi vers l'agrégateur GeniusPay. Votre solde a été recrédité.",
+          },
           { status: 502 }
         );
       }
