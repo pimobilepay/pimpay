@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, Users, UserCheck, UserX, Search, CheckCircle2, Clock, Eye, CircleDot, RefreshCw, ShieldCheck, ArrowLeft, Trash2, Wallet } from "lucide-react";
+import { Shield, Users, UserCheck, UserX, Search, CheckCircle2, Eye, RefreshCw, ShieldCheck, ArrowLeft, Trash2, Wallet, ChevronLeft, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type AdminUser = {
@@ -27,28 +27,89 @@ type AdminUser = {
   totalStaked?: number;
 };
 
+const PAGE_SIZE = 100;
+
+const ROLE_OPTIONS = [
+  { value: "ALL", label: "Tous roles" },
+  { value: "USER", label: "User" },
+  { value: "MERCHANT", label: "Merchant" },
+  { value: "AGENT", label: "Agent" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "BANK_ADMIN", label: "Bank admin" },
+  { value: "BUSINESS_ADMIN", label: "Business admin" },
+];
+
+type UserStats = {
+  total: number;
+  active: number;
+  banned: number;
+  kycVerified: number;
+  piUsers: number;
+  byRole: Record<string, number>;
+};
+
 export default function AdminUsersPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  // Requete effectivement envoyee au serveur (anti-rebond sur la saisie)
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [filterRole, setFilterRole] = useState("ALL");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchUsers = async () => {
+  // Pagination serveur : 100 utilisateurs par page
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [stats, setStats] = useState<UserStats>({
+    total: 0, active: 0, banned: 0, kycVerified: 0, piUsers: 0, byRole: {},
+  });
+
+  // Anti-rebond de la recherche : evite une requete par frappe
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query.trim()), 400);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  // Tout changement de filtre ramene a la premiere page
+  useEffect(() => { setPage(1); }, [debouncedQuery, filterStatus, filterRole]);
+
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/admin/users");
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(PAGE_SIZE),
+      });
+      if (debouncedQuery) params.set("q", debouncedQuery);
+      if (filterStatus !== "ALL") params.set("status", filterStatus);
+      if (filterRole !== "ALL") params.set("role", filterRole);
+
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Erreur serveur");
       const data = await res.json();
-      setUsers(Array.isArray(data) ? data : []);
+      setUsers(Array.isArray(data.users) ? data.users : []);
+      setTotal(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 1);
+      if (data.stats) setStats(data.stats);
     } catch {
       toast.error("Impossible de charger les utilisateurs");
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, debouncedQuery, filterStatus, filterRole]);
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleCopyId = async (userId: string) => {
+    try {
+      await navigator.clipboard.writeText(userId);
+      toast.success("ID utilisateur copie");
+    } catch {
+      toast.error("Copie impossible");
+    }
+  };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
     const confirmed = confirm(`Supprimer definitivement l'utilisateur ${userName} ?\n\nCette action est IRREVERSIBLE.`);
@@ -99,26 +160,11 @@ export default function AdminUsersPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    return users.filter(u => {
-      const matchQuery =
-        (u.name?.toLowerCase().includes(query.toLowerCase())) ||
-        (u.email?.toLowerCase().includes(query.toLowerCase())) ||
-        (u.username?.toLowerCase().includes(query.toLowerCase()));
-      const matchStatus = filterStatus === "ALL" || u.status === filterStatus;
-      return matchQuery && matchStatus;
-    });
-  }, [query, filterStatus, users]);
+  // Le filtrage, la recherche et la pagination sont faits cote serveur :
+  // `users` contient deja exactement la page a afficher.
+  const filteredUsers = users;
 
-  const stats = useMemo(() => ({
-    total: users.length,
-    active: users.filter(u => u.status === "ACTIVE").length,
-    banned: users.filter(u => u.status === "BANNED" || u.status === "SUSPENDED").length,
-    kycVerified: users.filter(u => u.kycStatus === "VERIFIED" || u.kycStatus === "APPROVED").length,
-    piUsers: users.filter(u => !!u.piUserId).length,
-  }), [users]);
-
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-blue-500/10 border-t-blue-500 rounded-full animate-spin mb-6" />
@@ -158,26 +204,53 @@ export default function AdminUsersPage() {
       </div>
 
       {/* FILTERS */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+      <div className="space-y-3">
+        <div className="relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
-            placeholder="Rechercher par nom, email ou username..."
+            placeholder="ID utilisateur, nom, email, username, telephone..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-11 pr-4 text-sm font-bold text-white outline-none focus:border-blue-500/50 placeholder:text-slate-600"
+            className="w-full h-14 bg-slate-900/50 border border-white/5 rounded-2xl pl-11 pr-12 text-sm font-bold text-white outline-none focus:border-blue-500/50 placeholder:text-slate-600"
           />
+          {loading && (
+            <Loader2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" />
+          )}
         </div>
-        <select
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="bg-slate-900/50 border border-white/5 rounded-2xl px-4 text-[10px] font-black uppercase tracking-widest text-white outline-none"
-        >
-          <option value="ALL">Tous</option>
-          <option value="ACTIVE">Actifs</option>
-          <option value="BANNED">Bannis</option>
-          <option value="FROZEN">Geles</option>
-          <option value="SUSPENDED">Suspendus</option>
-        </select>
+        <div className="flex gap-3">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            aria-label="Filtrer par statut"
+            className="flex-1 h-12 bg-slate-900/50 border border-white/5 rounded-2xl px-4 text-[10px] font-black uppercase tracking-widest text-white outline-none focus:border-blue-500/50"
+          >
+            <option value="ALL">Tous statuts</option>
+            <option value="ACTIVE">Actifs</option>
+            <option value="BANNED">Bannis</option>
+            <option value="FROZEN">Geles</option>
+            <option value="SUSPENDED">Suspendus</option>
+            <option value="PENDING">En attente</option>
+            <option value="MAINTENANCE">Maintenance</option>
+          </select>
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            aria-label="Filtrer par role"
+            className="flex-1 h-12 bg-slate-900/50 border border-white/5 rounded-2xl px-4 text-[10px] font-black uppercase tracking-widest text-white outline-none focus:border-blue-500/50"
+          >
+            {ROLE_OPTIONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.value === "ALL" ? r.label : `${r.label}${stats.byRole?.[r.value] ? ` (${stats.byRole[r.value]})` : ""}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Compteur de resultats filtres */}
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+          {total.toLocaleString()} resultat{total > 1 ? "s" : ""}
+          {totalPages > 1 ? ` // page ${page}/${totalPages}` : ""}
+        </p>
       </div>
 
       {/* USER LIST */}
@@ -244,6 +317,15 @@ export default function AdminUsersPage() {
                     <p className="text-[10px] text-slate-500 font-mono truncate">
                       {user.email || user.phone || "Pas de contact"} {user.country ? `// ${user.country}` : ""}
                     </p>
+                    {/* ID utilisateur : affiche et copiable pour la recherche */}
+                    <button
+                      onClick={() => handleCopyId(user.id)}
+                      className="flex items-center gap-1.5 mt-0.5 text-[9px] font-mono text-slate-600 hover:text-blue-400 transition-colors max-w-full"
+                      title="Copier l'ID utilisateur"
+                    >
+                      <Copy size={9} className="shrink-0" />
+                      <span className="truncate">{user.id}</span>
+                    </button>
                     <div className="flex items-center gap-3 mt-1.5">
                       <span className={`text-[9px] font-black font-mono uppercase ${
                         user.role === "BANK_ADMIN" ? "text-emerald-400" :

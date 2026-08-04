@@ -1,69 +1,116 @@
 export const dynamic = "force-dynamic";
 import { NextResponse, NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 
-// Définition d'un type pour la clarté, car Next.js vérifie les types de retour au build
 type ResponseData = NextResponse | Response;
+
+/** Valeurs autorisees, alignees sur les enums Prisma UserRole / UserStatus. */
+const ROLES = ["ADMIN", "USER", "MERCHANT", "AGENT", "BANK_ADMIN", "BUSINESS_ADMIN"] as const;
+const STATUSES = ["ACTIVE", "BANNED", "PENDING", "FROZEN", "SUSPENDED", "MAINTENANCE"] as const;
+
+const DEFAULT_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 500;
 
 export async function GET(req: NextRequest): Promise<ResponseData> {
   try {
     // 1. Authentification
-    // On utilise await car adminAuth doit vérifier le token/session
     const payload = await adminAuth(req);
-
-    // Si adminAuth échoue (retourne null ou une erreur 401/403 déjà formattée)
     if (!payload || payload instanceof NextResponse) {
-      return payload || NextResponse.json(
-        { error: "Accès non autorisé" }, 
-        { status: 401 }
-      );
+      return payload || NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
     }
 
-    // 2. Récupération Prisma
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        username: true,
-        avatar: true,
-        piUserId: true,
-        phone: true,
-        country: true,
-        status: true,
-        role: true,
-        createdAt: true,
-        kycStatus: true,
-        autoApprove: true,
-        lastLoginIp: true,
-        lastLoginAt: true,
-        maintenanceUntil: true,
-        wallets: {
-          select: {
-            balance: true,
-            currency: true
-          }
-        },
-        stakings: {
-          where: { isActive: true },
-          select: {
-            amount: true,
-            currency: true,
-            apy: true,
-            rewardsEarned: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    // 2. Parametres de pagination / filtres
+    const sp = req.nextUrl.searchParams;
 
-    // 3. Transformation des données
-    // On s'assure qu'on retourne un tableau d'objets simple
-    const formattedUsers = users.map(user => {
-      const piWallet = user.wallets?.find(w => w.currency.toUpperCase() === "PI");
+    const page = Math.max(1, Number.parseInt(sp.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(
+        1,
+        Number.parseInt(sp.get("pageSize") || String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE,
+      ),
+    );
+
+    const q = (sp.get("q") || "").trim();
+    const roleParam = (sp.get("role") || "ALL").toUpperCase();
+    const statusParam = (sp.get("status") || "ALL").toUpperCase();
+
+    const where: Prisma.UserWhereInput = {};
+
+    // Filtre par role (ignore si valeur inconnue ou "ALL")
+    if ((ROLES as readonly string[]).includes(roleParam)) {
+      where.role = roleParam as (typeof ROLES)[number];
+    }
+
+    // Filtre par statut
+    if ((STATUSES as readonly string[]).includes(statusParam)) {
+      where.status = statusParam as (typeof STATUSES)[number];
+    }
+
+    // Recherche : ID utilisateur (exact ou prefixe) + piUserId, nom, email,
+    // username et telephone. La recherche par ID est la plus discriminante,
+    // elle est donc placee en tete du OR.
+    if (q) {
+      where.OR = [
+        { id: q },
+        { id: { startsWith: q, mode: "insensitive" } },
+        { piUserId: q },
+        { name: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { username: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
+    // 3. Une page de resultats + total filtre + stats globales.
+    //    Les stats passent par count/groupBy cote base : on ne charge plus
+    //    toute la table en memoire juste pour afficher des compteurs.
+    const [total, users, byStatus, kycVerified, piUsers, grandTotal, byRole] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          username: true,
+          avatar: true,
+          piUserId: true,
+          phone: true,
+          country: true,
+          status: true,
+          role: true,
+          createdAt: true,
+          kycStatus: true,
+          autoApprove: true,
+          lastLoginIp: true,
+          lastLoginAt: true,
+          maintenanceUntil: true,
+          wallets: {
+            select: { balance: true, currency: true },
+          },
+          stakings: {
+            where: { isActive: true },
+            select: { amount: true, currency: true, apy: true, rewardsEarned: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.user.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.user.count({ where: { kycStatus: { in: ["VERIFIED", "APPROVED"] } } }),
+      prisma.user.count({ where: { piUserId: { not: null } } }),
+      prisma.user.count(),
+      prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
+    ]);
+
+    // 4. Transformation des données
+    const formattedUsers = users.map((user) => {
+      const piWallet = user.wallets?.find((w) => w.currency.toUpperCase() === "PI");
       const stakings = user.stakings || [];
-      // Total verrouillé (staking) par devise
       const stakedByCurrency: Record<string, number> = {};
       for (const s of stakings) {
         const cur = (s.currency || "PI").toUpperCase();
@@ -76,19 +123,33 @@ export async function GET(req: NextRequest): Promise<ResponseData> {
         piBalance: piWallet ? piWallet.balance : 0,
         stakings,
         stakedByCurrency,
-        totalStaked
+        totalStaked,
       };
     });
 
-    // CRUCIAL : Toujours retourner un objet NextResponse.json()
-    return NextResponse.json(formattedUsers);
+    const statusCount = (name: string) => byStatus.find((s) => s.status === name)?._count._all || 0;
 
+    return NextResponse.json({
+      users: formattedUsers,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      // Stats globales (non filtrees) pour les compteurs d'en-tete
+      stats: {
+        total: grandTotal,
+        active: statusCount("ACTIVE"),
+        banned: statusCount("BANNED") + statusCount("SUSPENDED"),
+        kycVerified,
+        piUsers,
+        byRole: byRole.reduce<Record<string, number>>((acc, r) => {
+          acc[r.role] = r._count._all;
+          return acc;
+        }, {}),
+      },
+    });
   } catch (error) {
-    console.error("BUILD_FIX_API_ADMIN_USERS_ERROR:", error);
-    // En cas d'erreur, on ne retourne jamais 'void' ou 'null', toujours une réponse
-    return NextResponse.json(
-      { error: "Erreur interne du serveur" },
-      { status: 500 }
-    );
+    console.error("API_ADMIN_USERS_ERROR:", error);
+    return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 });
   }
 }
