@@ -36,6 +36,7 @@ export async function GET(req: Request) {
           { name: { contains: q, mode: "insensitive" } },
           { email: { contains: q, mode: "insensitive" } },
           { phone: { contains: q, mode: "insensitive" } },
+          { referralCode: { equals: q, mode: "insensitive" } },
         ];
       }
     }
@@ -50,6 +51,7 @@ export async function GET(req: Request) {
         role: true,
         kycStatus: true,
         avatar: true,
+        referralCode: true,
       },
       orderBy: { createdAt: "desc" },
       take: ids.length ? ids.length : 25,

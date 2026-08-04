@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Gift, Loader2, AlertTriangle, Users, Trophy, Wallet, Settings2, Check, X, Power, Ban, Crown,
-  Network, Search, ChevronRight, UserX,
+  Network, Search, ChevronRight, UserX, KeyRound, RefreshCw,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { ReferralTree, type ReferralTopologyView } from "@/components/referral/ReferralTree";
@@ -40,6 +40,42 @@ export default function ReferralPage() {
   const [topology, setTopology] = useState<ReferralTopologyView | null>(null);
   const [topoLoading, setTopoLoading] = useState(false);
   const [topoError, setTopoError] = useState<string | null>(null);
+
+  /* ── Edition du code de parrainage ──────────────────────── */
+  const [editingCode, setEditingCode] = useState(false);
+  const [codeDraft, setCodeDraft] = useState("");
+  const [savingCode, setSavingCode] = useState(false);
+
+  const currentCode = topology?.root?.referralCode ?? selected?.referralCode ?? null;
+
+  async function saveReferralCode(payload: { code?: string; generate?: boolean }) {
+    if (!selected?.id) return;
+    setSavingCode(true);
+    try {
+      const res = await fetch(`/api/admin/users/${selected.id}/referral-code`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Modification refusée");
+
+      // Reflete le nouveau code sans recharger tout l'arbre
+      setTopology((prev) =>
+        prev ? { ...prev, root: { ...prev.root, referralCode: d.referralCode } } : prev
+      );
+      setSelected((prev) => (prev ? { ...prev, referralCode: d.referralCode } : prev));
+      setEditingCode(false);
+      setCodeDraft("");
+      toast.success(
+        d.unchanged ? "Code inchangé" : `Nouveau code de parrainage : ${d.referralCode}`
+      );
+    } catch (e: any) {
+      toast.error(e.message || "Erreur lors de la modification");
+    } finally {
+      setSavingCode(false);
+    }
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -105,6 +141,8 @@ export default function ReferralPage() {
     setSelected(user);
     setQuery("");
     setResults([]);
+    setEditingCode(false);
+    setCodeDraft("");
     setTab("topology");
   }
 
@@ -278,6 +316,76 @@ export default function ReferralPage() {
                     <X size={12} /> Effacer
                   </button>
                 </div>
+                {/* Code de parrainage : consultation / modification */}
+                <div className="pt-3 border-t border-white/5">
+                  {!editingCode ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Code de parrainage</p>
+                        <p className="mt-1 text-[13px] font-black font-mono text-blue-400 truncate">
+                          {currentCode || "— aucun —"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { setCodeDraft(currentCode || ""); setEditingCode(true); }}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-500/20 bg-blue-500/10 text-[9px] font-black uppercase tracking-wider text-blue-400 hover:bg-blue-500/20 transition-colors"
+                      >
+                        <KeyRound size={12} /> Modifier
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <label htmlFor="code-draft" className="block text-[9px] font-black uppercase tracking-widest text-slate-500">
+                        Nouveau code de parrainage
+                      </label>
+                      <input
+                        id="code-draft"
+                        value={codeDraft}
+                        onChange={(e) => setCodeDraft(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                          if (e.key === "Enter" && !savingCode) saveReferralCode({ code: codeDraft });
+                        }}
+                        placeholder="EX : PIMOBI2026"
+                        maxLength={20}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="r-input font-mono tracking-widest"
+                      />
+                      <p className="text-[9px] font-bold text-slate-500 leading-relaxed">
+                        4 à 20 caractères : lettres, chiffres, tiret, underscore. Les anciens liens de
+                        parrainage cesseront de fonctionner et le membre sera notifié.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => saveReferralCode({ code: codeDraft })}
+                          disabled={savingCode || codeDraft.trim().length < 4}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-600 text-[9px] font-black uppercase tracking-wider text-white disabled:opacity-40 hover:bg-blue-500 transition-colors"
+                        >
+                          {savingCode ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                          Enregistrer
+                        </button>
+                        <button
+                          onClick={() => saveReferralCode({ generate: true })}
+                          disabled={savingCode}
+                          title="Générer un code aléatoire"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-wider text-slate-300 disabled:opacity-40 hover:text-white transition-colors"
+                        >
+                          <RefreshCw size={12} /> Générer
+                        </button>
+                        <button
+                          onClick={() => { setEditingCode(false); setCodeDraft(""); }}
+                          disabled={savingCode}
+                          aria-label="Annuler la modification"
+                          className="flex items-center justify-center px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 text-slate-400 disabled:opacity-40 hover:text-white transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/5">
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Profondeur</span>
                   <div className="flex items-center gap-1 rounded-xl border border-white/5 bg-slate-950/60 p-1" role="group" aria-label="Profondeur de l'arbre">
