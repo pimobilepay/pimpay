@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react"; import { useRouter } from "next/navigation"; import { motion, AnimatePresence } from "framer-motion"; import { ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin, ShieldCheck, Zap, Loader2, RefreshCcw, ChevronDown, CheckCircle2, Shield, Search, Lock, Calendar, User } from "lucide-react"; import { countries, searchCountries, type Country, type MobileOperator } from "@/lib/country-data"; import { resolveEndpoint } from "@/lib/aggregator-client"; import { BottomNav } from "@/components/bottom-nav"; import SideMenu from "@/components/SideMenu"; import { toast } from "sonner"; import { useLanguage } from "@/context/LanguageContext"; import { usePiPrice } from "@/hooks/usePiPrice"; import "flag-icons/css/flag-icons.min.css";
+import { useState, useEffect, useMemo } from "react"; import { useRouter } from "next/navigation"; import { motion, AnimatePresence } from "framer-motion"; import { ArrowLeft, CircleDot, Smartphone, CreditCard, Bitcoin, ShieldCheck, Zap, Loader2, RefreshCcw, ChevronDown, CheckCircle2, Shield, Search, Lock, Calendar, User } from "lucide-react"; import { countries, searchCountries, type Country, type MobileOperator } from "@/lib/country-data"; import { resolveEndpoint } from "@/lib/aggregator-client"; import { BottomNav } from "@/components/bottom-nav"; import SideMenu from "@/components/SideMenu"; import { toast } from "sonner"; import { useLanguage } from "@/context/LanguageContext"; import { usePiPrice } from "@/hooks/usePiPrice"; import { useFees, computeFee, feeLabelWithRate } from "@/hooks/useFees"; import "flag-icons/css/flag-icons.min.css";
 
 // Card type detection based on BIN (Bank Identification Number)
 type CardType = "visa" | "mastercard" | "unknown";
@@ -72,6 +72,9 @@ export default function DepositPage() {
   
   // Pi Network price (via hook interne /api/pi-price)
   const { price: piPrice, loading: isPriceLoading } = usePiPrice();
+
+  // Taux de frais réellement appliqués par le serveur (SystemConfig)
+  const { rates: feeRates } = useFees();
   
   // Card deposit state
   const [cardNumber, setCardNumber] = useState("");
@@ -93,19 +96,23 @@ export default function DepositPage() {
   const [selectedCountry, setSelectedCountry] = useState<Country>(countries.find((c) => c.code === "CG") || countries[0]); const [selectedOperator, setSelectedOperator] = useState<MobileOperator | null>(selectedCountry.operators[0] || null); const filteredCountries = useMemo(() => allCountries.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.code.toLowerCase().includes(searchQuery.toLowerCase())), [allCountries, searchQuery]);
   const feesCalculation = useMemo(() => {
     const val = parseFloat(amount) || 0;
-    // Frais USD (pour Mobile Money et Card)
-    const feeUsdRaw = val * 0.01;
-    // Frais Pi (pour Crypto — le montant saisi est en Pi)
-    const feePiRaw = val * 0.01;
+    // Frais Mobile Money (USD) — taux serveur `depositMobileFee`
+    const feeUsdRaw = computeFee(val, feeRates.depositMobileFee);
+    // Frais Carte (USD) — taux serveur `depositCardFee`
+    const feeCardRaw = computeFee(val, feeRates.depositCardFee);
+    // Frais Crypto (Pi) — taux serveur `depositCryptoFee`, montant saisi en Pi
+    const feePiRaw = val * feeRates.depositCryptoFee;
     const usdEquivalent = val > 0 && piPrice > 0 ? (val * piPrice).toFixed(2) : "0";
     return {
-      fee: feeUsdRaw.toFixed(2),           // USD fee (mobile/card)
-      feePi: feePiRaw.toFixed(7),          // Pi fee (crypto)
-      total: (val + feeUsdRaw).toFixed(2), // USD total
-      piEquivalent: val.toFixed(7),        // Pi amount (=amount saisi en crypto)
-      usdEquivalent,                       // USD valeur du Pi saisi
+      fee: feeUsdRaw.toFixed(2),               // USD fee (mobile money)
+      feeCard: feeCardRaw.toFixed(2),          // USD fee (carte)
+      feePi: feePiRaw.toFixed(7),              // Pi fee (crypto)
+      total: (val + feeUsdRaw).toFixed(2),     // USD total
+      netCard: (val - feeCardRaw).toFixed(2),  // USD net carte
+      piEquivalent: val.toFixed(7),            // Pi amount (=amount saisi en crypto)
+      usdEquivalent,                           // USD valeur du Pi saisi
     };
-  }, [amount, piPrice]);
+  }, [amount, piPrice, feeRates]);
   useEffect(() => { setMounted(true); }, []);
 
   // [FIX] Filet de sécurité webhook manquant : quand GeniusPay redirige
@@ -392,7 +399,7 @@ export default function DepositPage() {
                       <span className="text-white">$ {parseFloat(amount).toLocaleString()} USD</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>{t("deposit.flow.pimpayFee1")}</span>
+                      <span>{feeLabelWithRate(t("deposit.flow.pimpayFee1"), feeRates.depositMobileFee)}</span>
                       <span>- $ {feesCalculation.fee}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
@@ -416,9 +423,9 @@ export default function DepositPage() {
             {parseFloat(amount) > 0 && piPrice > 0 && (
               <div className="bg-black/40 p-5 rounded-xl border border-white/5 space-y-3 text-left">
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>{t("deposit.flow.amountEntered")}</span><span className="text-white">{parseFloat(amount).toLocaleString()} Pi</span></div>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500"><span>{t("deposit.flow.pimpayFee1")}</span><span>- {feesCalculation.feePi} Pi</span></div>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-rose-500"><span>{feeLabelWithRate(t("deposit.flow.pimpayFee1"), feeRates.depositCryptoFee)}</span><span>- {feesCalculation.feePi} Pi</span></div>
                 <div className="border-t border-white/5 pt-3 space-y-2">
-                  <div className="flex justify-between text-[12px] font-black uppercase"><span className="text-emerald-500">{t("deposit.flow.youReceive")}</span><span className="text-emerald-400">{(parseFloat(amount) * 0.99).toFixed(7)} Pi</span></div>
+                  <div className="flex justify-between text-[12px] font-black uppercase"><span className="text-emerald-500">{t("deposit.flow.youReceive")}</span><span className="text-emerald-400">{(parseFloat(amount) - parseFloat(feesCalculation.feePi)).toFixed(7)} Pi</span></div>
                   <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>{t("deposit.flow.usdEquivalent")}</span><span className="text-slate-400">≈ ${((parseFloat(amount) * 0.99) * piPrice).toFixed(2)}</span></div>
                 </div>
               </div>
@@ -547,13 +554,13 @@ export default function DepositPage() {
                     <span className="text-white">$ {parseFloat(amount).toLocaleString()} USD</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                    <span>{t("deposit.flow.pimpayFee15")}</span>
-                    <span>- $ {(parseFloat(amount) * 0.015).toFixed(2)}</span>
+                    <span>{feeLabelWithRate(t("deposit.flow.pimpayFee15"), feeRates.depositCardFee)}</span>
+                    <span>- $ {feesCalculation.feeCard}</span>
                   </div>
                   <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                     <div>
                       <span className="text-[9px] font-black text-emerald-500 uppercase block">{t("deposit.flow.youReceive")}</span>
-                      <span className="text-2xl font-black text-white">$ {(parseFloat(amount) * 0.985).toFixed(2)}</span>
+                      <span className="text-2xl font-black text-white">$ {feesCalculation.netCard}</span>
                     </div>
                     <span className="text-sm font-black text-slate-400">USD</span>
                   </div>

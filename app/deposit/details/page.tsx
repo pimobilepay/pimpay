@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
+import { useFees, computeFee } from "@/hooks/useFees";
 import { toast } from "sonner";
 
 const PI_GCV_PRICE = 314159;
@@ -35,6 +36,7 @@ function DetailsContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { rates: feeRates } = useFees();
   
  const fetchTx = useCallback(async () => {
   if (!ref && !txId) {
@@ -73,7 +75,9 @@ function DetailsContent() {
   // Le montant stocké est en USD. On convertit en Pi si nécessaire.
   const amountUSD = transaction?.amount || 0;
   const amountPI = amountUSD / PI_GCV_PRICE;
-  const feeUSD = transaction?.fee || (amountUSD * 0.01);
+  // Le frais autoritaire est celui enregistré par le serveur ; en repli on
+  // applique le taux central de dépôt Mobile Money (jamais un taux figé).
+  const feeUSD = transaction?.fee || computeFee(amountUSD, feeRates.depositMobileFee);
   const feePI = feeUSD / PI_GCV_PRICE;
 
   const isSuccess = transaction?.status === "SUCCESS";

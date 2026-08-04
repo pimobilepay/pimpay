@@ -16,6 +16,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { calculateExchangeWithFee, FIAT_RATES } from "@/lib/exchange";
 import { usePiPrice } from "@/hooks/usePiPrice";
+import { useFees, computeFee, formatRatePercent } from "@/hooks/useFees";
 import { formatBalance, formatCryptoBalance } from "@/lib/formatters";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
@@ -32,6 +33,8 @@ export default function WithdrawPage() {
   const router = useRouter();
   const { t } = useLanguage();
   const { price: PI_CONSENSUS_USD, loading: isPiPriceLoading } = usePiPrice();
+  // Taux de frais centralisés (SystemConfig) — source unique via /api/fees
+  const { rates: feeRates } = useFees();
   const [mounted, setMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"mobile" | "bank" | "crypto">("mobile");
@@ -278,8 +281,16 @@ export default function WithdrawPage() {
     ? (currentWallet.currency === "PI" ? amountNum * livePiPrice : amountNum)
     : 0;
 
-  // Frais 2% en USD
-  const feesUsd = marketValueUsd * 0.02;
+  // Taux de frais réellement appliqué par le serveur, selon la méthode choisie.
+  const withdrawFeeRate =
+    activeTab === "bank"
+      ? feeRates.withdrawBankFee
+      : activeTab === "crypto"
+        ? feeRates.withdrawFee
+        : feeRates.withdrawMobileFee;
+
+  // Frais en USD
+  const feesUsd = computeFee(marketValueUsd, withdrawFeeRate);
 
   // Valeur nette en USD après frais
   const netUsd = marketValueUsd - feesUsd;
@@ -630,7 +641,7 @@ export default function WithdrawPage() {
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>{"PIMOBIPAY Fees (2%)"}</span>
+                      <span>{`PIMOBIPAY Fees (${formatRatePercent(withdrawFeeRate)}%)`}</span>
                       <span>- $ {formatValue(feesUsd)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
@@ -831,7 +842,7 @@ export default function WithdrawPage() {
                       <span className="text-white">$ {formatValue(marketValueUsd)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>{"PIMOBIPAY Fees (2%)"}</span>
+                      <span>{`PIMOBIPAY Fees (${formatRatePercent(withdrawFeeRate)}%)`}</span>
                       <span>- $ {formatValue(feesUsd)}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
@@ -1164,8 +1175,8 @@ export default function WithdrawPage() {
                       <span className="text-white">{parseFloat(cryptoAmount).toFixed(CRYPTO_ASSETS[selectedCrypto]?.decimals > 6 ? 6 : CRYPTO_ASSETS[selectedCrypto]?.decimals || 4)} {selectedCrypto}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-rose-500">
-                      <span>Frais reseau (0.5%)</span>
-                      <span>- {(parseFloat(cryptoAmount) * 0.005).toFixed(CRYPTO_ASSETS[selectedCrypto]?.decimals > 6 ? 6 : CRYPTO_ASSETS[selectedCrypto]?.decimals || 4)} {selectedCrypto}</span>
+                      <span>{`Frais reseau (${formatRatePercent(feeRates.withdrawFee)}%)`}</span>
+                      <span>- {(parseFloat(cryptoAmount) * feeRates.withdrawFee).toFixed(CRYPTO_ASSETS[selectedCrypto]?.decimals > 6 ? 6 : CRYPTO_ASSETS[selectedCrypto]?.decimals || 4)} {selectedCrypto}</span>
                     </div>
                     <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                       <div>

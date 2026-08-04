@@ -25,6 +25,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { toast } from "sonner";
 import { getBlockchainTxUrl, getExplorerName, hasBlockchainExplorer } from "@/lib/blockchain-explorer";
 import { usePiPrice } from "@/hooks/usePiPrice";
+import { useFees, computeFee } from "@/hooks/useFees";
 import { toUsd, DEFAULT_CRYPTO_PRICES, FIAT_RATES } from "@/lib/exchange";
 
 function ReceiptContent() {
@@ -42,6 +43,8 @@ function ReceiptContent() {
   const [loading, setLoading] = useState(true);
   // Prix du Pi (GCV / marché) défini par l'admin — source unique via /api/pi-price
   const { price: piPrice } = usePiPrice();
+  // Taux de frais centralisés (SystemConfig) — source unique via /api/fees
+  const { rates: feeRates } = useFees();
 
   const fetchTx = useCallback(async () => {
     if (!ref) {
@@ -93,7 +96,11 @@ function ReceiptContent() {
     PI: piPrice,
   });
 
-  const feeAmount = transaction?.fee || (amount * 0.01);
+  // Taux central : un transfert fiat (XAF, CDF, EUR...) et un transfert crypto
+  // n'ont pas le même taux côté serveur.
+  const isFiatTransfer = Object.prototype.hasOwnProperty.call(FIAT_RATES, currency);
+  const transferFeeRate = isFiatTransfer ? feeRates.fiatTransferFee : feeRates.transferFee;
+  const feeAmount = transaction?.fee || computeFee(amount, transferFeeRate);
   const displayRef = transaction?.reference || ref || "PIMPAY-TR";
   const isSuccess = transaction?.status === "SUCCESS" || !transaction?.status;
   const isPending = transaction?.status === "PENDING";

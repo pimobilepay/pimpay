@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
+import { useFees, computeFee } from "@/hooks/useFees";
 import { toast } from "sonner";
 
 const PI_GCV_PRICE = 314159;
@@ -35,6 +36,7 @@ function DetailsContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { rates: feeRates } = useFees();
   // Prix Pi configuré par l'admin (Réglages → Politique Monétaire : GCV ou Marché)
   const [piPrice, setPiPrice] = useState<number>(PI_GCV_PRICE);
 
@@ -113,7 +115,8 @@ function DetailsContent() {
   
   const rateToUSD = CURRENCY_RATES[currency] || 1;
   const amountUSD = amount * rateToUSD;
-  const fee = transaction?.fee || (amount * 0.01); // 1% par défaut si non spécifié
+  // Repli sur le taux central de dépôt si le frais n'est pas stocké.
+  const fee = transaction?.fee || computeFee(amount, feeRates.depositMobileFee);
 
   // Use the transaction's reference, falling back to query params
   const displayRef = transaction?.reference || ref || txId || "transaction";

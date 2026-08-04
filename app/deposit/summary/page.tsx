@@ -8,6 +8,7 @@ import { PiButton } from "@/components/PiButton"; // Importation du composant Pi
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePiPrice } from "@/hooks/usePiPrice";
+import { useFees, computeFee } from "@/hooks/useFees";
 
 function SummaryContent() {
   const searchParams = useSearchParams();
@@ -15,6 +16,7 @@ function SummaryContent() {
   const { t } = useLanguage();
   // Prix Pi configuré par l'admin (Réglages → Politique Monétaire), via l'endpoint /api/pi-price
   const { price: piPrice } = usePiPrice();
+  const { rates: feeRates } = useFees();
 
   const ref = searchParams.get("ref");
   const method = searchParams.get("method") || "mobile";
@@ -155,7 +157,9 @@ function SummaryContent() {
   const rawAmount = transaction?.amount || parseFloat(amountParam);
   // Le montant est déjà en PI pour les dépôts crypto, pas de double conversion
   const piEquivalent = isPi ? rawAmount : rawAmount / piPrice;
-  const fees = transaction?.fee || (rawAmount * 0.01);
+  // Taux réellement appliqué par le serveur selon la méthode de dépôt.
+  const depositFeeRate = isPi ? feeRates.depositCryptoFee : feeRates.depositMobileFee;
+  const fees = transaction?.fee || computeFee(rawAmount, depositFeeRate);
   const feePi = isPi ? fees : fees / piPrice;
 
   // Devise locale du dépôt (ex : XAF pour le Congo). Pour le Mobile Money, le
@@ -166,7 +170,7 @@ function SummaryContent() {
     transaction?.currency ||
     "USD";
   // Frais affichés dans la devise locale pour rester cohérent avec le montant.
-  const localFee = rawAmount * 0.01;
+  const localFee = computeFee(rawAmount, depositFeeRate);
   const fmt = (n: number) =>
     n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
