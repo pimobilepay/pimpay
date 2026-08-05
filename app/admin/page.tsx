@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
   BarChart3, ArrowLeft, History, Eye, Bell, Crosshair,
   ShieldAlert, UserCog, Vault, BookOpen, Snowflake, Gavel, Gift,
-  Megaphone, SlidersHorizontal
+  Megaphone, SlidersHorizontal, Rocket
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -148,6 +148,7 @@ export default function AdminDashboard() {
             { label: "Litiges", desc: "Chargebacks", icon: <Gavel size={20} />, path: "/admin/disputes", color: "amber" },
             { label: "Change", desc: "Paires & liquidite", icon: <ArrowRightLeft size={20} />, path: "/admin/exchange", color: "teal" },
             { label: "Parrainage", desc: "Affiliation", icon: <Gift size={20} />, path: "/admin/referral", color: "purple" },
+            { label: "Airdrop", desc: "Bonus & roles", icon: <Rocket size={20} />, path: "/admin/airdrop", color: "amber" },
             { label: "RBAC", desc: "Roles & audit", icon: <UserCog size={20} />, path: "/admin/rbac", color: "indigo" },
           ].map((item) => {
             const colorMap: Record<string, string> = {
