@@ -12,6 +12,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import {
   buildRequestUrl,
   formatRequestAmount,
+  normalizeCurrency,
   statusMeta,
   timeLeft,
   type PaymentRequestStatus,
@@ -122,8 +123,12 @@ export default function PayRequestPage({
       }
 
       toast.success(t("mpay.request.paySuccess"));
+      // La devise reglee (XAF, EUR, PI, SDA...) doit suivre jusqu'au recu :
+      // l'API la renvoie, on la propage plutot que de laisser la page de
+      // succes retomber sur "Pi".
+      const paidCurrency = normalizeCurrency(data.currency ?? request.currency);
       router.push(
-        `/mpay/success?amount=${data.amount}&to=@${data.requesterUsername}&txid=${data.reference}`
+        `/mpay/success?amount=${data.amount}&currency=${encodeURIComponent(paidCurrency)}&to=@${data.requesterUsername}&txid=${data.reference}`
       );
     } catch {
       toast.error(t("transfer.serverConnectionError"));

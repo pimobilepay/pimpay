@@ -28,11 +28,44 @@ export const REQUEST_CURRENCIES = [
   "MGA",
 ] as const;
 
-const FIAT = ["XAF", "XOF", "USD", "EUR", "CDF", "NGN", "AED", "CNY", "VND", "MGA"];
+/**
+ * Devises fiat gerees par la plateforme (alignees sur getWalletType()).
+ * Toute devise absente de cette liste est traitee comme un actif crypto
+ * (PI, SDA, BTC, ETH, USDT, ...) et affichee avec jusqu'a 8 decimales.
+ */
+export const FIAT_CURRENCIES = [
+  "XAF",
+  "XOF",
+  "USD",
+  "EUR",
+  "CDF",
+  "NGN",
+  "AED",
+  "CNY",
+  "VND",
+  "MGA",
+] as const;
+
+/** Vrai si la devise est un fiat (2 decimales) et non un actif crypto. */
+export function isFiatCurrency(currency?: string | null): boolean {
+  return FIAT_CURRENCIES.includes(
+    String(currency || "").toUpperCase() as (typeof FIAT_CURRENCIES)[number]
+  );
+}
+
+/**
+ * Normalise un code devise venant d'une URL, d'une API ou de la base.
+ * Ne force JAMAIS "PI" silencieusement quand une devise est fournie :
+ * c'est ce repli implicite qui affichait "Pi" sur un reglement en XAF.
+ */
+export function normalizeCurrency(currency?: string | null, fallback = "PI"): string {
+  const code = String(currency || "").trim().toUpperCase();
+  return code || fallback;
+}
 
 /** Formate un montant : 2 decimales pour le fiat, jusqu'a 8 pour le crypto. */
 export function formatRequestAmount(amount: number, currency: string): string {
-  const maxDecimals = FIAT.includes(currency.toUpperCase()) ? 2 : 8;
+  const maxDecimals = isFiatCurrency(currency) ? 2 : 8;
   return amount.toLocaleString("fr-FR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: maxDecimals,

@@ -20,7 +20,12 @@ import { LimitsBanner } from "@/components/limits-banner";
 import { PaymentServices } from "@/components/mpay/payment-services";
 import { useLanguage } from "@/context/LanguageContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { parsePaymentRequestCode } from "@/lib/payment-request";
+import {
+  formatRequestAmount,
+  isFiatCurrency,
+  normalizeCurrency,
+  parsePaymentRequestCode,
+} from "@/lib/payment-request";
 import { parseUserQRValue } from "@/lib/agent-qr";
 
 // Types for Map of Pi merchants
@@ -502,7 +507,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           const status = data.data?.status || "BROADCASTED";
           const blockchainHash = data.data?.blockchainTxHash || "";
           toast.success(data.message || t("mpay.piTransferSuccess"));
-          router.push(`/mpay/success?amount=${amount}&to=${merchantId.slice(0, 8)}...${merchantId.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
+          router.push(`/mpay/success?amount=${amount}&currency=PI&to=${merchantId.slice(0, 8)}...${merchantId.slice(-4)}&txid=${txRef}&external=true&status=${status}&hash=${blockchainHash}`);
         } else {
           if (isKycPolicyError(data)) {
             setKycModal({ open: true, message: data.error, code: data.code });
@@ -529,7 +534,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
         
         if (data.success) {
           toast.success(t("mpay.mpayConfirmed"));
-          router.push(`/mpay/success?amount=${amount}&to=${merchantId}&txid=${data.data?.txid || data.txid || "CONFIRMED"}`);
+          router.push(`/mpay/success?amount=${amount}&currency=${encodeURIComponent(normalizeCurrency(data.data?.currency ?? data.currency))}&to=${merchantId}&txid=${data.data?.txid || data.txid || "CONFIRMED"}`);
         } else {
           if (isKycPolicyError(data)) {
             setKycModal({ open: true, message: data.error || data.message, code: data.code });

@@ -5,6 +5,11 @@ import { CheckCircle2, Home, Share2, Copy, Check, ExternalLink, ShieldCheck, Zap
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
+import {
+  formatRequestAmount,
+  isFiatCurrency,
+  normalizeCurrency,
+} from "@/lib/payment-request";
 
 export default function PaymentSuccess() {
   const router = useRouter();
@@ -13,7 +18,15 @@ export default function PaymentSuccess() {
   const [copied, setCopied] = useState(false);
   const [showContent, setShowContent] = useState(false);
 
-  const amount = params.get("amount") || "0";
+  // La devise est portee par l'URL : sans elle, un reglement en XAF (ou tout
+  // autre actif) s'affichait en "Pi" car le libelle etait code en dur.
+  const currency = normalizeCurrency(params.get("currency"));
+  const isFiat = isFiatCurrency(currency);
+  const rawAmount = params.get("amount") || "0";
+  const parsedAmount = Number(String(rawAmount).replace(",", "."));
+  const amount = Number.isFinite(parsedAmount)
+    ? formatRequestAmount(parsedAmount, currency)
+    : rawAmount;
   const to = params.get("to") || t("mpay.sendFlow.pimpayUser");
   const txid = params.get("txid") || "TX-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const isExternal = params.get("external") === "true";
@@ -121,7 +134,7 @@ export default function PaymentSuccess() {
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t("mpay.successPage.amountSent")}</p>
                 <div className="flex items-baseline justify-center gap-2">
                   <span className="text-5xl font-black tracking-tighter">{amount}</span>
-                  <span className="text-xl font-black text-blue-500">Pi</span>
+                  <span className="text-xl font-black text-blue-500">{currency}</span>
                 </div>
               </div>
 
@@ -175,7 +188,9 @@ export default function PaymentSuccess() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.network")}</span>
-                    <span className="text-xs font-bold text-slate-300">{t("mpay.successPage.piMainnet")}</span>
+                    <span className="text-xs font-bold text-slate-300">
+                      {isFiat ? "PIMOBIPAY" : t("mpay.successPage.piMainnet")}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t("mpay.successPage.confirmations")}</span>
@@ -227,19 +242,24 @@ export default function PaymentSuccess() {
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-              <button className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95">
+              <button
+                className={`flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95 ${isFiat ? "col-span-2" : ""}`}
+              >
                 <Share2 size={14} className="text-blue-500" />
                 {t("mpay.successPage.share")}
               </button>
-              <a 
-                href={explorerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95"
-              >
-                <ExternalLink size={14} className={isExternal ? "text-amber-500" : "text-blue-500"} />
-                {isExternal ? t("mpay.successPage.piExplorer") : t("mpay.successPage.explorer")}
-              </a>
+              {/* L'explorateur Pi n'a aucun sens pour un reglement fiat (XAF, EUR...) */}
+              {!isFiat && (
+                <a
+                  href={explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/[0.06] transition-all active:scale-95"
+                >
+                  <ExternalLink size={14} className={isExternal ? "text-amber-500" : "text-blue-500"} />
+                  {isExternal ? t("mpay.successPage.piExplorer") : t("mpay.successPage.explorer")}
+                </a>
+              )}
             </div>
 
             {/* Primary CTA */}
