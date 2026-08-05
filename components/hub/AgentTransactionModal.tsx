@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   X,
   Phone,
+  Mail,
   UserCheck,
   Clock,
   ArrowDownToLine,
@@ -17,12 +18,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { displayFullName } from "@/lib/agent-qr";
 
 export interface AgentCustomer {
   id: string;
   name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   username?: string | null;
   phone?: string | null;
+  email?: string | null;
   avatar?: string | null;
   kycStatus?: string | null;
   wallets?: { currency: string; balance: number }[];
@@ -54,7 +59,8 @@ export function AgentTransactionModal({
   const [reference, setReference] = useState<string | null>(null);
 
   const verified = customer.kycStatus === "VERIFIED" || customer.kycStatus === "APPROVED";
-  const initial = (customer.name || customer.username || "?").charAt(0).toUpperCase();
+  const fullName = displayFullName(customer, "Client");
+  const initial = fullName.charAt(0).toUpperCase();
 
   const walletBalance = useMemo(() => {
     const w = customer.wallets?.find((x) => x.currency === currency);
@@ -182,17 +188,21 @@ export function AgentTransactionModal({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-white font-bold truncate">
-                  {customer.name || customer.username || "Client"}
-                </p>
-                {customer.username && customer.name && (
+                <p className="text-white font-bold truncate">{fullName}</p>
+                {customer.username && (
                   <p className="text-xs text-slate-500 truncate">@{customer.username}</p>
                 )}
-                <div className="flex items-center gap-3 mt-1 text-sm text-slate-400">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-slate-400">
                   {customer.phone && (
                     <span className="flex items-center gap-1">
                       <Phone className="h-3 w-3" />
                       {customer.phone}
+                    </span>
+                  )}
+                  {customer.email && (
+                    <span className="flex items-center gap-1 min-w-0">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{customer.email}</span>
                     </span>
                   )}
                   {verified ? (

@@ -1,15 +1,48 @@
 "use client";
 
 import { QRCodeSVG } from "qrcode.react";
-import { X, Copy, Check, ShieldCheck } from "lucide-react";
+import { X, Copy, Check, ShieldCheck, Mail, Phone, User as UserIcon, BadgeCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { buildUserQRValue } from "@/lib/agent-qr";
+import { buildUserQRValue, displayFullName } from "@/lib/agent-qr";
 import { useLanguage } from "@/context/LanguageContext";
 
+interface PaymentQRUser {
+  id: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  phone?: string;
+  email?: string;
+  role?: string;
+  agentId?: string;
+}
+
 interface PaymentQRModalProps {
-  user: { id: string; name?: string; username?: string };
+  user: PaymentQRUser;
   onClose: () => void;
+}
+
+function Row({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string;
+}) {
+  if (!value) return null;
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-none">
+      <span className="text-blue-400 shrink-0">{icon}</span>
+      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 w-20 shrink-0">
+        {label}
+      </span>
+      <span className="text-xs font-semibold text-white truncate">{value}</span>
+    </div>
+  );
 }
 
 export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
@@ -17,6 +50,8 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
   const [copied, setCopied] = useState(false);
   const qrValue = buildUserQRValue(user);
   const displayId = user.username ? `@${user.username}` : user.id;
+  const fullName = displayFullName(user, displayId);
+  const isAgent = user.role === "AGENT" || user.role === "ADMIN" || Boolean(user.agentId);
 
   const copyId = () => {
     navigator.clipboard.writeText(user.username || user.id);
@@ -49,12 +84,12 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
         {/* QR */}
         <div className="flex flex-col items-center gap-5">
           <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-blue-500/20">
-            <QRCodeSVG value={qrValue} size={210} level="H" includeMargin />
+            <QRCodeSVG value={qrValue} size={210} level="M" includeMargin />
           </div>
 
           {/* Nom + identifiant */}
           <div className="text-center w-full">
-            {user.name && <p className="text-lg font-bold text-white text-balance">{user.name}</p>}
+            <p className="text-lg font-bold text-white text-balance">{fullName}</p>
             <button
               onClick={copyId}
               className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-mono font-bold text-blue-400 hover:bg-white/10 transition-all active:scale-95"
@@ -62,6 +97,25 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
               {copied ? <Check size={14} /> : <Copy size={14} />}
               {displayId}
             </button>
+          </div>
+
+          {/* Informations transmises a l'agent lors du scan */}
+          <div className="w-full rounded-[28px] bg-white/5 border border-white/10 px-4 py-2">
+            <Row
+              icon={<UserIcon size={14} />}
+              label="Prenom"
+              value={user.firstName || undefined}
+            />
+            <Row icon={<UserIcon size={14} />} label="Nom" value={user.lastName || undefined} />
+            <Row icon={<Phone size={14} />} label="Tel." value={user.phone || undefined} />
+            <Row icon={<Mail size={14} />} label="E-mail" value={user.email || undefined} />
+            {isAgent && (
+              <Row
+                icon={<BadgeCheck size={14} />}
+                label="Agent"
+                value={user.agentId || user.role || undefined}
+              />
+            )}
           </div>
 
           {/* Description */}

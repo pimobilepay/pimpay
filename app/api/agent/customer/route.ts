@@ -47,6 +47,10 @@ export async function GET(req: NextRequest) {
           country: true,
           avatar: true,
           kycStatus: true,
+          role: true,
+          agentId: true,
+          agentRole: true,
+          status: true,
           wallets: {
             select: { currency: true, balance: true }
           }
@@ -78,10 +82,15 @@ export async function GET(req: NextRequest) {
           { status: 'ACTIVE' },
           {
             OR: [
+              { username: { equals: query, mode: 'insensitive' } },
               { username: { contains: query, mode: 'insensitive' } },
               { phone: { contains: query } },
               { email: { contains: query, mode: 'insensitive' } },
-              { name: { contains: query, mode: 'insensitive' } }
+              { name: { contains: query, mode: 'insensitive' } },
+              { firstName: { contains: query, mode: 'insensitive' } },
+              { lastName: { contains: query, mode: 'insensitive' } },
+              { referralCode: { equals: query, mode: 'insensitive' } },
+              { agentId: { equals: query, mode: 'insensitive' } }
             ]
           }
         ]
@@ -96,7 +105,13 @@ export async function GET(req: NextRequest) {
         email: true,
         country: true,
         avatar: true,
-        kycStatus: true
+        kycStatus: true,
+        role: true,
+        agentId: true,
+        agentRole: true,
+        wallets: {
+          select: { currency: true, balance: true }
+        }
       },
       take: 10
     });

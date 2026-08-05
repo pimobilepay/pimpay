@@ -43,7 +43,7 @@ import {
 import Link from 'next/link'
 import { AgentSidebar } from '@/components/hub/AgentSidebar'
 import { AgentWorkspace, type WorkspaceCustomer } from '@/components/hub/AgentWorkspace'
-import { parseUserQRValue } from '@/lib/agent-qr'
+import { parseUserQRValue, displayFullName, type ParsedUserQR } from '@/lib/agent-qr'
 import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import useSWR from 'swr'
 
@@ -99,6 +99,9 @@ interface Customer {
   country?: string | null
   firstName?: string | null
   lastName?: string | null
+  role?: string | null
+  agentId?: string | null
+  wallets?: { currency: string; balance: number }[]
 }
 
 // KYC pending user type
@@ -585,8 +588,11 @@ function QRScannerModal({
   const [showScanner, setShowScanner] = React.useState(true)
   const [manualCode, setManualCode] = React.useState('')
   const [customer, setCustomer] = React.useState<Customer | null>(null)
+  // Identite lue directement dans le QR (nom, prenom, username, tel, e-mail).
+  const [scanned, setScanned] = React.useState<ParsedUserQR | null>(null)
   const [direction, setDirection] = React.useState<'cash-in' | 'cash-out' | null>(null)
   const [amount, setAmount] = React.useState('')
+  const [currency, setCurrency] = React.useState('XAF')
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState('')
   const [pendingTxId, setPendingTxId] = React.useState<string | null>(null)
@@ -596,29 +602,70 @@ function QRScannerModal({
     setShowScanner(true)
     setManualCode('')
     setCustomer(null)
+    setScanned(null)
     setDirection(null)
     setAmount('')
+    setCurrency('XAF')
     setError('')
     setPendingTxId(null)
     onClose()
   }
 
-  // Charge un client par id (QR) ou par recherche texte, puis affiche ses infos
-  const loadCustomer = async (query: string, byId: boolean) => {
+  const fetchCustomer = async (value: string, byId: boolean): Promise<Customer | null> => {
+    const url = byId
+      ? `/api/agent/customer?id=${encodeURIComponent(value)}`
+      : `/api/agent/customer?q=${encodeURIComponent(value)}`
+    const res = await fetch(url)
+    const apiData = await res.json().catch(() => ({}))
+    if (!res.ok) return null
+    return (apiData.customer || apiData.customers?.[0] || null) as Customer | null
+  }
+
+  /**
+   * Resout le compte a partir du QR (ou d'une saisie manuelle) :
+   * l'id est essaye en premier, puis le username, le telephone et l'e-mail
+   * contenus dans le QR. Les informations du QR servent de repli d'affichage
+   * si le compte n'est pas encore synchronise.
+   */
+  const loadCustomer = async (identity: ParsedUserQR) => {
     setIsLoading(true)
     setError('')
+    setScanned(identity)
     try {
-      const url = byId
-        ? `/api/agent/customer?id=${encodeURIComponent(query)}`
-        : `/api/agent/customer?q=${encodeURIComponent(query)}`
-      const res = await fetch(url)
-      const apiData = await res.json()
-      if (!res.ok) throw new Error(apiData.error || 'Client introuvable')
+      const attempts: { value: string; byId: boolean }[] = []
+      if (identity.id) attempts.push({ value: identity.id, byId: true })
+      for (const term of [identity.username, identity.phone, identity.email, identity.searchTerm]) {
+        if (term) attempts.push({ value: term, byId: false })
+      }
 
-      const found: Customer | undefined = apiData.customer || apiData.customers?.[0]
-      if (!found) throw new Error('Client introuvable avec ce QR code')
+      let found: Customer | null = null
+      for (const attempt of attempts) {
+        found = await fetchCustomer(attempt.value, attempt.byId)
+        if (found) break
+      }
 
-      setCustomer(found)
+      if (!found) {
+        throw new Error(
+          identity.username || identity.phone
+            ? `Compte introuvable pour ${identity.username || identity.phone}`
+            : 'Compte introuvable avec ce QR code'
+        )
+      }
+
+      // Fusion : les donnees serveur sont prioritaires, le QR complete les trous.
+      const merged: Customer = {
+        ...found,
+        name: found.name || identity.name || '',
+        firstName: found.firstName || identity.firstName || null,
+        lastName: found.lastName || identity.lastName || null,
+        username: found.username || identity.username || '',
+        phone: found.phone || identity.phone || '',
+        email: found.email || identity.email || null,
+      }
+
+      setCustomer(merged)
+      // Devise par defaut : premier wallet du client, sinon XAF (float agent).
+      setCurrency(merged.wallets?.[0]?.currency || 'XAF')
       setStep('details')
     } catch (err: any) {
       setError(err.message || 'Erreur')
@@ -633,18 +680,14 @@ function QRScannerModal({
       setShowScanner(false)
       return
     }
-    // Extraire l'id du payload QR PIMOBIPAY, sinon recherche brute
+    // Payload PIMOBIPAY (nom, prenom, username, tel, e-mail) ou identifiant brut
     const parsed = parseUserQRValue(data)
-    if (parsed?.id) {
-      loadCustomer(parsed.id, true)
-    } else {
-      loadCustomer(data, false)
-    }
+    loadCustomer(parsed || { searchTerm: data.trim() })
   }
 
   const handleManualSearch = () => {
     if (!manualCode) return
-    loadCustomer(manualCode, false)
+    loadCustomer({ searchTerm: manualCode.trim() })
   }
 
   const handleSubmit = async () => {
@@ -659,7 +702,7 @@ function QRScannerModal({
         body: JSON.stringify({
           customerId: customer.id,
           amount: parseFloat(amount),
-          currency: 'USD',
+          currency,
           requireConfirmation: true
         })
       })
@@ -704,11 +747,14 @@ function QRScannerModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, pendingTxId])
 
-  const fullName =
-    customer?.name ||
-    [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') ||
-    customer?.username ||
-    'Client'
+  const fullName = displayFullName(customer || scanned, 'Client')
+  const isAgentAccount =
+    customer?.role === 'AGENT' || customer?.role === 'ADMIN' || Boolean(customer?.agentId)
+  const walletBalance =
+    customer?.wallets?.find((w) => w.currency === currency)?.balance ?? 0
+  const availableCurrencies = Array.from(
+    new Set([...(customer?.wallets?.map((w) => w.currency) || []), 'XAF', 'XOF', 'PI'])
+  )
 
   // Scanner plein ecran
   if (isOpen && step === 'scan' && showScanner) {
@@ -822,16 +868,64 @@ function QRScannerModal({
                       <p className="text-sm text-muted-foreground truncate">@{customer.username}</p>
                     )}
                   </div>
-                  <Badge variant={customer.kycStatus === 'APPROVED' ? 'default' : 'secondary'}>
-                    {customer.kycStatus === 'APPROVED' ? 'KYC OK' : customer.kycStatus}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge variant={customer.kycStatus === 'APPROVED' ? 'default' : 'secondary'}>
+                      {customer.kycStatus === 'APPROVED' ? 'KYC OK' : customer.kycStatus}
+                    </Badge>
+                    {isAgentAccount && (
+                      <Badge variant="outline" className="gap-1">
+                        <BadgeCheck className="h-3 w-3" />
+                        Agent
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid gap-2 text-sm">
-                  <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={customer.email} />
+                  <InfoRow
+                    icon={<User className="h-4 w-4" />}
+                    label="Prenom"
+                    value={customer.firstName}
+                  />
+                  <InfoRow
+                    icon={<User className="h-4 w-4" />}
+                    label="Nom"
+                    value={customer.lastName}
+                  />
+                  <InfoRow
+                    icon={<IdCard className="h-4 w-4" />}
+                    label="Username"
+                    value={customer.username ? `@${customer.username}` : null}
+                  />
                   <InfoRow icon={<Phone className="h-4 w-4" />} label="Telephone" value={customer.phone} />
+                  <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={customer.email} />
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="Pays" value={customer.country} />
                   <InfoRow icon={<IdCard className="h-4 w-4" />} label="ID" value={customer.id} mono />
+                </div>
+
+                {/* Devise de l'operation + solde du compte scanne */}
+                <div className="pt-3 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">Devise de l&apos;operation</p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableCurrencies.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setCurrency(c)}
+                        className={cn(
+                          'rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors',
+                          currency === c
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'border-border text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Solde client : {walletBalance.toLocaleString()} {currency}
+                  </p>
                 </div>
               </div>
 
@@ -862,7 +956,7 @@ function QRScannerModal({
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => { setCustomer(null); setError(''); setShowScanner(true); setStep('scan') }}
+                onClick={() => { setCustomer(null); setScanned(null); setError(''); setShowScanner(true); setStep('scan') }}
               >
                 Scanner un autre
               </Button>
@@ -894,7 +988,7 @@ function QRScannerModal({
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="scan-amount">Montant (USD)</Label>
+                <Label htmlFor="scan-amount">Montant ({currency})</Label>
                 <Input
                   id="scan-amount"
                   type="number"

@@ -43,6 +43,9 @@ interface WorkspaceCustomer {
   country?: string | null
   firstName?: string | null
   lastName?: string | null
+  role?: string | null
+  agentId?: string | null
+  wallets?: { currency: string; balance: number }[]
 }
 
 interface AgentWorkspaceProps {
@@ -476,11 +479,14 @@ function QuickCustomerSearch({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-white truncate">
-                    {c.name || c.username}
+                    {c.name || [c.firstName, c.lastName].filter(Boolean).join(' ') || c.username}
                   </p>
                   <p className="text-[11px] text-slate-500 truncate">
                     @{c.username} · {c.phone}
                   </p>
+                  {c.email && (
+                    <p className="text-[11px] text-slate-500 truncate">{c.email}</p>
+                  )}
                 </div>
                 <KycBadge status={c.kycStatus} />
               </div>

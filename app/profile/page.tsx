@@ -434,7 +434,17 @@ export default function ProfilePage() {
       {/* QR de paiement (cash-in / cash-out agent) */}
       {showPaymentQR && user && (
         <PaymentQRModal
-          user={{ id: user.id, name: user.name, username: user.username }}
+          user={{
+            id: user.id,
+            name: user.name,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            username: user.username,
+            phone: user.phone,
+            email: user.email,
+            role: user.agentRole || user.role,
+            agentId: user.agentId,
+          }}
           onClose={() => setShowPaymentQR(false)}
         />
       )}
