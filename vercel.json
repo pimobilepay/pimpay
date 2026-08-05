@@ -7,14 +7,6 @@
     {
       "path": "/api/cron/staking-rewards",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/savings-interest",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/collect-fees",
-      "schedule": "0 * * * *"
     }
   ]
 }
