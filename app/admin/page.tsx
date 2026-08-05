@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
   BarChart3, ArrowLeft, History, Eye, Bell, Crosshair,
   ShieldAlert, UserCog, Vault, BookOpen, Snowflake, Gavel, Gift,
-  Megaphone, SlidersHorizontal, Rocket
+  Megaphone, SlidersHorizontal, Rocket, PiggyBank
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -141,6 +141,7 @@ export default function AdminDashboard() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
+            { label: "Float Agents", desc: "Provisionnement", icon: <PiggyBank size={20} />, path: "/admin/agents/float", color: "emerald" },
             { label: "AML", desc: "Anti-fraude & SAR", icon: <ShieldAlert size={20} />, path: "/admin/aml", color: "rose" },
             { label: "Reserves", desc: "Preuve de reserves", icon: <Vault size={20} />, path: "/admin/reserves", color: "emerald" },
             { label: "Grand Livre", desc: "Reconciliation", icon: <BookOpen size={20} />, path: "/admin/ledger", color: "blue" },
