@@ -62,6 +62,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { QRScanner } from '@/components/qr-scanner'
+import { toast } from 'sonner'
 
 // Types
 interface Transaction {
@@ -337,15 +338,19 @@ function TransactionModal({
     setError('')
 
     try {
-      const endpoint = type === 'cash-in' ? '/api/agent/cash-in' : '/api/agent/cash-out'
+      const isCashIn = type === 'cash-in'
+      const amountNum = parseFloat(amount)
+      const endpoint = isCashIn ? '/api/agent/cash-in' : '/api/agent/cash-out'
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: selectedCustomer.id,
-          amount: parseFloat(amount),
+          amount: amountNum,
           currency: 'USD',
-          requireConfirmation: true // Demande confirmation MFA cote client
+          // REGLE METIER : seul le retrait (sortant pour le client) exige sa
+          // confirmation. Un depot est entrant, il est credite immediatement.
+          requireConfirmation: !isCashIn
         })
       })
 
@@ -359,7 +364,15 @@ function TransactionModal({
       if (data.pendingConfirmation) {
         setPendingTxId(data.transactionId)
         setStep('pending')
+        toast.info('Confirmation client requise', {
+          description: `Le client doit valider le retrait de ${amountNum.toLocaleString('fr-FR')} USD depuis son application.`,
+        })
       } else {
+        toast.success('Depot effectue', {
+          description: `${amountNum.toLocaleString('fr-FR')} USD credites sur le compte de ${
+            selectedCustomer.name || selectedCustomer.username
+          }.`,
+        })
         onSuccess()
         handleClose()
       }
@@ -695,15 +708,19 @@ function QRScannerModal({
     setIsLoading(true)
     setError('')
     try {
-      const endpoint = direction === 'cash-in' ? '/api/agent/cash-in' : '/api/agent/cash-out'
+      const isCashIn = direction === 'cash-in'
+      const amountNum = parseFloat(amount)
+      const endpoint = isCashIn ? '/api/agent/cash-in' : '/api/agent/cash-out'
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: customer.id,
-          amount: parseFloat(amount),
+          amount: amountNum,
           currency,
-          requireConfirmation: true
+          // REGLE METIER : seul le retrait (sortant pour le client) exige sa
+          // confirmation. Un depot est entrant, il est credite immediatement.
+          requireConfirmation: !isCashIn
         })
       })
       const data = await res.json()
@@ -712,7 +729,16 @@ function QRScannerModal({
       if (data.pendingConfirmation) {
         setPendingTxId(data.transactionId)
         setStep('pending')
+        toast.info('Confirmation client requise', {
+          description: `Le client doit valider le retrait de ${amountNum.toLocaleString('fr-FR')} ${currency} depuis son application.`,
+        })
       } else {
+        toast.success('Depot effectue', {
+          description: `${amountNum.toLocaleString('fr-FR')} ${currency} credites sur le compte de ${displayFullName(
+            customer,
+            'Client'
+          )}.`,
+        })
         onSuccess()
         handleClose()
       }

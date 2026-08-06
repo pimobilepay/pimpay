@@ -88,10 +88,10 @@ export function AgentTransactionModal({
           customerId: customer.id,
           amount: amountNum,
           currency,
-          // Un depot (cash-in) doit etre confirme par le client cote application :
-          // le backend cree alors une notification TRANSACTION_CONFIRM qui declenche
-          // le toast + la popup de confirmation/annulation cote client.
-          requireConfirmation: mode === "cash-in",
+          // REGLE METIER : seul un retrait (cash-out) est sortant pour le client
+          // et exige donc sa confirmation via une notification TRANSACTION_CONFIRM.
+          // Un depot (cash-in) est entrant : il est credite immediatement.
+          requireConfirmation: mode === "cash-out",
         }),
       });
       const data = await res.json();
@@ -104,15 +104,21 @@ export function AgentTransactionModal({
         // Transaction en attente : le client doit confirmer depuis son application.
         setReference(data.transaction?.reference || null);
         setPending(true);
-        toast.success("Demande envoyee au client", {
-          description: `Le client doit confirmer le depot de ${amountNum.toLocaleString()} ${currency} depuis son application.`,
+        toast.info("Confirmation client requise", {
+          description: `Le client doit valider le retrait de ${amountNum.toLocaleString()} ${currency} depuis son application.`,
         });
       } else {
         setDone(true);
         toast.success(
           mode === "cash-in"
             ? `Depot de ${amountNum.toLocaleString()} ${currency} effectue`
-            : `Retrait de ${amountNum.toLocaleString()} ${currency} effectue`
+            : `Retrait de ${amountNum.toLocaleString()} ${currency} effectue`,
+          {
+            description:
+              mode === "cash-in"
+                ? `${fullName} a ete credite immediatement.`
+                : `${fullName} a ete debite.`,
+          }
         );
       }
       onSuccess?.();
@@ -151,7 +157,7 @@ export function AgentTransactionModal({
             </div>
             <p className="text-white font-bold">En attente du client</p>
             <p className="text-sm text-slate-400">
-              Le client doit confirmer le depot de{" "}
+              Le client doit confirmer le retrait de{" "}
               <span className="font-bold text-white">
                 {parseFloat(amount).toLocaleString()} {currency}
               </span>{" "}
