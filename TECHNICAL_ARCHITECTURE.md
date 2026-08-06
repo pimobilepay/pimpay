@@ -29,4 +29,4 @@ Pour mitiger les risques liés aux licences bancaires identifiés dans le rappor
 * **Géo-blocage** : Restriction par IP pour limiter l'accès aux juridictions autorisées.
 
 ## 📜 Engagement de Qualité
-Chaque ligne de code de PimPay est typée pour supprimer toute complexité inutile et garantir la sécurité absolue des fonds .
+Chaque ligne de code de PimPay est typée pour supprimer toute complexité inutile et garantir la sécurité absolue des fonds.
