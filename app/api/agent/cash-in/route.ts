@@ -6,6 +6,12 @@ import { verifyAuth } from '@/lib/auth';
 import { getFeeConfig, calculateFee, splitAgentFee } from '@/lib/fees';
 import { WalletType } from '@prisma/client';
 import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
+import {
+  creditAgentFloat,
+  debitAgentFloat,
+  getOrCreateAgentFloat,
+  normalizeFloatCurrency,
+} from '@/lib/agent-float-account';
 
 /**
  * POST /api/agent/cash-in
@@ -37,7 +43,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerId, amount, currency = 'XAF', description } = body;
+    const { customerId, amount, description } = body;
+    // Devise de caisse : toujours une devise float valide (XAF par defaut).
+    const currency = normalizeFloatCurrency(body.currency);
 
     // 3. Validation des données
     const amountNum = parseFloat(amount);
@@ -70,13 +78,15 @@ export async function POST(req: NextRequest) {
         throw new Error("Client introuvable");
       }
 
-      // Récupérer le wallet de l'agent pour déduire le float
-      const agentWallet = await tx.wallet.findUnique({
-        where: { userId_currency: { userId: authUser.id, currency } }
-      });
+      // CAISSE AGENT : le float est un compte dedie (AgentFloat), jamais le
+      // wallet personnel de l'agent. On verifie le disponible avant tout.
+      const agentFloat = await getOrCreateAgentFloat(tx, authUser.id, currency);
+      const availableFloat = agentFloat.balance - agentFloat.reserved;
 
-      if (!agentWallet || agentWallet.balance < amountNum) {
-        throw new Error("Float insuffisant");
+      if (availableFloat < amountNum) {
+        throw new Error(
+          `Float ${currency} insuffisant : disponible ${availableFloat.toLocaleString('fr-FR')} ${currency}`
+        );
       }
 
       // Nom de l'agent pour la notification client
@@ -98,11 +108,13 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // Débiter le float de l'agent (il conserve sa commission)
-      await tx.wallet.update({
-        where: { id: agentWallet.id },
-        data: { balance: { decrement: amountNum - agentCommission } }
-      });
+      // Débiter la CAISSE agent (il conserve sa commission dans sa caisse).
+      // Le wallet personnel de l'agent n'est jamais touché.
+      await debitAgentFloat(tx, authUser.id, amountNum, currency);
+      if (agentCommission > 0) {
+        await creditAgentFloat(tx, authUser.id, agentCommission, currency);
+      }
+      const newFloatBalance = agentFloat.balance - amountNum + agentCommission;
 
       // Créer l'enregistrement de transaction (directement validée)
       const transaction = await tx.transaction.create({
@@ -116,9 +128,16 @@ export async function POST(req: NextRequest) {
           description: description || `Dépôt agent - ${currency}`,
           fromUserId: authUser.id,
           toUserId: customerId,
-          fromWalletId: agentWallet.id,
+          // Aucun fromWalletId : les fonds proviennent de la caisse agent
+          // (AgentFloat), pas d'un wallet personnel.
           toWalletId: customerWallet.id,
-          currency
+          currency,
+          metadata: {
+            source: 'AGENT_FLOAT',
+            agentFloatId: agentFloat.id,
+            agentCommission,
+            floatBalanceAfter: newFloatBalance,
+          }
         }
       });
 
@@ -159,7 +178,7 @@ export async function POST(req: NextRequest) {
 
       return {
         transaction,
-        newAgentBalance: agentWallet.balance - (amountNum - agentCommission),
+        newAgentBalance: newFloatBalance,
         platformFee: platformShare // Part plateforme = frais totaux - commission agent
       };
     }, { maxWait: 10000, timeout: 30000 });

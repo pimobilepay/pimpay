@@ -16,6 +16,7 @@
 
 import { WalletType } from '@prisma/client';
 import { getAgentFeeShare } from './fees';
+import { creditAgentFloat } from './agent-float-account';
 
 /** Fenetre de confirmation client : 5 minutes. */
 export const CONFIRMATION_WINDOW_MS = 5 * 60 * 1000;
@@ -144,12 +145,23 @@ export async function revertPendingHold(
   share: number = DEFAULT_AGENT_FEE_SHARE
 ) {
   const refund = heldAmountOf(transaction, share);
-  if (refund <= 0 || !transaction.fromWalletId) return;
+  if (refund <= 0) return;
 
-  await tx.wallet.update({
-    where: { id: transaction.fromWalletId },
-    data: { balance: { increment: refund } },
-  });
+  if (transaction.type === 'WITHDRAW') {
+    // La reserve avait ete prise sur le wallet du CLIENT : on lui rend.
+    if (transaction.fromWalletId) {
+      await tx.wallet.update({
+        where: { id: transaction.fromWalletId },
+        data: { balance: { increment: refund } },
+      });
+    }
+    return;
+  }
+
+  // DEPOSIT (legacy en attente) : la reserve venait de la CAISSE de l'agent.
+  if (transaction.fromUserId) {
+    await creditAgentFloat(tx, transaction.fromUserId, refund, transaction.currency);
+  }
 }
 
 /**
@@ -166,23 +178,15 @@ export async function settlePendingHold(
   const walletType = transaction.currency === 'PI' ? WalletType.PI : WalletType.FIAT;
 
   if (transaction.type === 'WITHDRAW') {
+    // CASH-OUT : le produit du retrait (montant + commission agent) alimente la
+    // CAISSE de l'agent (AgentFloat), jamais son wallet personnel.
+    //
+    // C'etait la cause du float non credite : les anciennes transactions
+    // pointaient vers un `toWalletId` (wallet perso) qui pouvait etre absent
+    // ou dans une autre devise, et le credit etait alors silencieusement perdu.
     const credit = transaction.amount + agentCommissionOf(transaction.fee, share);
-    if (transaction.toWalletId) {
-      await tx.wallet.update({
-        where: { id: transaction.toWalletId },
-        data: { balance: { increment: credit } },
-      });
-    } else if (transaction.toUserId) {
-      await tx.wallet.upsert({
-        where: { userId_currency: { userId: transaction.toUserId, currency: transaction.currency } },
-        update: { balance: { increment: credit } },
-        create: {
-          userId: transaction.toUserId,
-          currency: transaction.currency,
-          balance: credit,
-          type: walletType,
-        },
-      });
+    if (transaction.toUserId && credit > 0) {
+      await creditAgentFloat(tx, transaction.toUserId, credit, transaction.currency);
     }
     return;
   }

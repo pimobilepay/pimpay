@@ -4,9 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { getFeeConfig, calculateFee, splitAgentFee } from '@/lib/fees';
-import { WalletType } from '@prisma/client';
 import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
 import { CONFIRMATION_WINDOW_MS } from '@/lib/agent-pending';
+import {
+  creditAgentFloat,
+  getOrCreateAgentFloat,
+  normalizeFloatCurrency,
+} from '@/lib/agent-float-account';
 
 /**
  * POST /api/agent/cash-out
@@ -45,11 +49,12 @@ export async function POST(req: NextRequest) {
     const {
       customerId,
       amount,
-      currency = 'XAF',
       description,
       // Un retrait requiert la confirmation du client par defaut.
       requireConfirmation = true,
     } = body;
+    // Devise de caisse : toujours une devise float valide (XAF par defaut).
+    const currency = normalizeFloatCurrency(body.currency);
 
     // 3. Validation des données
     const amountNum = parseFloat(amount);
@@ -105,19 +110,13 @@ export async function POST(req: NextRequest) {
         data: { balance: { decrement: totalDebit } }
       });
 
-      // Le float de l'agent n'est crédité qu'une fois la transaction confirmée.
-      const agentWallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId: authUser.id, currency } },
-        update: requireConfirmation
-          ? {}
-          : { balance: { increment: amountNum + agentCommission } },
-        create: {
-          userId: authUser.id,
-          currency,
-          balance: requireConfirmation ? 0 : amountNum + agentCommission,
-          type: currency === 'PI' ? WalletType.PI : WalletType.FIAT
-        }
-      });
+      // CAISSE AGENT : le produit du retrait alimente la caisse dediee
+      // (AgentFloat), jamais le wallet personnel de l'agent.
+      // Elle n'est creditee qu'une fois la transaction confirmee par le client.
+      const agentFloat = await getOrCreateAgentFloat(tx, authUser.id, currency);
+      if (!requireConfirmation) {
+        await creditAgentFloat(tx, authUser.id, amountNum + agentCommission, currency);
+      }
 
       const transactionStatus = requireConfirmation ? 'PENDING_CONFIRMATION' : 'SUCCESS';
 
@@ -134,12 +133,16 @@ export async function POST(req: NextRequest) {
           fromUserId: customerId,
           toUserId: authUser.id,
           fromWalletId: customerWallet.id,
-          toWalletId: agentWallet.id,
+          // Aucun toWalletId : la contrepartie est la caisse agent (AgentFloat).
           currency,
           // On fige la part agent au moment de la creation : si l'admin change
           // le taux pendant la fenetre de confirmation, le reglement utilise
           // bien le taux annonce a l'agent et au client.
-          metadata: { agentFeeShare: feeConfig.agentFeeShare }
+          metadata: {
+            agentFeeShare: feeConfig.agentFeeShare,
+            destination: 'AGENT_FLOAT',
+            agentFloatId: agentFloat.id,
+          }
         }
       });
 
@@ -207,8 +210,8 @@ export async function POST(req: NextRequest) {
       return {
         transaction,
         newAgentBalance: requireConfirmation
-          ? agentWallet.balance
-          : agentWallet.balance + amountNum + agentCommission,
+          ? agentFloat.balance
+          : agentFloat.balance + amountNum + agentCommission,
         pendingConfirmation: requireConfirmation,
         platformFee: platformShare
       };

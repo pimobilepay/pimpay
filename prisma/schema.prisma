@@ -114,6 +114,28 @@ model User {
   vaults               Vault[]
   virtualCards         VirtualCard[]
   wallets              Wallet[]
+  agentFloats          AgentFloat[]     @relation("user_agent_floats")
+}
+
+/// CAISSE (FLOAT) D'UN AGENT — strictement separee du wallet personnel.
+///
+/// Une ligne par agent et par devise de caisse (XAF, XOF, PI...).
+/// Le float est debite lors d'un cash-in client, credite lors d'un cash-out,
+/// et provisionne par l'administration. Aucun mouvement de caisse ne touche
+/// plus le wallet personnel de l'agent.
+model AgentFloat {
+  id        String   @id @default(cuid())
+  userId    String
+  currency  String   @default("XAF")
+  balance   Float    @default(0)
+  /// Montant momentanement bloque (operations en attente de confirmation).
+  reserved  Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation("user_agent_floats", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, currency])
+  @@index([userId])
 }
 
 model P2PContact {

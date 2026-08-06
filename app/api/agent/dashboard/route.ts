@@ -5,9 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { getAgentFeeShare, getPiPrice } from '@/lib/fees';
 import { agentCommissionOf, frozenAgentFeeShareOf } from '@/lib/agent-pending';
-
-/** Devise de travail de l'agent (float). */
-const AGENT_CURRENCY = 'XAF';
+import { listAgentFloats, normalizeFloatCurrency } from '@/lib/agent-float-account';
+import { DEFAULT_FLOAT_CURRENCY } from '@/lib/agent-float';
 
 /**
  * GET /api/agent/dashboard
@@ -65,11 +64,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 4. Calculer le solde Float (wallet de la devise de travail de l'agent)
-    const xafWallet = agent.wallets.find(w => w.currency === AGENT_CURRENCY);
-    const piWallet = agent.wallets.find(w => w.currency === 'PI');
-    const floatBalance = xafWallet?.balance || 0;
-    const piBalance = piWallet?.balance || 0;
+    // 4. Soldes de CAISSE (AgentFloat) — jamais les wallets personnels.
+    // La devise active est choisie par l'agent depuis le modal de selection
+    // des soldes (?currency=), avec repli sur la devise de caisse par defaut.
+    const AGENT_CURRENCY = normalizeFloatCurrency(
+      new URL(req.url).searchParams.get('currency') ?? DEFAULT_FLOAT_CURRENCY
+    );
+
+    const floats = await listAgentFloats(prisma, authUser.id);
+    const activeFloat = floats.find((f) => f.currency === AGENT_CURRENCY);
+    const floatBalance = activeFloat?.available ?? 0;
+    const piBalance = floats.find((f) => f.currency === 'PI')?.available ?? 0;
 
     // 5. Calculer les statistiques du jour
     const today = new Date();

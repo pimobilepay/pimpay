@@ -22,8 +22,16 @@
 export const AGENT_FLOAT_PURPOSE = "AGENT_FLOAT";
 
 /** Devises autorisees pour le float agent. */
-export const FLOAT_CURRENCIES = ["XAF", "XOF", "PI"] as const;
+export const FLOAT_CURRENCIES = ["XAF", "XOF", "PI", "USD"] as const;
 export type FloatCurrency = (typeof FLOAT_CURRENCIES)[number];
+
+/** Libelles affiches dans le modal de selection des soldes agent. */
+export const FLOAT_CURRENCY_LABELS: Record<FloatCurrency, string> = {
+  XAF: "Franc CFA (BEAC)",
+  XOF: "Franc CFA (BCEAO)",
+  PI: "Pi Network",
+  USD: "Dollar US",
+};
 
 /** Devise de caisse par defaut (celle lue par le Hub agent). */
 export const DEFAULT_FLOAT_CURRENCY: FloatCurrency = "XAF";
