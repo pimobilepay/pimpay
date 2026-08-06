@@ -13,6 +13,7 @@ import {
   getAgentUserId,
   getConfirmerUserId,
   heldAmountOf,
+  resolveAgentFeeShare,
   revertPendingHold,
   settlePendingHold,
 } from '@/lib/agent-pending';
@@ -57,6 +58,12 @@ export async function POST(req: NextRequest) {
     const isWithdraw = transaction.type === 'WITHDRAW';
     const label = isWithdraw ? 'retrait' : 'depot';
 
+    // Part des frais reversee a l'agent : taux fige a la creation de la
+    // transaction, sinon taux courant defini par l'admin. Utilise pour TOUS
+    // les mouvements ci-dessous (reserve, reglement, part plateforme) afin que
+    // le float credite corresponde exactement au taux annonce.
+    const agentFeeShare = await resolveAgentFeeShare(transaction);
+
     // Seul le titulaire du compte impacte peut confirmer / refuser
     if (confirmerId !== userId) {
       return NextResponse.json(
@@ -85,7 +92,7 @@ export async function POST(req: NextRequest) {
         });
         // Rendre la reserve a son proprietaire (client pour un retrait,
         // float agent pour un depot legacy).
-        await revertPendingHold(tx, transaction);
+        await revertPendingHold(tx, transaction, agentFeeShare);
         await clearConfirmNotifications(tx, userId, transactionId);
       });
 
@@ -105,7 +112,7 @@ export async function POST(req: NextRequest) {
           data: { status: 'REJECTED' }
         });
 
-        await revertPendingHold(tx, transaction);
+        await revertPendingHold(tx, transaction, agentFeeShare);
 
         // La demande de confirmation ne doit plus apparaitre
         await clearConfirmNotifications(tx, userId, transactionId);
@@ -197,8 +204,8 @@ export async function POST(req: NextRequest) {
     // ------------------------------------------------------------------
     // CONFIRMATION
     // ------------------------------------------------------------------
-    const platformFee = platformFeeOf(transaction.fee);
-    const debited = heldAmountOf(transaction);
+    const platformFee = platformFeeOf(transaction.fee, agentFeeShare);
+    const debited = heldAmountOf(transaction, agentFeeShare);
 
     const result = await prisma.$transaction(async (tx) => {
       const updatedTx = await tx.transaction.update({
@@ -207,7 +214,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Mouvement final : credit du float agent (retrait) ou du client (depot)
-      await settlePendingHold(tx, transaction);
+      await settlePendingHold(tx, transaction, agentFeeShare);
 
       // La demande de confirmation est consommee : plus aucune relance affichee
       await clearConfirmNotifications(tx, userId, transactionId);
@@ -248,7 +255,8 @@ export async function POST(req: NextRequest) {
               transactionId: transaction.id,
               amount: transaction.amount,
               netAmount: transaction.netAmount,
-              commission: agentCommissionOf(transaction.fee),
+              commission: agentCommissionOf(transaction.fee, agentFeeShare),
+              commissionRate: agentFeeShare,
               currency: transaction.currency,
               reference: transaction.reference
             }

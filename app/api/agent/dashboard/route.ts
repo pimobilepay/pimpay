@@ -3,10 +3,18 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
+import { getAgentFeeShare, getPiPrice } from '@/lib/fees';
+import { agentCommissionOf, frozenAgentFeeShareOf } from '@/lib/agent-pending';
+
+/** Devise de travail de l'agent (float). */
+const AGENT_CURRENCY = 'XAF';
 
 /**
  * GET /api/agent/dashboard
  * Récupère les données du tableau de bord agent (PimPayHub)
+ *
+ * Tous les montants renvoyés sont exprimés dans la devise du float de l'agent
+ * (`currency`), jamais en USD : le hub doit afficher cette devise telle quelle.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -57,8 +65,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 4. Calculer le solde Float (XAF wallet)
-    const xafWallet = agent.wallets.find(w => w.currency === 'XAF');
+    // 4. Calculer le solde Float (wallet de la devise de travail de l'agent)
+    const xafWallet = agent.wallets.find(w => w.currency === AGENT_CURRENCY);
     const piWallet = agent.wallets.find(w => w.currency === 'PI');
     const floatBalance = xafWallet?.balance || 0;
     const piBalance = piWallet?.balance || 0;
@@ -78,11 +86,26 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Part des frais reversee a l'agent, definie par l'admin
+    // (Admin > Reglages > Frais > Commission agent).
+    const currentAgentFeeShare = await getAgentFeeShare();
+
+    /**
+     * Commission d'une transaction : on utilise le taux fige au moment de la
+     * transaction si present, sinon le taux courant. L'historique reste ainsi
+     * coherent avec ce qui a reellement ete credite.
+     */
+    const commissionOf = (tx: { fee: number | null; metadata?: unknown }) =>
+      agentCommissionOf(
+        tx.fee,
+        frozenAgentFeeShareOf(tx.metadata) ?? currentAgentFeeShare
+      );
+
     // Calcul des commissions journalières (basé sur les frais des transactions)
-    const dailyCommission = todayTransactions.reduce((sum, tx) => {
-      // L'agent gagne une partie des frais (ex: 50%)
-      return sum + (tx.fee || 0) * 0.5;
-    }, 0);
+    const dailyCommission = todayTransactions.reduce(
+      (sum, tx) => sum + commissionOf(tx),
+      0
+    );
 
     const dailyVolume = todayTransactions.reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -120,7 +143,7 @@ export async function GET(req: NextRequest) {
     weekTransactions.forEach(tx => {
       const dayName = days[new Date(tx.createdAt).getDay()];
       if (commissionByDay[dayName]) {
-        commissionByDay[dayName].commission += (tx.fee || 0) * 0.5;
+        commissionByDay[dayName].commission += commissionOf(tx);
         commissionByDay[dayName].transactions += 1;
       }
     });
@@ -217,9 +240,17 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 9. Retourner toutes les données
+    // 9. Conversion de la commission du jour en Pi au prix admin en vigueur
+    const piPrice = await getPiPrice();
+    const dailyCommissionPi =
+      piPrice > 0 ? Math.round((dailyCommission / piPrice) * 100) / 100 : 0;
+
+    // 10. Retourner toutes les données
     return NextResponse.json({
       success: true,
+      // Devise de reference de tous les montants ci-dessous (jamais USD)
+      currency: AGENT_CURRENCY,
+      agentFeeShare: currentAgentFeeShare,
       agent: {
         id: agent.id,
         name: agent.name || agent.username,
@@ -229,7 +260,9 @@ export async function GET(req: NextRequest) {
       floatBalance,
       piBalance,
       dailyEarnings: {
-        pi: Math.round(dailyCommission / 314159 * 100) / 100, // Conversion approximative
+        pi: dailyCommissionPi,
+        // Montant dans la devise du float de l'agent
+        amount: Math.round(dailyCommission),
         xaf: Math.round(dailyCommission)
       },
       liquidityHealth,

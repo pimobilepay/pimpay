@@ -4,13 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth';
 import { getFeeConfig } from '@/lib/fees';
 
-// L'agent conserve 50% des frais (aligné sur cash-in/cash-out routes)
-const AGENT_SHARE = 0.5;
-
 /**
  * GET /api/agent/fees
  * Renvoie les taux de frais utilisés par le hub pour la calculatrice de
  * commission (dépôt / retrait) et la part reversée à l'agent.
+ *
+ * La part agent provient de la configuration admin
+ * (Admin > Réglages > Frais > Commission agent) : aucune valeur figée ici,
+ * afin que la calculatrice affiche exactement ce que l'agent percevra.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
       success: true,
       depositFee: config.depositMobileFee, // taux appliqué au cash-in
       withdrawFee: config.withdrawMobileFee, // taux appliqué au cash-out
-      agentShare: AGENT_SHARE,
+      agentShare: config.agentFeeShare,
       minWithdrawal: config.minWithdrawal,
       maxWithdrawal: config.maxWithdrawal,
     });

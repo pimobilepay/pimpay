@@ -15,6 +15,7 @@
  */
 
 import { WalletType } from '@prisma/client';
+import { getAgentFeeShare } from './fees';
 
 /** Fenetre de confirmation client : 5 minutes. */
 export const CONFIRMATION_WINDOW_MS = 5 * 60 * 1000;
@@ -40,7 +41,49 @@ type PendingTx = {
   toUserId: string | null;
   fromWalletId: string | null;
   toWalletId: string | null;
+  metadata?: unknown;
 };
+
+/* ------------------------------------------------------------------ */
+/*  RESOLUTION DU TAUX DE COMMISSION                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Lit la part agent figee dans les metadonnees de la transaction.
+ *
+ * Chaque transaction agent enregistre `metadata.agentFeeShare` a sa creation.
+ * On l'utilise en priorite pour que le reglement, l'historique et les rapports
+ * restent exacts meme si l'admin modifie le taux ensuite.
+ * Renvoie `null` si la transaction n'a pas de taux fige (transactions creees
+ * avant cette version).
+ */
+export function frozenAgentFeeShareOf(metadata: unknown): number | null {
+  let meta: any = metadata;
+  if (typeof meta === 'string') {
+    try {
+      meta = JSON.parse(meta);
+    } catch {
+      return null;
+    }
+  }
+  const share = meta?.agentFeeShare;
+  if (typeof share !== 'number' || !Number.isFinite(share) || share < 0 || share > 1) {
+    return null;
+  }
+  return share;
+}
+
+/**
+ * Part agent applicable a une transaction : taux fige a la creation, sinon
+ * taux courant configure par l'admin (Admin > Reglages > Commission agent).
+ */
+export async function resolveAgentFeeShare(
+  transaction: { metadata?: unknown } | null | undefined
+): Promise<number> {
+  const frozen = frozenAgentFeeShareOf(transaction?.metadata);
+  if (frozen !== null) return frozen;
+  return getAgentFeeShare();
+}
 
 /**
  * Commission agent = part configuree par l'admin appliquee aux frais.

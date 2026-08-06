@@ -7,6 +7,7 @@ import {
   CONFIRMATION_WINDOW_MS,
   clearConfirmNotifications,
   getConfirmerUserId,
+  resolveAgentFeeShare,
   revertPendingHold,
 } from '@/lib/agent-pending';
 
@@ -59,6 +60,8 @@ export async function GET(req: NextRequest) {
         fromWalletId: true,
         toWalletId: true,
         reference: true,
+        // Contient le taux de commission agent fige a la creation
+        metadata: true,
         fromUser: {
           select: {
             name: true,
@@ -88,13 +91,17 @@ export async function GET(req: NextRequest) {
       // Marquer EXPIRED et rendre la réserve à son propriétaire, atomiquement :
       //  - WITHDRAW : montant + frais rendus au client
       //  - DEPOSIT  : float rendu à l'agent
+      // Taux de commission fige a la creation (sinon taux admin courant) :
+      // la reserve rendue doit correspondre exactement a celle prelevee.
+      const agentFeeShare = await resolveAgentFeeShare(transaction);
+
       await prisma.$transaction(async (tx) => {
         await tx.transaction.update({
           where: { id: transactionId },
           data: { status: 'EXPIRED' }
         });
 
-        await revertPendingHold(tx, transaction);
+        await revertPendingHold(tx, transaction, agentFeeShare);
 
         // La demande de confirmation expirée ne doit plus rester affichée
         await clearConfirmNotifications(tx, getConfirmerUserId(transaction), transactionId);
