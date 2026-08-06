@@ -6,10 +6,16 @@ import { verifyAuth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { WalletType } from '@prisma/client';
 import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
+import { AGENT_FEE_SHARE } from '@/lib/agent-pending';
 
 /**
  * POST /api/agent/cash-in
- * Effectue un dépôt (cash-in) pour un client via l'agent
+ * Depot (cash-in) pour un client via l'agent.
+ *
+ * REGLE METIER : un depot est une transaction ENTRANTE pour le client.
+ * Le client n'a donc RIEN a confirmer : le credit est immediat et il recoit
+ * simplement une notification l'informant du depot.
+ * Seul le cash-out (retrait) exige une confirmation du client.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerId, amount, currency = 'XAF', description, requireConfirmation = false } = body;
+    const { customerId, amount, currency = 'XAF', description } = body;
 
     // 3. Validation des données
     const amountNum = parseFloat(amount);
@@ -47,14 +53,14 @@ export async function POST(req: NextRequest) {
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee } = calculateFee(amountNum, feeConfig, "deposit");
     const netAmount = amountNum - fee;
-    const agentCommission = fee * 0.5; // L'agent garde 50% des frais
+    const agentCommission = fee * AGENT_FEE_SHARE; // L'agent garde 50% des frais
 
     // 5. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
       // Vérifier que le client existe
       const customer = await tx.user.findUnique({
         where: { id: customerId },
-        select: { id: true, name: true, username: true, twoFactorEnabled: true }
+        select: { id: true, name: true, username: true }
       });
 
       if (!customer) {
@@ -70,35 +76,32 @@ export async function POST(req: NextRequest) {
         throw new Error("Float insuffisant");
       }
 
-      // Get agent name for notification
+      // Nom de l'agent pour la notification client
       const agent = await tx.user.findUnique({
         where: { id: authUser.id },
         select: { name: true, username: true }
       });
       const agentName = agent?.name || agent?.username || 'Agent';
 
-      // Créditer ou créer le wallet du client (sans ajouter le solde pour l'instant si confirmation requise)
+      // Créditer immédiatement le wallet du client (transaction entrante)
       const customerWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId: customerId, currency } },
-        update: requireConfirmation ? {} : { balance: { increment: netAmount } },
+        update: { balance: { increment: netAmount } },
         create: {
           userId: customerId,
           currency,
-          balance: requireConfirmation ? 0 : netAmount,
+          balance: netAmount,
           type: currency === 'PI' ? WalletType.PI : WalletType.FIAT
         }
       });
 
-      // Déterminer le statut de la transaction
-      const transactionStatus = requireConfirmation ? 'PENDING_CONFIRMATION' : 'SUCCESS';
-
-      // Débiter le float de l'agent (toujours, même si en attente)
+      // Débiter le float de l'agent (il conserve sa commission)
       await tx.wallet.update({
         where: { id: agentWallet.id },
         data: { balance: { decrement: amountNum - agentCommission } }
       });
 
-      // Créer l'enregistrement de transaction
+      // Créer l'enregistrement de transaction (directement validée)
       const transaction = await tx.transaction.create({
         data: {
           reference: `CI-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
@@ -106,7 +109,7 @@ export async function POST(req: NextRequest) {
           fee,
           netAmount,
           type: 'DEPOSIT',
-          status: transactionStatus,
+          status: 'SUCCESS',
           description: description || `Dépôt agent - ${currency}`,
           fromUserId: authUser.id,
           toUserId: customerId,
@@ -116,66 +119,44 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // Notification au client
-      if (requireConfirmation) {
-        // Notification de demande de confirmation MFA
-        await tx.notification.create({
-          data: {
-            userId: customerId,
-            title: "Confirmer le dépôt",
-            message: `Un dépôt de ${amountNum.toLocaleString()} ${currency} requiert votre confirmation.`,
-            type: "TRANSACTION_CONFIRM",
-            metadata: {
-              transactionId: transaction.id,
-              type: 'DEPOSIT',
-              amount: amountNum,
-              netAmount,
-              currency,
-              agentId: authUser.id,
-              agentName,
-              reference: transaction.reference,
-              requireMFA: true,
-              twoFactorEnabled: customer.twoFactorEnabled || false,
-              expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
-            }
+      // Notification d'information au client (aucune action requise de sa part)
+      await tx.notification.create({
+        data: {
+          userId: customerId,
+          title: "Dépôt reçu !",
+          message: `Votre compte a été crédité de ${netAmount.toLocaleString()} ${currency} par ${agentName}.`,
+          type: "DEPOSIT",
+          metadata: {
+            transactionId: transaction.id,
+            direction: 'in',
+            type: 'DEPOSIT',
+            amount: amountNum,
+            netAmount,
+            fee,
+            currency,
+            agentId: authUser.id,
+            agentName,
+            reference: transaction.reference
           }
-        });
-      } else {
-        await tx.notification.create({
-          data: {
-            userId: customerId,
-            title: "Dépôt reçu !",
-            message: `Votre compte a été crédité de ${netAmount.toLocaleString()} ${currency}.`,
-            type: "DEPOSIT",
-            metadata: {
-              amount: netAmount,
-              currency,
-              agentId: authUser.id,
-              reference: transaction.reference
-            }
-          }
-        });
-      }
+        }
+      });
 
-      // Mise à jour des stats globales (seulement si transaction confirmée)
-      if (!requireConfirmation) {
-        await tx.systemConfig.upsert({
-          where: { id: "GLOBAL_CONFIG" },
-          update: {
-            totalVolumePi: currency === 'PI' ? { increment: amountNum } : undefined,
-            totalProfit: { increment: fee - agentCommission }
-          },
-          create: {
-            id: "GLOBAL_CONFIG",
-            totalProfit: fee - agentCommission
-          }
-        }).catch(() => {});
-      }
+      // Mise à jour des stats globales
+      await tx.systemConfig.upsert({
+        where: { id: "GLOBAL_CONFIG" },
+        update: {
+          totalVolumePi: currency === 'PI' ? { increment: amountNum } : undefined,
+          totalProfit: { increment: fee - agentCommission }
+        },
+        create: {
+          id: "GLOBAL_CONFIG",
+          totalProfit: fee - agentCommission
+        }
+      }).catch(() => {});
 
-      return { 
-        transaction, 
+      return {
+        transaction,
         newAgentBalance: agentWallet.balance - (amountNum - agentCommission),
-        pendingConfirmation: requireConfirmation,
         platformFee: fee - agentCommission // Frais plateforme (50% des frais totaux)
       };
     }, { maxWait: 10000, timeout: 30000 });
@@ -183,7 +164,7 @@ export async function POST(req: NextRequest) {
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
     // On convertit seulement les frais de la plateforme (50%), l'autre moitie va a l'agent
     const platformFee = result.platformFee;
-    if (platformFee > 0 && !result.pendingConfirmation) {
+    if (platformFee > 0) {
       autoConvertFeeToPi(
         platformFee,
         currency,
@@ -199,7 +180,8 @@ export async function POST(req: NextRequest) {
       transaction: result.transaction,
       transactionId: result.transaction.id,
       newFloatBalance: result.newAgentBalance,
-      pendingConfirmation: result.pendingConfirmation
+      // Un depot n'est jamais mis en attente de confirmation client.
+      pendingConfirmation: false
     });
 
   } catch (error: any) {

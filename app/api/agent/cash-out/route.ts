@@ -6,10 +6,20 @@ import { verifyAuth } from '@/lib/auth';
 import { getFeeConfig, calculateFee } from '@/lib/fees';
 import { WalletType } from '@prisma/client';
 import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
+import { AGENT_FEE_SHARE, CONFIRMATION_WINDOW_MS } from '@/lib/agent-pending';
 
 /**
  * POST /api/agent/cash-out
- * Effectue un retrait (cash-out) pour un client via l'agent
+ * Retrait (cash-out) d'un client via l'agent.
+ *
+ * REGLE METIER : un retrait est une transaction SORTANTE pour le client.
+ * C'est donc CETTE operation qui exige la confirmation du client (PIN / 2FA)
+ * avant que l'agent ne recoive les fonds.
+ *
+ * Pendant la fenetre de confirmation (5 min), le montant + les frais sont mis
+ * en reserve sur le wallet du client afin d'eviter toute double depense. Le
+ * float de l'agent n'est credite qu'apres confirmation. En cas de refus ou
+ * d'expiration, la reserve est integralement rendue au client.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +42,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerId, amount, currency = 'XAF', description } = body;
+    const {
+      customerId,
+      amount,
+      currency = 'XAF',
+      description,
+      // Un retrait requiert la confirmation du client par defaut.
+      requireConfirmation = true,
+    } = body;
 
     // 3. Validation des données
     const amountNum = parseFloat(amount);
@@ -46,14 +63,14 @@ export async function POST(req: NextRequest) {
     // 4. Récupérer les frais
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amountNum, feeConfig, "withdraw");
-    const agentCommission = fee * 0.5; // L'agent garde 50% des frais
+    const agentCommission = fee * AGENT_FEE_SHARE; // L'agent garde 50% des frais
 
     // 5. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
       // Vérifier que le client existe
       const customer = await tx.user.findUnique({
         where: { id: customerId },
-        select: { id: true, name: true, username: true }
+        select: { id: true, name: true, username: true, twoFactorEnabled: true }
       });
 
       if (!customer) {
@@ -69,23 +86,36 @@ export async function POST(req: NextRequest) {
         throw new Error("Solde client insuffisant");
       }
 
-      // Débiter le wallet du client
+      // Nom de l'agent pour la notification client
+      const agent = await tx.user.findUnique({
+        where: { id: authUser.id },
+        select: { name: true, username: true }
+      });
+      const agentName = agent?.name || agent?.username || 'Agent';
+
+      // Débiter (ou mettre en réserve) le wallet du client.
+      // Dans les deux cas le montant quitte le solde disponible : cela évite
+      // qu'il soit dépensé ailleurs pendant la fenêtre de confirmation.
       await tx.wallet.update({
         where: { id: customerWallet.id },
         data: { balance: { decrement: totalDebit } }
       });
 
-      // Créditer le float de l'agent
+      // Le float de l'agent n'est crédité qu'une fois la transaction confirmée.
       const agentWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId: authUser.id, currency } },
-        update: { balance: { increment: amountNum + agentCommission } },
+        update: requireConfirmation
+          ? {}
+          : { balance: { increment: amountNum + agentCommission } },
         create: {
           userId: authUser.id,
           currency,
-          balance: amountNum + agentCommission,
+          balance: requireConfirmation ? 0 : amountNum + agentCommission,
           type: currency === 'PI' ? WalletType.PI : WalletType.FIAT
         }
       });
+
+      const transactionStatus = requireConfirmation ? 'PENDING_CONFIRMATION' : 'SUCCESS';
 
       // Créer l'enregistrement de transaction
       const transaction = await tx.transaction.create({
@@ -95,7 +125,7 @@ export async function POST(req: NextRequest) {
           fee,
           netAmount: amountNum,
           type: 'WITHDRAW',
-          status: 'SUCCESS',
+          status: transactionStatus,
           description: description || `Retrait agent - ${currency}`,
           fromUserId: customerId,
           toUserId: authUser.id,
@@ -105,41 +135,82 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // Notification au client
-      await tx.notification.create({
-        data: {
-          userId: customerId,
-          title: "Retrait effectué",
-          message: `Vous avez retiré ${amountNum.toLocaleString()} ${currency}. Frais: ${fee.toLocaleString()} ${currency}.`,
-          type: "WITHDRAW",
-          metadata: {
-            amount: amountNum,
-            fee,
-            currency,
-            agentId: authUser.id,
-            reference: transaction.reference
+      if (requireConfirmation) {
+        // Demande de confirmation MFA au client (transaction sortante)
+        await tx.notification.create({
+          data: {
+            userId: customerId,
+            title: "Confirmer le retrait",
+            message: `Un retrait de ${amountNum.toLocaleString()} ${currency} requiert votre confirmation.`,
+            type: "TRANSACTION_CONFIRM",
+            metadata: {
+              transactionId: transaction.id,
+              type: 'WITHDRAW',
+              direction: 'out',
+              amount: amountNum,
+              netAmount: amountNum,
+              fee,
+              totalDebit,
+              currency,
+              agentId: authUser.id,
+              agentName,
+              reference: transaction.reference,
+              requireMFA: true,
+              twoFactorEnabled: customer.twoFactorEnabled || false,
+              expiresAt: new Date(Date.now() + CONFIRMATION_WINDOW_MS).toISOString()
+            }
           }
-        }
-      });
+        });
+      } else {
+        await tx.notification.create({
+          data: {
+            userId: customerId,
+            title: "Retrait effectué",
+            message: `Vous avez retiré ${amountNum.toLocaleString()} ${currency}. Frais: ${fee.toLocaleString()} ${currency}.`,
+            type: "WITHDRAW",
+            metadata: {
+              transactionId: transaction.id,
+              direction: 'out',
+              type: 'WITHDRAW',
+              amount: amountNum,
+              fee,
+              totalDebit,
+              currency,
+              agentId: authUser.id,
+              agentName,
+              reference: transaction.reference
+            }
+          }
+        });
 
-      // Mise à jour des stats globales
-      await tx.systemConfig.upsert({
-        where: { id: "GLOBAL_CONFIG" },
-        update: {
-          totalProfit: { increment: fee - agentCommission }
-        },
-        create: {
-          id: "GLOBAL_CONFIG",
-          totalProfit: fee - agentCommission
-        }
-      }).catch(() => {});
+        // Mise à jour des stats globales (uniquement si déjà finalisée)
+        await tx.systemConfig.upsert({
+          where: { id: "GLOBAL_CONFIG" },
+          update: {
+            totalProfit: { increment: fee - agentCommission }
+          },
+          create: {
+            id: "GLOBAL_CONFIG",
+            totalProfit: fee - agentCommission
+          }
+        }).catch(() => {});
+      }
 
-      return { transaction, newAgentBalance: agentWallet.balance, platformFee: fee - agentCommission };
+      return {
+        transaction,
+        newAgentBalance: requireConfirmation
+          ? agentWallet.balance
+          : agentWallet.balance + amountNum + agentCommission,
+        pendingConfirmation: requireConfirmation,
+        platformFee: fee - agentCommission
+      };
     }, { maxWait: 10000, timeout: 30000 });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
-    // On convertit seulement les frais de la plateforme (50%), l'autre moitie va a l'agent
-    if (result.platformFee > 0) {
+    // On convertit seulement les frais de la plateforme (50%), l'autre moitie va a l'agent.
+    // Si la transaction attend la confirmation du client, la conversion se fera
+    // dans /api/transaction/confirm.
+    if (result.platformFee > 0 && !result.pendingConfirmation) {
       autoConvertFeeToPi(
         result.platformFee,
         currency,
@@ -153,7 +224,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       transaction: result.transaction,
-      newFloatBalance: result.newAgentBalance
+      transactionId: result.transaction.id,
+      newFloatBalance: result.newAgentBalance,
+      pendingConfirmation: result.pendingConfirmation
     });
 
   } catch (error: any) {

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ActivityTracker } from "@/components/ActivityTracker";
 import TransactionConfirmListener from "@/components/TransactionConfirmListener";
+import TransactionActivityListener from "@/components/TransactionActivityListener";
 import AccountStatusListener from "@/components/AccountStatusListener";
 import SupportReplyListener from "@/components/SupportReplyListener";
 import useSWR from "swr";
@@ -57,12 +58,16 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       }`}
     >
       <ActivityTracker />
-      {/* Global transaction confirmation listener */}
+      {/* Global transaction confirmation listener (retraits a valider) */}
       {userData?.user?.id && (
         <TransactionConfirmListener 
           userId={userData.user.id}
           twoFactorEnabled={userData.user.twoFactorEnabled || false}
         />
+      )}
+      {/* Toasts des mouvements d'argent entrants et sortants */}
+      {userData?.user?.id && (
+        <TransactionActivityListener userId={userData.user.id} />
       )}
       {/* Global account status listener - verifie si le compte est suspendu/maintenance */}
       {userData?.user?.id && (

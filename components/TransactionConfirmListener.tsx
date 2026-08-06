@@ -6,11 +6,28 @@ import { toast } from "sonner";
 import { ArrowDownLeft, ArrowUpRight, ShieldCheck } from "lucide-react";
 import useSWR from "swr";
 
+/**
+ * Ecoute les demandes de confirmation de transaction.
+ *
+ * REGLE METIER : seules les transactions SORTANTES (retrait agent / cash-out)
+ * exigent une confirmation du client. Un depot (entrant) est credite
+ * directement et ne genere qu'une notification d'information, geree par
+ * TransactionActivityListener.
+ *
+ * Deux corrections importantes ici :
+ *  1. Les transactions deja traitees sont memorisees dans sessionStorage, donc
+ *     un rechargement de page ne fait plus reapparaitre une demande confirmee.
+ *  2. Apres confirmation ou refus on marque la notification comme lue cote
+ *     serveur puis on revalide, ce qui elimine la notification fantome.
+ */
+
 interface PendingTransaction {
   id: string;
-  type: "DEPOSIT" | "WITHDRAWAL";
+  type: "DEPOSIT" | "WITHDRAW" | "WITHDRAWAL";
   amount: number;
   currency: string;
+  fee?: number;
+  totalDebit?: number;
   agentName?: string;
   createdAt: string;
 }
@@ -20,11 +37,34 @@ interface TransactionConfirmListenerProps {
   twoFactorEnabled?: boolean;
 }
 
+const HANDLED_KEY = "pimpay_handled_tx_confirms";
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch");
   return res.json();
 };
+
+/** Transactions deja confirmees/refusees sur cet appareil (survit au reload). */
+function readHandled(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(HANDLED_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function markHandled(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const next = Array.from(new Set([...readHandled(), id])).slice(-50);
+    window.sessionStorage.setItem(HANDLED_KEY, JSON.stringify(next));
+  } catch {
+    /* stockage indisponible : la protection en memoire suffit */
+  }
+}
 
 export default function TransactionConfirmListener({
   userId,
@@ -32,16 +72,34 @@ export default function TransactionConfirmListener({
 }: TransactionConfirmListenerProps) {
   const [pendingTransaction, setPendingTransaction] = useState<PendingTransaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const lastCheckedId = useRef<string | null>(null);
+  const seenIds = useRef<Set<string>>(new Set());
   const activeToastId = useRef<string | number | null>(null);
 
-  const { data: notifications } = useSWR(
+  const { data: notifications, mutate } = useSWR(
     userId ? "/api/notifications?type=TRANSACTION_CONFIRM&unread=true" : null,
     fetcher,
     {
       refreshInterval: 3000,
       revalidateOnFocus: true,
     }
+  );
+
+  // Recharge la liste des transactions deja traitees au montage
+  useEffect(() => {
+    readHandled().forEach((id) => seenIds.current.add(id));
+  }, []);
+
+  /** Marque la demande comme traitee localement + cote serveur, puis revalide. */
+  const settle = useCallback(
+    async (transactionId: string) => {
+      markHandled(transactionId);
+      seenIds.current.add(transactionId);
+
+      // Nettoyage cote client : la notification est deja marquee lue par
+      // /api/transaction/confirm, on force juste la revalidation.
+      await mutate();
+    },
+    [mutate]
   );
 
   const openModal = useCallback((tx: PendingTransaction) => {
@@ -58,7 +116,7 @@ export default function TransactionConfirmListener({
       toast.dismiss(toastId);
       activeToastId.current = null;
       try {
-        await fetch("/api/transaction/confirm", {
+        const res = await fetch("/api/transaction/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -67,17 +125,25 @@ export default function TransactionConfirmListener({
             action: "reject",
           }),
         });
-        toast.error("Transaction annulée");
+        if (!res.ok) throw new Error("reject failed");
+        await settle(tx.id);
+        toast.error("Transaction annulée", {
+          description: `Le ${
+            tx.type === "DEPOSIT" ? "dépôt" : "retrait"
+          } de ${tx.amount.toLocaleString("fr-FR")} ${tx.currency} a été refusé.`,
+        });
       } catch {
         toast.error("Erreur lors de l'annulation");
       }
     },
-    [userId]
+    [userId, settle]
   );
 
   const showTransactionToast = useCallback(
     (tx: PendingTransaction) => {
       const isDeposit = tx.type === "DEPOSIT";
+      const fee = tx.fee ?? 0;
+      const totalDebit = tx.totalDebit ?? tx.amount + fee;
       const id = toast.custom(
         (toastId) => (
           <div className="w-full max-w-sm bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
@@ -95,10 +161,12 @@ export default function TransactionConfirmListener({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black uppercase tracking-widest text-white">
-                    Nouvelle transaction à confirmer
+                    {isDeposit ? "Dépôt à confirmer" : "Retrait à confirmer"}
                   </p>
                   <p className="text-[10px] text-white/50 mt-0.5 font-medium">
-                    {isDeposit ? "Dépôt" : "Retrait"} en attente de votre validation
+                    {isDeposit
+                      ? "Dépôt en attente de votre validation"
+                      : "Un agent demande un retrait sur votre compte"}
                   </p>
                 </div>
                 <ShieldCheck size={16} className="text-amber-400 shrink-0 mt-0.5" />
@@ -109,6 +177,12 @@ export default function TransactionConfirmListener({
                   {tx.amount.toLocaleString("fr-FR")}
                   <span className="text-sm ml-1 text-white/60 font-bold">{tx.currency}</span>
                 </p>
+                {!isDeposit && (
+                  <p className="text-[10px] text-white/50 font-medium mt-1">
+                    Total débité : {totalDebit.toLocaleString("fr-FR")} {tx.currency} (frais{" "}
+                    {fee.toLocaleString("fr-FR")})
+                  </p>
+                )}
                 {tx.agentName && (
                   <p className="text-[9px] text-white/40 uppercase tracking-widest mt-1">
                     Agent : {tx.agentName}
@@ -121,17 +195,17 @@ export default function TransactionConfirmListener({
                   onClick={() => rejectFromToast(tx, toastId)}
                   className="flex-1 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all"
                 >
-                  ✗ Annuler
+                  Annuler
                 </button>
                 <button
                   onClick={() => openModal(tx)}
-                  className={`flex-1 py-2.5 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                     isDeposit
                       ? "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-300"
                       : "bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 text-blue-300"
                   }`}
                 >
-                  ✓ Confirmer
+                  Confirmer
                 </button>
               </div>
             </div>
@@ -155,34 +229,33 @@ export default function TransactionConfirmListener({
         n.type === "TRANSACTION_CONFIRM" && !n.read
     );
 
-    if (pendingNotifs.length > 0) {
-      const latestNotif = pendingNotifs[0];
-      const metadata = latestNotif.metadata;
+    if (pendingNotifs.length === 0) return;
 
-      if (metadata?.transactionId && metadata.transactionId !== lastCheckedId.current) {
-        const expiresAt = metadata.expiresAt ? new Date(metadata.expiresAt) : null;
-        if (expiresAt && expiresAt < new Date()) {
-          lastCheckedId.current = metadata.transactionId;
-          return;
-        }
+    const latestNotif = pendingNotifs[0];
+    const metadata = latestNotif.metadata;
+    const txId = metadata?.transactionId;
 
-        const tx: PendingTransaction = {
-          id: metadata.transactionId,
-          type: metadata.type || "DEPOSIT",
-          amount: metadata.amount || 0,
-          currency: metadata.currency || "USD",
-          agentName: metadata.agentName,
-          createdAt: latestNotif.createdAt,
-        };
+    // Deja vue (y compris apres un rechargement de page) : on ignore.
+    if (!txId || seenIds.current.has(txId)) return;
 
-        lastCheckedId.current = metadata.transactionId;
-
-        // Ne pas marquer comme lu automatiquement - laisser l'utilisateur confirmer/refuser
-        // La notification sera marquee comme lue apres confirmation ou refus
-
-        showTransactionToast(tx);
-      }
+    const expiresAt = metadata.expiresAt ? new Date(metadata.expiresAt) : null;
+    if (expiresAt && expiresAt < new Date()) {
+      seenIds.current.add(txId);
+      return;
     }
+
+    seenIds.current.add(txId);
+
+    showTransactionToast({
+      id: txId,
+      type: metadata.type || "WITHDRAW",
+      amount: metadata.amount || 0,
+      currency: metadata.currency || "XAF",
+      fee: metadata.fee,
+      totalDebit: metadata.totalDebit,
+      agentName: metadata.agentName,
+      createdAt: latestNotif.createdAt,
+    });
   }, [notifications, showTransactionToast]);
 
   const handleClose = useCallback(() => {
@@ -190,12 +263,34 @@ export default function TransactionConfirmListener({
     setPendingTransaction(null);
   }, []);
 
+  const handleSettled = useCallback(
+    (status: "SUCCESS" | "REJECTED") => {
+      const tx = pendingTransaction;
+      if (!tx) return;
+      settle(tx.id);
+      const isDeposit = tx.type === "DEPOSIT";
+      if (status === "SUCCESS") {
+        toast.success(isDeposit ? "Dépôt confirmé" : "Retrait confirmé", {
+          description: `${tx.amount.toLocaleString("fr-FR")} ${tx.currency}${
+            isDeposit ? " crédités sur votre compte." : " remis par l'agent."
+          }`,
+        });
+      } else {
+        toast.error("Transaction refusée", {
+          description: "Votre solde reste inchangé.",
+        });
+      }
+    },
+    [pendingTransaction, settle]
+  );
+
   if (!userId) return null;
 
   return (
     <TransactionConfirmModal
       isOpen={isModalOpen}
       onClose={handleClose}
+      onSettled={handleSettled}
       transaction={pendingTransaction}
       userId={userId}
       twoFactorEnabled={twoFactorEnabled}

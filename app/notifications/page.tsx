@@ -291,9 +291,13 @@ export default function NotificationsPage() {
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
   const [confirmTx, setConfirmTx] = useState<{
     id: string;
-    type: "DEPOSIT" | "WITHDRAWAL";
+    // Seuls les retraits (sortants) demandent une confirmation ; DEPOSIT reste
+    // supporte pour les anciennes transactions encore en attente.
+    type: "DEPOSIT" | "WITHDRAW" | "WITHDRAWAL";
     amount: number;
     currency: string;
+    fee?: number;
+    totalDebit?: number;
     agentName?: string;
     createdAt: string;
   } | null>(null);
@@ -363,9 +367,12 @@ export default function NotificationsPage() {
     if (!meta?.transactionId) return;
     setConfirmTx({
       id: meta.transactionId,
-      type: (meta.type as "DEPOSIT" | "WITHDRAWAL") || "DEPOSIT",
+      // Par defaut un retrait : c'est desormais la seule operation confirmable
+      type: (meta.type as "DEPOSIT" | "WITHDRAW" | "WITHDRAWAL") || "WITHDRAW",
       amount: meta.amount || 0,
-      currency: meta.currency || "USD",
+      currency: meta.currency || "XAF",
+      fee: (meta as any).fee,
+      totalDebit: (meta as any).totalDebit,
       agentName: meta.senderName || (meta as any).agentName,
       createdAt: notification.createdAt,
     });

@@ -3,6 +3,12 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
+import {
+  CONFIRMATION_WINDOW_MS,
+  clearConfirmNotifications,
+  getConfirmerUserId,
+  revertPendingHold,
+} from '@/lib/agent-pending';
 
 /**
  * GET /api/agent/transaction-status
@@ -42,13 +48,23 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         status: true,
+        type: true,
         amount: true,
         fee: true,
         netAmount: true,
         currency: true,
         createdAt: true,
+        fromUserId: true,
+        toUserId: true,
         fromWalletId: true,
+        toWalletId: true,
         reference: true,
+        fromUser: {
+          select: {
+            name: true,
+            username: true
+          }
+        },
         toUser: {
           select: {
             name: true,
@@ -65,46 +81,46 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Check if transaction has expired (5 minutes)
-    const createdAt = new Date(transaction.createdAt);
-    const now = new Date();
-    const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+    // Expiration de la fenêtre de confirmation (5 minutes)
+    const elapsedMs = Date.now() - new Date(transaction.createdAt).getTime();
 
-    if (transaction.status === 'PENDING_CONFIRMATION' && diffMinutes > 5) {
-      // BUG FIX: Mark as EXPIRED et rembourser le float agent atomiquement.
-      // Sans remboursement, le float de l'agent est perdu définitivement à l'expiration.
+    if (transaction.status === 'PENDING_CONFIRMATION' && elapsedMs > CONFIRMATION_WINDOW_MS) {
+      // Marquer EXPIRED et rendre la réserve à son propriétaire, atomiquement :
+      //  - WITHDRAW : montant + frais rendus au client
+      //  - DEPOSIT  : float rendu à l'agent
       await prisma.$transaction(async (tx) => {
         await tx.transaction.update({
           where: { id: transactionId },
           data: { status: 'EXPIRED' }
         });
 
-        // Remboursement du float agent :
-        // Débit initial = amount - agentCommission = amount - fee*0.5
-        // On lui rend exactement ce montant.
-        if (transaction.fromWalletId) {
-          const refundAmount = transaction.amount - (transaction.fee * 0.5);
-          await tx.wallet.update({
-            where: { id: transaction.fromWalletId },
-            data: { balance: { increment: refundAmount } }
-          });
-        }
+        await revertPendingHold(tx, transaction);
+
+        // La demande de confirmation expirée ne doit plus rester affichée
+        await clearConfirmNotifications(tx, getConfirmerUserId(transaction), transactionId);
       });
 
       return NextResponse.json({
         id: transaction.id,
         status: 'EXPIRED',
+        type: transaction.type,
         message: 'Transaction expiree'
       });
     }
 
+    // Le "client" est la contrepartie de l'agent : destinataire pour un dépôt,
+    // émetteur pour un retrait.
+    const counterparty =
+      transaction.type === 'WITHDRAW' ? transaction.fromUser : transaction.toUser;
+
     return NextResponse.json({
       id: transaction.id,
       status: transaction.status,
+      type: transaction.type,
       amount: transaction.amount,
       netAmount: transaction.netAmount,
       currency: transaction.currency,
-      customer: transaction.toUser?.name || transaction.toUser?.username
+      customer: counterparty?.name || counterparty?.username
     });
 
   } catch (error: any) {

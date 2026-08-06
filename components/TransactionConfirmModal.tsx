@@ -17,9 +17,14 @@ import {
 
 interface PendingTransaction {
   id: string;
-  type: "DEPOSIT" | "WITHDRAWAL";
+  /** DEPOSIT = entrant (legacy) · WITHDRAW = sortant, seul cas confirmable */
+  type: "DEPOSIT" | "WITHDRAW" | "WITHDRAWAL";
   amount: number;
   currency: string;
+  /** Frais du retrait */
+  fee?: number;
+  /** Montant total débité pour un retrait (montant + frais) */
+  totalDebit?: number;
   agentName?: string;
   createdAt: string;
 }
@@ -30,6 +35,8 @@ interface TransactionConfirmModalProps {
   transaction: PendingTransaction | null;
   userId: string;
   twoFactorEnabled?: boolean;
+  /** Appelé après confirmation ou refus : permet au parent de rafraîchir sans recharger la page */
+  onSettled?: (status: "SUCCESS" | "REJECTED") => void;
 }
 
 export default function TransactionConfirmModal({
@@ -38,6 +45,7 @@ export default function TransactionConfirmModal({
   transaction,
   userId,
   twoFactorEnabled = false,
+  onSettled,
 }: TransactionConfirmModalProps) {
   const [method, setMethod] = useState<"authenticator" | "pin">(
     twoFactorEnabled ? "authenticator" : "pin"
@@ -90,10 +98,12 @@ export default function TransactionConfirmModal({
 
         if (res.ok && data.success) {
           setSuccess(true);
+          // Pas de window.location.reload() : le rechargement réaffichait la
+          // demande de confirmation déjà traitée. Le parent rafraîchit ses
+          // données via onSettled.
           setTimeout(() => {
+            onSettled?.("SUCCESS");
             onClose();
-            // Force page refresh to update notifications
-            window.location.reload();
           }, 1500);
         } else {
           triggerShake();
@@ -108,7 +118,7 @@ export default function TransactionConfirmModal({
         setLoading(false);
       }
     },
-    [userId, transaction, onClose]
+    [userId, transaction, onClose, onSettled]
   );
 
   // Confirm transaction with TOTP
@@ -136,9 +146,8 @@ export default function TransactionConfirmModal({
         if (res.ok && data.success) {
           setSuccess(true);
           setTimeout(() => {
+            onSettled?.("SUCCESS");
             onClose();
-            // Force page refresh to update notifications
-            window.location.reload();
           }, 1500);
         } else {
           triggerShake();
@@ -153,7 +162,7 @@ export default function TransactionConfirmModal({
         setLoading(false);
       }
     },
-    [userId, transaction, onClose]
+    [userId, transaction, onClose, onSettled]
   );
 
   // Reject transaction
@@ -171,6 +180,7 @@ export default function TransactionConfirmModal({
           action: "reject",
         }),
       });
+      onSettled?.("REJECTED");
       onClose();
     } catch {
       setError("Erreur lors du refus");
@@ -218,7 +228,10 @@ export default function TransactionConfirmModal({
   if (!isOpen || !transaction) return null;
 
   const currentCode = method === "pin" ? pin : totpCode;
+  // Un retrait est la seule opération qui requiert la confirmation du client.
   const isDeposit = transaction.type === "DEPOSIT";
+  const fee = transaction.fee ?? 0;
+  const totalDebit = transaction.totalDebit ?? transaction.amount + fee;
 
   return (
     <AnimatePresence>
@@ -288,6 +301,24 @@ export default function TransactionConfirmModal({
                       <p className="text-3xl font-black text-white">
                         {transaction.amount.toLocaleString("fr-FR")} {transaction.currency}
                       </p>
+                      {/* Detail du debit pour un retrait : le client voit exactement
+                          ce qui quittera son compte avant de valider. */}
+                      {!isDeposit && (
+                        <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-1 text-xs">
+                          <div className="flex items-center justify-between text-slate-400">
+                            <span>Frais</span>
+                            <span className="font-semibold text-slate-200">
+                              {fee.toLocaleString("fr-FR")} {transaction.currency}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-slate-400">
+                            <span>Total débité</span>
+                            <span className="font-black text-blue-300">
+                              {totalDebit.toLocaleString("fr-FR")} {transaction.currency}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       {transaction.agentName && (
                         <p className="text-xs text-slate-400 mt-2">
                           Agent: {transaction.agentName}
