@@ -3,10 +3,10 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { getFeeConfig, calculateFee } from '@/lib/fees';
+import { getFeeConfig, calculateFee, splitAgentFee } from '@/lib/fees';
 import { WalletType } from '@prisma/client';
 import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
-import { AGENT_FEE_SHARE, CONFIRMATION_WINDOW_MS } from '@/lib/agent-pending';
+import { CONFIRMATION_WINDOW_MS } from '@/lib/agent-pending';
 
 /**
  * POST /api/agent/cash-out
@@ -63,7 +63,11 @@ export async function POST(req: NextRequest) {
     // 4. Récupérer les frais
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee, totalDebit } = calculateFee(amountNum, feeConfig, "withdraw");
-    const agentCommission = fee * AGENT_FEE_SHARE; // L'agent garde 50% des frais
+    // Partage des frais pilote par l'admin (Admin > Reglages > Commission agent).
+    const { agentCommission, platformFee: platformShare } = splitAgentFee(
+      fee,
+      feeConfig.agentFeeShare
+    );
 
     // 5. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
@@ -131,7 +135,11 @@ export async function POST(req: NextRequest) {
           toUserId: authUser.id,
           fromWalletId: customerWallet.id,
           toWalletId: agentWallet.id,
-          currency
+          currency,
+          // On fige la part agent au moment de la creation : si l'admin change
+          // le taux pendant la fenetre de confirmation, le reglement utilise
+          // bien le taux annonce a l'agent et au client.
+          metadata: { agentFeeShare: feeConfig.agentFeeShare }
         }
       });
 
@@ -187,11 +195,11 @@ export async function POST(req: NextRequest) {
         await tx.systemConfig.upsert({
           where: { id: "GLOBAL_CONFIG" },
           update: {
-            totalProfit: { increment: fee - agentCommission }
+            totalProfit: { increment: platformShare }
           },
           create: {
             id: "GLOBAL_CONFIG",
-            totalProfit: fee - agentCommission
+            totalProfit: platformShare
           }
         }).catch(() => {});
       }
@@ -202,12 +210,12 @@ export async function POST(req: NextRequest) {
           ? agentWallet.balance
           : agentWallet.balance + amountNum + agentCommission,
         pendingConfirmation: requireConfirmation,
-        platformFee: fee - agentCommission
+        platformFee: platformShare
       };
     }, { maxWait: 10000, timeout: 30000 });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
-    // On convertit seulement les frais de la plateforme (50%), l'autre moitie va a l'agent.
+    // On convertit seulement la part plateforme, le reste va a l'agent.
     // Si la transaction attend la confirmation du client, la conversion se fera
     // dans /api/transaction/confirm.
     if (result.platformFee > 0 && !result.pendingConfirmation) {

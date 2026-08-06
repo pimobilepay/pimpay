@@ -3,10 +3,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { getFeeConfig, calculateFee } from '@/lib/fees';
+import { getFeeConfig, calculateFee, splitAgentFee } from '@/lib/fees';
 import { WalletType } from '@prisma/client';
 import { autoConvertFeeToPi } from '@/lib/auto-fee-conversion';
-import { AGENT_FEE_SHARE } from '@/lib/agent-pending';
 
 /**
  * POST /api/agent/cash-in
@@ -53,7 +52,11 @@ export async function POST(req: NextRequest) {
     const feeConfig = await getFeeConfig();
     const { feeAmount: fee } = calculateFee(amountNum, feeConfig, "deposit");
     const netAmount = amountNum - fee;
-    const agentCommission = fee * AGENT_FEE_SHARE; // L'agent garde 50% des frais
+    // Partage des frais pilote par l'admin (Admin > Reglages > Commission agent).
+    const { agentCommission, platformFee: platformShare } = splitAgentFee(
+      fee,
+      feeConfig.agentFeeShare
+    );
 
     // 5. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
@@ -146,23 +149,23 @@ export async function POST(req: NextRequest) {
         where: { id: "GLOBAL_CONFIG" },
         update: {
           totalVolumePi: currency === 'PI' ? { increment: amountNum } : undefined,
-          totalProfit: { increment: fee - agentCommission }
+          totalProfit: { increment: platformShare }
         },
         create: {
           id: "GLOBAL_CONFIG",
-          totalProfit: fee - agentCommission
+          totalProfit: platformShare
         }
       }).catch(() => {});
 
       return {
         transaction,
         newAgentBalance: agentWallet.balance - (amountNum - agentCommission),
-        platformFee: fee - agentCommission // Frais plateforme (50% des frais totaux)
+        platformFee: platformShare // Part plateforme = frais totaux - commission agent
       };
     }, { maxWait: 10000, timeout: 30000 });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
-    // On convertit seulement les frais de la plateforme (50%), l'autre moitie va a l'agent
+    // On convertit seulement la part plateforme, le reste va a l'agent.
     const platformFee = result.platformFee;
     if (platformFee > 0) {
       autoConvertFeeToPi(

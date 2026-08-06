@@ -205,6 +205,9 @@ model SystemConfig {
   billPaymentFee       Float     @default(0.015)
   qrPaymentFee         Float     @default(0.01)
   fiatTransferFee      Float     @default(0.005)
+  /// Part des frais de transaction agent conservee par l'agent (0 a 1).
+  /// Le reste est reverse a la plateforme. Pilote depuis Admin > Reglages.
+  agentFeeShare        Float     @default(0.5)
   referralBonus        Float     @default(0.0000318)
   referralWelcomeBonus Float     @default(0.0000159)
   maxLoginAttempts     Int       @default(5)

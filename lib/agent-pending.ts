@@ -19,8 +19,15 @@ import { WalletType } from '@prisma/client';
 /** Fenetre de confirmation client : 5 minutes. */
 export const CONFIRMATION_WINDOW_MS = 5 * 60 * 1000;
 
-/** Part des frais conservee par l'agent (le reste va a la plateforme). */
-export const AGENT_FEE_SHARE = 0.5;
+/**
+ * Part des frais conservee par l'agent, utilisee UNIQUEMENT comme valeur de
+ * repli si la configuration admin est injoignable.
+ *
+ * La valeur effective est pilotee par l'administrateur
+ * (Admin > Reglages > Commission agent) et doit etre lue via
+ * `getAgentFeeShare()` / `splitAgentFee()` de `lib/fees.ts`.
+ */
+export const DEFAULT_AGENT_FEE_SHARE = 0.5;
 
 type PendingTx = {
   id: string;
@@ -35,14 +42,23 @@ type PendingTx = {
   toWalletId: string | null;
 };
 
-/** Commission agent = 50% des frais. */
-export function agentCommissionOf(fee: number | null | undefined): number {
-  return (fee ?? 0) * AGENT_FEE_SHARE;
+/**
+ * Commission agent = part configuree par l'admin appliquee aux frais.
+ * `share` provient de `getAgentFeeShare()` (Admin > Reglages).
+ */
+export function agentCommissionOf(
+  fee: number | null | undefined,
+  share: number = DEFAULT_AGENT_FEE_SHARE
+): number {
+  return Math.round((fee ?? 0) * share * 100) / 100;
 }
 
-/** Part plateforme = 50% des frais. */
-export function platformFeeOf(fee: number | null | undefined): number {
-  return (fee ?? 0) * (1 - AGENT_FEE_SHARE);
+/** Part plateforme = frais totaux moins la commission agent. */
+export function platformFeeOf(
+  fee: number | null | undefined,
+  share: number = DEFAULT_AGENT_FEE_SHARE
+): number {
+  return Math.round(((fee ?? 0) - agentCommissionOf(fee, share)) * 100) / 100;
 }
 
 /**
@@ -64,11 +80,14 @@ export function getAgentUserId(tx: Pick<PendingTx, 'type' | 'fromUserId' | 'toUs
  *  - WITHDRAW : montant + frais preleves sur le client
  *  - DEPOSIT  : montant - commission agent preleve sur le float agent
  */
-export function heldAmountOf(tx: Pick<PendingTx, 'type' | 'amount' | 'fee'>): number {
+export function heldAmountOf(
+  tx: Pick<PendingTx, 'type' | 'amount' | 'fee'>,
+  share: number = DEFAULT_AGENT_FEE_SHARE
+): number {
   if (tx.type === 'WITHDRAW') {
     return tx.amount + (tx.fee ?? 0);
   }
-  return tx.amount - agentCommissionOf(tx.fee);
+  return tx.amount - agentCommissionOf(tx.fee, share);
 }
 
 /**
@@ -76,8 +95,12 @@ export function heldAmountOf(tx: Pick<PendingTx, 'type' | 'amount' | 'fee'>): nu
  * Utilise sur les chemins REJECTED et EXPIRED.
  * `tx` est le client de transaction Prisma interactif.
  */
-export async function revertPendingHold(tx: any, transaction: PendingTx) {
-  const refund = heldAmountOf(transaction);
+export async function revertPendingHold(
+  tx: any,
+  transaction: PendingTx,
+  share: number = DEFAULT_AGENT_FEE_SHARE
+) {
+  const refund = heldAmountOf(transaction, share);
   if (refund <= 0 || !transaction.fromWalletId) return;
 
   await tx.wallet.update({
@@ -92,11 +115,15 @@ export async function revertPendingHold(tx: any, transaction: PendingTx) {
  *               Le client a deja ete debite a la creation.
  *  - DEPOSIT  : credite le net au client. Le float agent a deja ete debite.
  */
-export async function settlePendingHold(tx: any, transaction: PendingTx) {
+export async function settlePendingHold(
+  tx: any,
+  transaction: PendingTx,
+  share: number = DEFAULT_AGENT_FEE_SHARE
+) {
   const walletType = transaction.currency === 'PI' ? WalletType.PI : WalletType.FIAT;
 
   if (transaction.type === 'WITHDRAW') {
-    const credit = transaction.amount + agentCommissionOf(transaction.fee);
+    const credit = transaction.amount + agentCommissionOf(transaction.fee, share);
     if (transaction.toWalletId) {
       await tx.wallet.update({
         where: { id: transaction.toWalletId },

@@ -277,6 +277,7 @@ function TransactionModal({
   const [searchQuery, setSearchQuery] = React.useState('')
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
   const [amount, setAmount] = React.useState('')
+  const [currency, setCurrency] = React.useState('XAF')
   const [isLoading, setIsLoading] = React.useState(false)
   const [isSearching, setIsSearching] = React.useState(false)
   const [error, setError] = React.useState('')
@@ -288,9 +289,27 @@ function TransactionModal({
   React.useEffect(() => {
     if (isOpen && initialCustomer) {
       setSelectedCustomer(initialCustomer)
+      // Devise par defaut : premier wallet du client, sinon XAF (float agent).
+      setCurrency(initialCustomer.wallets?.[0]?.currency || 'XAF')
       setStep('confirm')
     }
   }, [isOpen, initialCustomer])
+
+  // Devises proposees : celles du client + les devises supportees par le float.
+  const availableCurrencies = React.useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...(selectedCustomer?.wallets?.map((w) => w.currency) || []),
+          'XAF',
+          'XOF',
+          'PI',
+        ])
+      ),
+    [selectedCustomer]
+  )
+  const walletBalance =
+    selectedCustomer?.wallets?.find((w) => w.currency === currency)?.balance ?? 0
 
   // Background search function - no dropdown suggestions
   const handleSearch = async () => {
@@ -312,7 +331,10 @@ function TransactionModal({
 
       if (data.customers && data.customers.length > 0) {
         // Select the first matching customer
-        setSelectedCustomer(data.customers[0])
+        const found = data.customers[0]
+        setSelectedCustomer(found)
+        // Devise par defaut : premier wallet du client, sinon XAF (float agent).
+        setCurrency(found.wallets?.[0]?.currency || 'XAF')
         setStep('confirm')
       } else {
         setError('Aucun client trouve avec cet identifiant')
@@ -347,7 +369,7 @@ function TransactionModal({
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           amount: amountNum,
-          currency: 'USD',
+          currency,
           // REGLE METIER : seul le retrait (sortant pour le client) exige sa
           // confirmation. Un depot est entrant, il est credite immediatement.
           requireConfirmation: !isCashIn
@@ -365,11 +387,11 @@ function TransactionModal({
         setPendingTxId(data.transactionId)
         setStep('pending')
         toast.info('Confirmation client requise', {
-          description: `Le client doit valider le retrait de ${amountNum.toLocaleString('fr-FR')} USD depuis son application.`,
+          description: `Le client doit valider le retrait de ${amountNum.toLocaleString('fr-FR')} ${currency} depuis son application.`,
         })
       } else {
         toast.success('Depot effectue', {
-          description: `${amountNum.toLocaleString('fr-FR')} USD credites sur le compte de ${
+          description: `${amountNum.toLocaleString('fr-FR')} ${currency} credites sur le compte de ${
             selectedCustomer.name || selectedCustomer.username
           }.`,
         })
@@ -414,6 +436,7 @@ function TransactionModal({
     setSearchQuery('')
     setSelectedCustomer(null)
     setAmount('')
+    setCurrency('XAF')
     setError('')
     setPendingTxId(null)
     onClose()
@@ -519,8 +542,33 @@ function TransactionModal({
               </div>
             )}
 
+            {/* Devise de l'operation + solde du compte client */}
             <div className="space-y-2">
-              <Label htmlFor="amount">Montant (USD)</Label>
+              <Label>Devise de l&apos;operation</Label>
+              <div className="flex flex-wrap gap-2">
+                {availableCurrencies.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCurrency(c)}
+                    className={cn(
+                      'rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors',
+                      currency === c
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Solde client : {walletBalance.toLocaleString()} {currency}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Montant ({currency})</Label>
               <Input
                 id="amount"
                 type="number"

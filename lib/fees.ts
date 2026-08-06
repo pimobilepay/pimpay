@@ -49,7 +49,14 @@ export interface FeeConfig {
   // Fiat Transfer Fee
   /** Fiat P2P transfer fee rate (XAF, EUR, USD, etc.) */
   fiatTransferFee: number;
-  
+
+  /**
+   * Part des frais conservee par l'agent sur les operations cash-in / cash-out
+   * (0 a 1). Le complement (1 - agentFeeShare) revient a la plateforme.
+   * Configurable depuis Admin > Reglages.
+   */
+  agentFeeShare: number;
+
   /** Min withdrawal amount */
   minWithdrawal: number;
   /** Max withdrawal amount */
@@ -98,6 +105,8 @@ const DEFAULT_FEE_CONFIG: FeeConfig = {
   qrPaymentFee: 0.01,
   // Fiat Transfer Fee
   fiatTransferFee: 0.005,
+  // Partage des frais agent / plateforme
+  agentFeeShare: 0.5,
   // Limits
   minWithdrawal: 1.0,
   maxWithdrawal: 5000.0,
@@ -106,6 +115,17 @@ const DEFAULT_FEE_CONFIG: FeeConfig = {
 /* ------------------------------------------------------------------ */
 /*  CORE HELPERS                                                       */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Borne une part de frais entre 0 et 1. Protege contre une valeur admin
+ * invalide (negative, > 1, NaN) qui creerait de la monnaie ou une dette.
+ */
+function clampShare(value: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_FEE_CONFIG.agentFeeShare;
+  }
+  return Math.min(1, Math.max(0, value));
+}
 
 /**
  * Fetches the fee configuration from SystemConfig.
@@ -134,6 +154,8 @@ export async function getFeeConfig(): Promise<FeeConfig> {
         qrPaymentFee: true,
         // Fiat Transfer Fee
         fiatTransferFee: true,
+        // Partage des frais agent / plateforme
+        agentFeeShare: true,
         // Limits
         minWithdrawal: true,
         maxWithdrawal: true,
@@ -161,6 +183,10 @@ export async function getFeeConfig(): Promise<FeeConfig> {
       qrPaymentFee: config.qrPaymentFee ?? DEFAULT_FEE_CONFIG.qrPaymentFee,
       // Fiat Transfer Fee
       fiatTransferFee: (config as any).fiatTransferFee ?? DEFAULT_FEE_CONFIG.fiatTransferFee,
+      // Partage des frais agent / plateforme (borne entre 0 et 1)
+      agentFeeShare: clampShare(
+        (config as any).agentFeeShare ?? DEFAULT_FEE_CONFIG.agentFeeShare
+      ),
       // Limits
       minWithdrawal: config.minWithdrawal ?? DEFAULT_FEE_CONFIG.minWithdrawal,
       maxWithdrawal: config.maxWithdrawal ?? DEFAULT_FEE_CONFIG.maxWithdrawal,
@@ -295,5 +321,40 @@ export function calculateFee(
     feeRate,
     feeAmount,
     totalDebit: amount + feeAmount,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  PARTAGE DES FRAIS AGENT / PLATEFORME                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Recupere la part des frais reversee a l'agent, telle que configuree par
+ * l'administrateur (Admin > Reglages > Commission agent).
+ *
+ * SOURCE UNIQUE cote serveur : toutes les routes agent (cash-in, cash-out,
+ * confirmation) doivent l'utiliser plutot qu'une constante figee.
+ */
+export async function getAgentFeeShare(): Promise<number> {
+  const config = await getFeeConfig();
+  return config.agentFeeShare;
+}
+
+/**
+ * Repartit un montant de frais entre l'agent et la plateforme selon la part
+ * configuree par l'admin. Les deux parts somment toujours exactement au
+ * total des frais (le reste est attribue a la plateforme pour eviter toute
+ * perte due aux arrondis).
+ */
+export function splitAgentFee(
+  fee: number | null | undefined,
+  agentFeeShare: number
+): { agentCommission: number; platformFee: number } {
+  const total = fee ?? 0;
+  const share = clampShare(agentFeeShare);
+  const agentCommission = Math.round(total * share * 100) / 100;
+  return {
+    agentCommission,
+    platformFee: Math.round((total - agentCommission) * 100) / 100,
   };
 }
