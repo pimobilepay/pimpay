@@ -73,6 +73,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Dashboard", desc: "Vue detaillee", icon: <LayoutGrid size={20} />, path: "/admin/dashboard", color: "blue" },
+            { label: "Monitoring", desc: "Sante & supervision", icon: <Activity size={20} />, path: "/admin/monitoring", color: "emerald" },
             { label: "Notifications", desc: "Alertes temps reel", icon: <Bell size={20} />, path: "/admin/notifications", color: "rose" },
             { label: "Diffusion", desc: "Groupes & maintenance", icon: <Megaphone size={20} />, path: "/admin/broadcast", color: "amber" },
             { label: "Plafonds", desc: "Limites & exceptions", icon: <SlidersHorizontal size={20} />, path: "/admin/limits", color: "indigo" },
@@ -299,6 +300,7 @@ export default function AdminDashboard() {
         <div className="space-y-3">
           {[
             { label: "Gestion Complete", desc: "Dashboard detaille avec controle total", icon: <Shield size={18} />, path: "/admin/dashboard", color: "blue" },
+            { label: "Centre de Monitoring", desc: "Sante plateforme, serveur et base de donnees", icon: <Activity size={18} />, path: "/admin/monitoring", color: "emerald" },
             { label: "Tresorerie", desc: "Gestion des finances et flux", icon: <Landmark size={18} />, path: "/admin/treasury", color: "amber" },
             { label: "Messages Admin", desc: "Notifications et annonces globales", icon: <MessageSquare size={18} />, path: "/admin/messages", color: "purple" },
             { label: "Logs Utilisateurs", desc: "Suivi d'activite en temps reel", icon: <Eye size={18} />, path: "/admin/logs", color: "blue" },
