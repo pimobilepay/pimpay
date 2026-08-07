@@ -58,6 +58,49 @@ const SUSPICIOUS_PATTERNS = [
   /\/config\.(php|json|yml|yaml)$/i,
 ];
 
+// ─── MAINTENANCE ─────────────────────────────────────────────────────────────
+// Le proxy ne peut pas interroger Prisma (runtime edge) : on lit l'état via
+// l'endpoint public /api/system/maintenance, avec un cache mémoire de 10 s pour
+// ne pas ajouter un appel réseau à chaque navigation.
+interface MaintenanceSnapshot {
+  maintenanceMode: boolean;
+  allowedRoles: string[];
+  endsAt: string | null;
+}
+
+let maintenanceCache: { data: MaintenanceSnapshot; expiresAt: number } | null = null;
+
+async function getMaintenanceSnapshot(req: NextRequest): Promise<MaintenanceSnapshot> {
+  if (maintenanceCache && maintenanceCache.expiresAt > Date.now()) {
+    return maintenanceCache.data;
+  }
+
+  try {
+    const res = await fetch(new URL("/api/system/maintenance", req.url), {
+      cache: "no-store",
+      headers: { "x-internal-proxy": "1" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as any;
+    const data: MaintenanceSnapshot = {
+      maintenanceMode: Boolean(json?.maintenanceMode),
+      allowedRoles: Array.isArray(json?.allowedRoles) ? json.allowedRoles : ["ADMIN"],
+      endsAt: json?.endsAt ?? null,
+    };
+    maintenanceCache = { data, expiresAt: Date.now() + 10_000 };
+    return data;
+  } catch {
+    // Jamais de blocage par défaut si l'état est indisponible.
+    return { maintenanceMode: false, allowedRoles: ["ADMIN"], endsAt: null };
+  }
+}
+
+function isRoleAllowedDuringMaintenance(allowedRoles: string[], role?: string | null): boolean {
+  const normalized = (role || "USER").toUpperCase();
+  if (normalized === "ADMIN") return true;
+  return allowedRoles.map((r) => String(r).toUpperCase()).includes(normalized);
+}
+
 // Fonction helper pour determiner la destination selon le role
 function getDestinationByRole(role: string): string {
   switch (role) {
@@ -161,6 +204,33 @@ export async function proxy(req: NextRequest) {
   const isBankAdmin = userRole === "BANK_ADMIN";
   const isBusinessAdmin = userRole === "BUSINESS_ADMIN";
   const isAgent = userRole === "AGENT";
+
+  // 5.bis MAINTENANCE : on coupe l'accès aux pages applicatives pour tous les
+  // rôles non autorisés, y compris les sessions DÉJÀ ouvertes (c'est ce qui
+  // manquait : les utilisateurs restaient en ligne pendant la maintenance).
+  // Les pages d'authentification restent accessibles pour que l'admin puisse
+  // se connecter et désactiver la maintenance.
+  if (pathname !== "/maintenance" && !isLoginPage && !isAdmin) {
+    const maintenance = await getMaintenanceSnapshot(req);
+    if (
+      maintenance.maintenanceMode &&
+      !isRoleAllowedDuringMaintenance(maintenance.allowedRoles, userRole)
+    ) {
+      const response = NextResponse.redirect(new URL("/maintenance", req.url), 302);
+      // Le compte à rebours de la page /maintenance lit ce cookie.
+      if (maintenance.endsAt) {
+        response.cookies.set("maintenance_until", maintenance.endsAt, {
+          path: "/",
+          httpOnly: false,
+          sameSite: "lax",
+          maxAge: 60 * 60 * 24,
+        });
+      }
+      applyNoStore(response);
+      applySecurityHeaders(response);
+      return response;
+    }
+  }
 
   // Redirection depuis la page de login si deja connecte
   if (userPayload && isLoginPage) {

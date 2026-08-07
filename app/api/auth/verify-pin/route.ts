@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { blockIfMaintenance } from "@/lib/maintenance";
 
 export async function POST(req: NextRequest) {
   try {
@@ -103,6 +104,10 @@ export async function POST(req: NextRequest) {
     if (!isPinValid) {
       return NextResponse.json({ error: "Code PIN incorrect" }, { status: 401 });
     }
+
+    // 2.bis MAINTENANCE : PIN valide mais plateforme fermée => aucun token.
+    const maintenanceBlock = await blockIfMaintenance(user.role);
+    if (maintenanceBlock) return maintenanceBlock;
 
     // 3. GÉNÉRATION DU TOKEN FINAL
     const newToken = await signSessionToken({

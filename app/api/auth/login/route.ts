@@ -10,6 +10,7 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { guardRequest } from "@/lib/defenseGuard";
 import { detectProxy } from "@/lib/proxyDetection";
+import { blockIfMaintenance } from "@/lib/maintenance";
 
 export async function POST(req: Request) {
   try {
@@ -318,6 +319,23 @@ export async function POST(req: Request) {
         accountStatus: "FROZEN",
         reason: (user as any).statusReason || "Votre compte a ete gele. Contactez le support."
       }, { status: 403 });
+    }
+
+    // 2.6 MAINTENANCE PLATEFORME
+    // Identifiants valides mais plateforme en maintenance : aucun token n'est
+    // émis pour les rôles non autorisés (sans ce verrou, les utilisateurs
+    // continuaient à se connecter pendant la maintenance).
+    const maintenanceBlock = await blockIfMaintenance(user.role);
+    if (maintenanceBlock) {
+      await logSystemEvent({
+        level: "WARN",
+        source: "AUTH",
+        action: "LOGIN_BLOCKED_MAINTENANCE",
+        message: `Connexion refusée (maintenance) : ${user.email || user.username}`,
+        userId: user.id,
+        ip,
+      }).catch(() => {});
+      return maintenanceBlock;
     }
 
     // 3. VALIDATION DU ROLE SELON LE TYPE DE CONNEXION
