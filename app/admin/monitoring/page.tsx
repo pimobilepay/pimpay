@@ -12,6 +12,7 @@ import {
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, RadialBarChart, RadialBar,
+  PolarAngleAxis,
 } from "recharts";
 
 /* ============================================================================
@@ -381,9 +382,13 @@ export default function AdminMonitoringPage() {
                         startAngle={225}
                         endAngle={-45}
                       >
-                        <defs />
-                        <RadialBar background={{ fill: "rgba(255,255,255,0.05)" }} dataKey="value" cornerRadius={12} />
-                        <YAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
+                        <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+                        <RadialBar
+                          background={{ fill: "rgba(255,255,255,0.05)" }}
+                          dataKey="value"
+                          cornerRadius={12}
+                          angleAxisId={0}
+                        />
                       </RadialBarChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -666,7 +671,9 @@ export default function AdminMonitoringPage() {
                   <p className="text-[8px] font-black text-slate-500 uppercase tracking-[1.5px] mb-3">Sondes SELECT 1</p>
                   <div className="flex items-end gap-2 h-14">
                     {data.database.probes.map((p, i) => {
-                      const max = Math.max(...data.database.probes, 1);
+                        // Echelle absolue (reference 150ms) : une sonde rapide doit paraitre courte,
+                        // au lieu d'etre etiree a 100% par une echelle relative au max local.
+                        const max = Math.max(...data.database.probes, 150);
                       return (
                         <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
                           <div className="w-full bg-slate-800 rounded-md overflow-hidden flex items-end h-10">
