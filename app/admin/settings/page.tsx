@@ -77,6 +77,25 @@ interface OptimizerResults {
   scanComplete: boolean;
 }
 
+/* ─── GENIUSPAY (MOBILE MONEY) ─────────────────────────────────── */
+interface GeniusPayEnvInfo {
+  env: 'sandbox' | 'production';
+  live: boolean;
+  label: string;
+  apiBaseUrl: string;
+  webhookUrl: string;
+  expectedVars: string[];
+  credentials: {
+    apiKey: boolean;
+    apiSecret: boolean;
+    webhookSecret: boolean;
+    walletId: boolean;
+    keyPrefix: string | null;
+    mismatch: boolean;
+    ready: boolean;
+  };
+}
+
 /* ─── SECTION ENUM ────────────────────────────────────────────── */
 type Section = 'overview' | 'fees' | 'monetary' | 'referral' | 'system' | 'audit' | 'notifications' | 'security' | 'api';
 
@@ -107,6 +126,9 @@ export default function SystemSettings() {
   const [savingComingSoonDate, setSavingComingSoonDate] = useState(false);
   const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
   const [togglingPiNetwork, setTogglingPiNetwork] = useState(false);
+  const [gpEnv, setGpEnv] = useState<GeniusPayEnvInfo | null>(null);
+  const [togglingGpEnv, setTogglingGpEnv] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [togglingPriceMode, setTogglingPriceMode] = useState(false);
   const [livePiPrice, setLivePiPrice] = useState<{ price: number; source: string } | null>(null);
   const [searchAudit, setSearchAudit] = useState('');
@@ -210,9 +232,10 @@ export default function SystemSettings() {
   /* ─── API CALLS ─────────────────────────────────────────────── */
   const loadData = async () => {
     try {
-      const [configRes, piEnvRes] = await Promise.all([
+      const [configRes, piEnvRes, gpEnvRes] = await Promise.all([
         fetch("/api/admin/config", { credentials: "include" }),
         fetch("/api/admin/pi-network", { credentials: "include" }),
+        fetch("/api/admin/geniuspay-env", { credentials: "include" }),
       ]);
       if (!configRes.ok) throw new Error("Erreur serveur");
       const data = await configRes.json();
@@ -231,6 +254,9 @@ export default function SystemSettings() {
       if (piEnvRes.ok) {
         const piData = await piEnvRes.json();
         setPiNetworkEnv(piData.network || 'testnet');
+      }
+      if (gpEnvRes.ok) {
+        setGpEnv(await gpEnvRes.json());
       }
     } catch {
       toast.error("Échec du chargement de la configuration");
@@ -494,6 +520,59 @@ export default function SystemSettings() {
       toast.error(err.message || "Erreur lors du changement de réseau Pi");
     } finally {
       setTogglingPiNetwork(false);
+    }
+  };
+
+  /* ─── GENIUSPAY MOBILE MONEY : Sandbox <-> Production ───────────── */
+  const toggleGeniusPayEnv = async () => {
+    if (!gpEnv) return;
+    const next: 'sandbox' | 'production' =
+      gpEnv.env === 'production' ? 'sandbox' : 'production';
+
+    if (next === 'production') {
+      const ok = window.confirm(
+        "Basculer GeniusPay Mobile Money en PRODUCTION ?\n\n" +
+        "Les paiements Mobile Money deviendront REELS et definitifs (clés pk_live_/sk_live_).\n" +
+        "Vérifiez que le webhook Production est bien déclaré sur geniuspay.ci."
+      );
+      if (!ok) return;
+    }
+
+    setTogglingGpEnv(true);
+    try {
+      const res = await fetch("/api/admin/geniuspay-env", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ env: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Erreur serveur");
+      }
+      setGpEnv(data);
+      toast.success(
+        data.env === 'production'
+          ? "GeniusPay Mobile Money basculé sur PRODUCTION — transactions réelles"
+          : "GeniusPay Mobile Money basculé sur SANDBOX — mode test",
+        { duration: 6000 }
+      );
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Erreur lors du changement d'environnement");
+    } finally {
+      setTogglingGpEnv(false);
+    }
+  };
+
+  const copyWebhookUrl = async () => {
+    if (!gpEnv?.webhookUrl) return;
+    try {
+      await navigator.clipboard.writeText(gpEnv.webhookUrl);
+      setCopiedWebhook(true);
+      toast.success("URL du webhook copiée");
+      setTimeout(() => setCopiedWebhook(false), 2000);
+    } catch {
+      toast.error("Impossible de copier l'URL");
     }
   };
 
@@ -1103,6 +1182,165 @@ export default function SystemSettings() {
                         <p className="text-[9px] text-amber-300/70 font-medium leading-relaxed">
                           <span className="font-black text-amber-300">Attention — </span>
                           Le passage en Mainnet activera les transactions Pi réelles. Assurez-vous que le wallet opérateur est approvisionné et que les clés sont correctement configurées.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* GeniusPay Mobile Money — Sandbox / Production Switch */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">
+                    Mobile Money · GeniusPay
+                  </h2>
+                  <div className={`relative overflow-hidden rounded-2xl border p-6 transition-all
+                    ${gpEnv?.live
+                      ? 'bg-gradient-to-br from-emerald-500/8 via-teal-500/5 to-transparent border-emerald-500/25'
+                      : 'bg-gradient-to-br from-slate-500/8 via-slate-500/5 to-transparent border-white/[0.08]'}`}>
+
+                    <div className={`absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl opacity-[0.06] pointer-events-none
+                      ${gpEnv?.live ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                      {/* Left — info */}
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 rounded-xl border shrink-0
+                          ${gpEnv?.live
+                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                            : 'bg-slate-500/15 border-white/10 text-slate-400'}`}>
+                          <Smartphone size={20} />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <p className="text-sm font-black text-white uppercase tracking-tight">GeniusPay</p>
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border
+                              ${gpEnv?.live
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                : 'bg-slate-500/20 border-white/15 text-slate-300'}`}>
+                              {gpEnv
+                                ? (gpEnv.live ? 'PRODUCTION · Réel' : 'SANDBOX · Test')
+                                : 'Chargement...'}
+                            </span>
+                            {gpEnv?.credentials.keyPrefix && (
+                              <span className="px-2 py-0.5 rounded-full text-[8px] font-mono font-bold bg-black/40 border border-white/[0.08] text-slate-400">
+                                {gpEnv.credentials.keyPrefix}…
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-sm">
+                            {gpEnv?.live
+                              ? 'Environnement Production — les paiements Mobile Money (Wave, Orange, MTN, Moov) sont réels et définitifs.'
+                              : 'Environnement Sandbox — aucun débit réel. Les clés pk_sandbox_/sk_sandbox_ sont utilisées.'}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${gpEnv?.live ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${gpEnv?.live ? 'text-emerald-400' : 'text-slate-400'}`}>
+                              {gpEnv?.live ? 'Transactions réelles — irréversibles' : 'Sandbox — aucun débit réel'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right — toggle */}
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        <button
+                          type="button"
+                          onClick={toggleGeniusPayEnv}
+                          disabled={togglingGpEnv || !gpEnv}
+                          className={`relative flex items-center w-[72px] h-8 rounded-full border transition-all duration-300 outline-none
+                            ${togglingGpEnv || !gpEnv ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                            ${gpEnv?.live
+                              ? 'bg-emerald-500/20 border-emerald-500/40'
+                              : 'bg-slate-700/60 border-white/10'}`}
+                          aria-label={`Basculer GeniusPay vers ${gpEnv?.live ? 'Sandbox' : 'Production'}`}
+                        >
+                          <span className={`absolute left-1 flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 text-[8px] font-black
+                            ${gpEnv?.live
+                              ? 'translate-x-[40px] bg-emerald-400 text-emerald-900'
+                              : 'translate-x-0 bg-slate-400 text-slate-900'}`}>
+                            {togglingGpEnv
+                              ? <Loader2 size={10} className="animate-spin" />
+                              : gpEnv?.live ? 'P' : 'S'}
+                          </span>
+                        </button>
+                        <span className="text-[9px] font-bold text-slate-500">
+                          {togglingGpEnv
+                            ? 'Basculement...'
+                            : `→ ${gpEnv?.live ? 'Passer en Sandbox' : 'Passer en Production'}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Webhook URL à déclarer sur geniuspay.ci */}
+                    <div className="relative z-10 mt-5 space-y-2">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                        URL de destination du webhook (à coller sur geniuspay.ci)
+                      </label>
+                      <div className="flex items-center gap-2 bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3">
+                        <LinkIcon size={13} className="text-slate-500 shrink-0" />
+                        <code className="flex-1 text-[11px] font-mono text-slate-200 truncate">
+                          {gpEnv?.webhookUrl || '—'}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={copyWebhookUrl}
+                          disabled={!gpEnv?.webhookUrl}
+                          className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-[9px] font-black uppercase tracking-widest text-slate-300 transition-colors disabled:opacity-40"
+                        >
+                          {copiedWebhook ? <CheckCircle2 size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                          {copiedWebhook ? 'Copié' : 'Copier'}
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-medium leading-relaxed">
+                        Endpoint unique : déclarez-le côté GeniusPay pour Sandbox <span className="text-slate-400">et</span> Production
+                        (deux webhooks pointant vers la même URL). Événements : payment.* et cashout.*
+                      </p>
+                    </div>
+
+                    {/* État des clés d'environnement */}
+                    {gpEnv && (
+                      <div className="relative z-10 mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {([
+                          ['API Key', gpEnv.credentials.apiKey],
+                          ['API Secret', gpEnv.credentials.apiSecret],
+                          ['Webhook Secret', gpEnv.credentials.webhookSecret],
+                          ['Wallet ID', gpEnv.credentials.walletId],
+                        ] as [string, boolean][]).map(([label, present]) => (
+                          <div
+                            key={label}
+                            className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-[9px] font-bold
+                              ${present
+                                ? 'bg-emerald-500/[0.06] border-emerald-500/20 text-emerald-300'
+                                : 'bg-red-500/[0.06] border-red-500/20 text-red-300'}`}
+                          >
+                            {present ? <CheckCircle2 size={11} className="shrink-0" /> : <AlertCircle size={11} className="shrink-0" />}
+                            <span className="truncate">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Alerte incohérence de clé */}
+                    {gpEnv?.credentials.mismatch && (
+                      <div className="relative z-10 mt-4 flex items-start gap-2.5 p-3.5 bg-red-500/5 border border-red-500/20 rounded-xl">
+                        <AlertOctagon size={13} className="text-red-400 shrink-0 mt-0.5" />
+                        <p className="text-[9px] text-red-300/80 font-medium leading-relaxed">
+                          <span className="font-black text-red-300">Incohérence — </span>
+                          La clé chargée ({gpEnv.credentials.keyPrefix}) ne correspond pas à l&apos;environnement {gpEnv.label}.
+                          Vérifiez {gpEnv.expectedVars[0]} dans les variables d&apos;environnement.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Avertissement production */}
+                    {gpEnv && !gpEnv.live && (
+                      <div className="relative z-10 mt-4 flex items-start gap-2.5 p-3.5 bg-amber-500/5 border border-amber-500/15 rounded-xl">
+                        <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
+                        <p className="text-[9px] text-amber-300/70 font-medium leading-relaxed">
+                          <span className="font-black text-amber-300">Avant de passer en Production — </span>
+                          renseignez {gpEnv.expectedVars.join(', ').replace(/SANDBOX/g, 'LIVE')} dans les variables
+                          d&apos;environnement du projet, puis déclarez le webhook Production ci-dessus sur geniuspay.ci.
+                          La bascule est instantanée, sans redéploiement.
                         </p>
                       </div>
                     )}

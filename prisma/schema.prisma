@@ -194,6 +194,10 @@ model SwapQuote {
 model SystemConfig {
   id                   String    @id @default("GLOBAL_CONFIG")
   piNetwork            String    @default("testnet")
+  /// Environnement GeniusPay / Mobile Money : "sandbox" | "production".
+  /// Pilote depuis Admin > Reglages. Projete dans process.env.GENIUSPAY_ENV
+  /// afin de basculer testnet <-> mainnet sans redeploiement.
+  geniuspayEnv         String    @default("sandbox")
   appVersion           String    @default("2.4.0")
   forceUpdate          Boolean   @default(false)
   globalAnnouncement   String?

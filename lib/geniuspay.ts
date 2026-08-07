@@ -52,10 +52,73 @@ export type { GeniusPayMomoMethod };
 
 export type GeniusPayEnv = "sandbox" | "production";
 
-export function getGeniusPayEnv(): GeniusPayEnv {
-  return (process.env.GENIUSPAY_ENV || "sandbox").toLowerCase() === "production"
+export function normalizeGeniusPayEnv(value?: string | null): GeniusPayEnv {
+  const v = (value || "").toLowerCase().trim();
+  return v === "production" || v === "live" || v === "mainnet"
     ? "production"
     : "sandbox";
+}
+
+/**
+ * Environnement GeniusPay ACTIF.
+ *
+ * Source de vérité : `process.env.GENIUSPAY_ENV`.
+ * La bascule Admin (Réglages > Mobile Money GeniusPay) persiste la valeur en
+ * base (SystemConfig.geniuspayEnv) ET réécrit `process.env.GENIUSPAY_ENV` en
+ * mémoire, puis `hydrateGeniusPayEnv()` réaligne les workers serverless froids.
+ * Aucun redéploiement n'est nécessaire.
+ */
+export function getGeniusPayEnv(): GeniusPayEnv {
+  return normalizeGeniusPayEnv(process.env.GENIUSPAY_ENV);
+}
+
+export function isGeniusPayLive(): boolean {
+  return getGeniusPayEnv() === "production";
+}
+
+// -----------------------------------------------------------------------------
+// Résolution des identifiants selon l'environnement actif
+// -----------------------------------------------------------------------------
+// Chaque secret peut être défini de deux façons :
+//   1. Par environnement  : GENIUSPAY_API_KEY_LIVE / GENIUSPAY_API_KEY_SANDBOX
+//   2. Générique (legacy) : GENIUSPAY_API_KEY
+// On privilégie TOUJOURS la variante suffixée correspondant à l'environnement
+// actif, avec repli sur la variable générique. Cela permet de garder les clés
+// sandbox ET live configurées en permanence et de basculer instantanément.
+function resolveEnvVar(base: string): string | undefined {
+  const suffix = getGeniusPayEnv() === "production" ? "LIVE" : "SANDBOX";
+  const scoped = process.env[`${base}_${suffix}`];
+  if (scoped && scoped.trim()) return scoped.trim();
+  const generic = process.env[base];
+  return generic && generic.trim() ? generic.trim() : undefined;
+}
+
+/** Indique si la clé attendue pour l'environnement actif est bien configurée. */
+export function getGeniusPayCredentialStatus() {
+  const env = getGeniusPayEnv();
+  const apiKey = resolveEnvVar("GENIUSPAY_API_KEY");
+  const apiSecret = resolveEnvVar("GENIUSPAY_API_SECRET");
+  const webhookSecret = resolveEnvVar("GENIUSPAY_WEBHOOK_SECRET");
+  const walletId = resolveEnvVar("GENIUSPAY_WALLET_ID");
+
+  // Cohérence : une clé pk_live_ ne doit pas être utilisée en sandbox (et inversement).
+  const keyPrefix = apiKey ? apiKey.slice(0, 11) : null;
+  const looksLive = /^pk_live_/i.test(apiKey || "");
+  const looksSandbox = /^pk_sandbox_/i.test(apiKey || "");
+  const mismatch =
+    (env === "production" && looksSandbox) ||
+    (env === "sandbox" && looksLive);
+
+  return {
+    env,
+    apiKey: Boolean(apiKey),
+    apiSecret: Boolean(apiSecret),
+    webhookSecret: Boolean(webhookSecret),
+    walletId: Boolean(walletId),
+    keyPrefix,
+    mismatch,
+    ready: Boolean(apiKey && apiSecret),
+  };
 }
 
 /**
@@ -105,30 +168,35 @@ export function getGeniusPayPayoutBaseUrls(): string[] {
 }
 
 function getApiKey(): string {
-  const key = process.env.GENIUSPAY_API_KEY;
+  const key = resolveEnvVar("GENIUSPAY_API_KEY");
   if (!key) {
     throw new Error(
-      "GENIUSPAY_API_KEY non configuré. Ajoutez-le dans les variables d'environnement du projet."
+      `GENIUSPAY_API_KEY non configuré pour l'environnement "${getGeniusPayEnv()}". ` +
+        `Ajoutez GENIUSPAY_API_KEY_${getGeniusPayEnv() === "production" ? "LIVE" : "SANDBOX"} ` +
+        `(ou GENIUSPAY_API_KEY) dans les variables d'environnement du projet.`
     );
   }
   return key;
 }
 
 function getApiSecret(): string {
-  const secret = process.env.GENIUSPAY_API_SECRET;
+  const secret = resolveEnvVar("GENIUSPAY_API_SECRET");
   if (!secret) {
     throw new Error(
-      "GENIUSPAY_API_SECRET non configuré. Ajoutez-le dans les variables d'environnement du projet."
+      `GENIUSPAY_API_SECRET non configuré pour l'environnement "${getGeniusPayEnv()}". ` +
+        `Ajoutez GENIUSPAY_API_SECRET_${getGeniusPayEnv() === "production" ? "LIVE" : "SANDBOX"} ` +
+        `(ou GENIUSPAY_API_SECRET) dans les variables d'environnement du projet.`
     );
   }
   return secret;
 }
 
 export function getGeniusPayWalletId(): string {
-  const id = process.env.GENIUSPAY_WALLET_ID;
+  const id = resolveEnvVar("GENIUSPAY_WALLET_ID");
   if (!id) {
     throw new Error(
-      "GENIUSPAY_WALLET_ID non configuré (UUID du wallet marchand pour les payouts)."
+      `GENIUSPAY_WALLET_ID non configuré pour l'environnement "${getGeniusPayEnv()}" ` +
+        `(UUID du wallet marchand pour les payouts).`
     );
   }
   return id;
@@ -161,6 +229,16 @@ export async function geniusPayFetch<T = any>(
   path: string,
   init?: GeniusPayFetchOptions
 ): Promise<GeniusPayResponse<T>> {
+  // Aligne l'environnement actif (sandbox / production) sur le choix admin
+  // persisté en base. Import dynamique : `lib/geniuspay.ts` reste sans
+  // dépendance à Prisma au chargement du module.
+  try {
+    const { hydrateGeniusPayEnv } = await import("./geniuspay-env");
+    await hydrateGeniusPayEnv();
+  } catch {
+    // Base indisponible -> on retombe sur process.env.GENIUSPAY_ENV.
+  }
+
   const { baseUrl, ...rest } = init || {};
   const url = `${baseUrl || getGeniusPayBaseUrl()}${path}`;
   const res = await fetch(url, {
@@ -582,13 +660,43 @@ export function mapGeniusPayStatus(
 // signature = HMAC_SHA256(secret, `${timestamp}.${rawBody}`)  (hex)
 // -----------------------------------------------------------------------------
 export function getWebhookSecret(): string {
-  const secret = process.env.GENIUSPAY_WEBHOOK_SECRET;
+  const secret = resolveEnvVar("GENIUSPAY_WEBHOOK_SECRET");
   if (!secret) {
     throw new Error(
-      "GENIUSPAY_WEBHOOK_SECRET non configuré (secret whsec_... du webhook)."
+      `GENIUSPAY_WEBHOOK_SECRET non configuré pour l'environnement "${getGeniusPayEnv()}" ` +
+        `(secret whsec_... du webhook).`
     );
   }
   return secret;
+}
+
+/** URL publique à déclarer côté dashboard GeniusPay (endpoint unique). */
+export function getGeniusPayWebhookUrl(): string {
+  return `${getAppBaseUrl()}/api/transaction/webhook`;
+}
+
+/**
+ * Tous les secrets webhook configurés (sandbox + live + legacy).
+ *
+ * GeniusPay signe avec le secret du webhook qui a émis l'événement. Comme un
+ * même endpoint peut recevoir des événements Sandbox ET Production pendant une
+ * bascule, on accepte n'importe quel secret configuré : la vérification HMAC
+ * reste stricte (aucun payload non signé n'est accepté).
+ */
+export function getWebhookSecretCandidates(): string[] {
+  const scoped =
+    getGeniusPayEnv() === "production"
+      ? process.env.GENIUSPAY_WEBHOOK_SECRET_LIVE
+      : process.env.GENIUSPAY_WEBHOOK_SECRET_SANDBOX;
+  const candidates = [
+    scoped,
+    process.env.GENIUSPAY_WEBHOOK_SECRET_LIVE,
+    process.env.GENIUSPAY_WEBHOOK_SECRET_SANDBOX,
+    process.env.GENIUSPAY_WEBHOOK_SECRET,
+  ]
+    .map((s) => (s || "").trim())
+    .filter(Boolean);
+  return Array.from(new Set(candidates));
 }
 
 export function computeWebhookSignature(
@@ -612,17 +720,23 @@ export function verifyWebhookSignature(
   rawBody: string,
   signature: string | null,
   timestamp: string | null,
-  secret: string = process.env.GENIUSPAY_WEBHOOK_SECRET || ""
+  secret?: string
 ): boolean {
-  if (!secret || !signature || !timestamp) return false;
-  let expected: string;
-  try {
-    expected = computeWebhookSignature(rawBody, timestamp, secret);
-  } catch {
-    return false;
-  }
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(signature, "utf8");
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  if (!signature || !timestamp) return false;
+
+  const secrets = secret ? [secret] : getWebhookSecretCandidates();
+  if (secrets.length === 0) return false; // fail-closed
+
+  const provided = Buffer.from(signature.trim(), "utf8");
+  return secrets.some((s) => {
+    let expected: string;
+    try {
+      expected = computeWebhookSignature(rawBody, timestamp, s);
+    } catch {
+      return false;
+    }
+    const a = Buffer.from(expected, "utf8");
+    if (a.length !== provided.length) return false;
+    return crypto.timingSafeEqual(a, provided);
+  });
 }
