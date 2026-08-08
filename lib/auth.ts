@@ -130,6 +130,23 @@ export async function verifyPiSessionToken(piToken: string | undefined | null): 
       return null;
     }
 
+    // [FIX] Ce chemin valide le token DIRECTEMENT auprès de l'API Pi Network
+    // (api.minepi.com) — il ne passe jamais par verifyJWT() et donc jamais
+    // par la vérification "sessions actives" (Session table). Un admin qui
+    // déconnectait un utilisateur Pi Browser via ce chemin voyait la
+    // déconnexion échouer silencieusement : le jeton Pi restait valide côté
+    // Pi Network et continuait donc à authentifier l'utilisateur sur
+    // PIMOBIPAY indéfiniment. On vérifie désormais explicitement qu'il
+    // possède encore au moins une session active en base — cohérent avec le
+    // comportement du JWT classique.
+    const activeSession = await prisma.session.findFirst({
+      where: { userId: user.id, isActive: true },
+      select: { id: true },
+    });
+    if (!activeSession) {
+      return null;
+    }
+
     PI_TOKEN_CACHE.set(piToken, { userId: user.id, expires: Date.now() + PI_TOKEN_CACHE_TTL_MS });
     return user.id;
   } catch (error) {

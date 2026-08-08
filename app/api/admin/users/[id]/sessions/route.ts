@@ -4,6 +4,8 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
+import * as jose from "jose";
+import { revokeToken } from "@/lib/tokenBlacklist";
 
 // DELETE - Deconnecter toutes les sessions d'un utilisateur
 export async function DELETE(
@@ -31,22 +33,58 @@ export async function DELETE(
       return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
     }
 
-    // 4. SUPPRESSION DE TOUTES LES SESSIONS
-    const deletedSessions = await prisma.session.deleteMany({
-      where: { userId: userId }
+    // 4. RÉVOCATION DE TOUTES LES SESSIONS
+    // [FIX] AVANT : `session.deleteMany(...)` supprimait purement et
+    // simplement les lignes Session. Or `verifyJWT()` / `verifyAuth()` /
+    // `getAuthUserIdFromBearer()` (lib/auth.ts) considèrent un utilisateur
+    // révoqué UNIQUEMENT si `totalCount > 0 && activeCount === 0` (des
+    // sessions existent mais aucune active). En supprimant TOUTES les
+    // lignes, `totalCount` retombait à 0 -> cette condition devenait fausse
+    // -> le JWT déjà émis (valide jusqu'à 30 jours pour les connexions
+    // Pi Browser / Google) continuait d'être accepté par TOUTES les routes
+    // de l'app malgré la "déconnexion" côté admin. On MARQUE désormais les
+    // sessions comme inactives (`isActive: false`) au lieu de les supprimer,
+    // ce qui déclenche correctement la révocation.
+    const targetSessions = await prisma.session.findMany({
+      where: { userId, isActive: true },
+      select: { id: true, token: true },
     });
 
-    // 5. LOG DE L'ACTION
+    const updated = await prisma.session.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false },
+    });
+
+    // 5. RÉVOCATION IMMÉDIATE DES JWT (jti) — ceinture + bretelles.
+    // Ne dépend pas du heuristique "sessions actives" : même si un appel
+    // concurrent recréait une session entre-temps, ces tokens précis
+    // resteront bloqués jusqu'à leur expiration naturelle.
+    for (const session of targetSessions) {
+      try {
+        const decoded = jose.decodeJwt(session.token);
+        const jti = decoded?.jti as string | undefined;
+        const exp = decoded?.exp as number | undefined;
+        if (jti) {
+          const ttl = exp ? Math.max(60, exp - Math.floor(Date.now() / 1000)) : 60 * 60 * 24 * 30;
+          await revokeToken(jti, ttl);
+        }
+      } catch {
+        // Token illisible (format inattendu) — on ignore, la révocation par
+        // session.isActive reste effective.
+      }
+    }
+
+    // 6. LOG DE L'ACTION
     await prisma.auditLog.create({
       data: {
         adminId: authUserId,
         action: "DISCONNECT_USER",
         targetId: userId,
-        details: `Deconnexion forcee de ${targetUser.username || targetUser.email || userId} - ${deletedSessions.count} session(s) supprimee(s)`,
+        details: `Deconnexion forcee de ${targetUser.username || targetUser.email || userId} - ${updated.count} session(s) revoquee(s)`,
       }
     });
 
-    // 6. CREATION D'UNE NOTIFICATION POUR L'UTILISATEUR
+    // 7. CREATION D'UNE NOTIFICATION POUR L'UTILISATEUR
     await prisma.notification.create({
       data: {
         userId: userId,
@@ -58,8 +96,8 @@ export async function DELETE(
 
     return NextResponse.json({ 
       success: true, 
-      message: `${deletedSessions.count} session(s) deconnectee(s)`,
-      count: deletedSessions.count
+      message: `${updated.count} session(s) deconnectee(s)`,
+      count: updated.count
     });
     
   } catch (error: any) {
