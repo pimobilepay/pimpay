@@ -10,6 +10,7 @@ import {
   formatDuration,
   MAINTENANCE_SCOPES,
 } from "@/lib/broadcast";
+import { revokeSessionsForMaintenance, invalidateMaintenanceCache } from "@/lib/maintenance";
 
 const CONFIG_ID = "GLOBAL_CONFIG";
 
@@ -136,6 +137,18 @@ export async function POST(req: Request) {
       console.log("[v0] systemConfig maintenance update failed:", (err as Error)?.message);
     }
 
+    // 1bis. Propagation immédiate : le cache mémoire de `getMaintenanceState()`
+    // (TTL 5s) ne doit pas retarder l'effet de l'activation, et surtout, les
+    // utilisateurs déjà connectés doivent être déconnectés tout de suite plutôt
+    // que d'attendre l'expiration naturelle de leur token (jusqu'à 15 min).
+    // On révoque toutes les sessions actives des rôles non autorisés — ADMIN
+    // reste toujours connecté pour pouvoir désactiver la maintenance ensuite.
+    invalidateMaintenanceCache();
+    let revokedSessions = 0;
+    if (isMaintenance) {
+      revokedSessions = await revokeSessionsForMaintenance(allowedRoles);
+    }
+
     // 2. Désactivation des anciennes bannières de maintenance
     try {
       const client = prisma as any;
@@ -201,6 +214,7 @@ export async function POST(req: Request) {
       notified: broadcast?.recipientCount ?? 0,
       broadcastId: broadcast?.broadcastId ?? null,
       broadcastError: broadcast?.error ?? null,
+      revokedSessions,
     });
 
     if (isMaintenance) {

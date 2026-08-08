@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { SignJWT } from "jose";
 import { randomUUID } from "crypto";
+import { guardRequest } from "@/lib/defenseGuard";
+import { blockIfMaintenance } from "@/lib/maintenance";
 
 /**
  * POST /api/auth/pi-login
@@ -13,6 +15,23 @@ import { randomUUID } from "crypto";
  */
 export async function POST(request: Request) {
   try {
+    // [FIX] Ce flux (connexion via Pi Browser) ne passait par AUCUN garde de
+    // sécurité : ni la liste noire d'IP / verrouillage total (page Admin >
+    // Intrusion), ni le blocage de maintenance. Un utilisateur bloqué ou une
+    // IP bannie sur /api/auth/login continuait donc de se connecter sans
+    // problème via Pi Browser. On applique ici les mêmes gardes.
+    const guard = await guardRequest(request, { context: "pi-login" });
+    if (!guard.allowed) {
+      return NextResponse.json(
+        {
+          error: guard.blockedByList
+            ? "Accès refusé. Votre adresse a été bloquée pour activité suspecte."
+            : "Accès refusé. La connexion via VPN, proxy ou réseau anonyme n'est pas autorisée.",
+        },
+        { status: guard.status }
+      );
+    }
+
     const { accessToken, piUserId, username, phone } = await request.json();
 
     if (!piUserId || !accessToken) {
@@ -47,6 +66,7 @@ export async function POST(request: Request) {
       id: true,
       username: true,
       role: true,
+      status: true,
       piUserId: true,
       firstName: true,
       lastName: true,
@@ -127,6 +147,23 @@ export async function POST(request: Request) {
           user = await tryCreate(candidate3);
         }
       }
+    }
+
+    // [FIX] Compte gelé/suspendu — même contrôle que la connexion classique :
+    // sans ça, un compte gelé depuis l'admin restait utilisable via Pi Browser.
+    if (user.status && user.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Compte gelé ou suspendu. Contactez le support.", accountStatus: user.status },
+        { status: 403 }
+      );
+    }
+
+    // [FIX] Blocage maintenance — jusqu'ici, seul /api/auth/login vérifiait la
+    // maintenance ; les connexions Pi Browser continuaient d'émettre un token
+    // et une session valides pendant la maintenance.
+    const maintenanceBlock = await blockIfMaintenance(user.role);
+    if (maintenanceBlock) {
+      return maintenanceBlock;
     }
 
     // Creation du JWT PIMOBIPAY

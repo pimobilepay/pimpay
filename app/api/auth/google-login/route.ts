@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { SignJWT } from "jose";
+import { guardRequest } from "@/lib/defenseGuard";
+import { blockIfMaintenance } from "@/lib/maintenance";
 
 /**
  * POST /api/auth/google-login
@@ -14,6 +16,20 @@ import { SignJWT } from "jose";
  */
 export async function POST(request: Request) {
   try {
+    // [FIX] Même garde que pi-login : ce flux ne vérifiait ni la liste noire
+    // d'IP / verrouillage total, ni la maintenance.
+    const guard = await guardRequest(request, { context: "google-login" });
+    if (!guard.allowed) {
+      return NextResponse.json(
+        {
+          error: guard.blockedByList
+            ? "Accès refusé. Votre adresse a été bloquée pour activité suspecte."
+            : "Accès refusé. La connexion via VPN, proxy ou réseau anonyme n'est pas autorisée.",
+        },
+        { status: guard.status }
+      );
+    }
+
     const { code, redirectUri } = await request.json();
 
     if (!code) {
@@ -85,6 +101,7 @@ export async function POST(request: Request) {
       id: true,
       username: true,
       role: true,
+      status: true,
       piUserId: true,
       firstName: true,
       lastName: true,
@@ -105,6 +122,7 @@ export async function POST(request: Request) {
       id: string;
       username: string | null;
       role: any;
+      status: any;
       piUserId: string | null;
       firstName: string | null;
       lastName: string | null;
@@ -231,6 +249,21 @@ export async function POST(request: Request) {
       },
       update: accountData,
     });
+
+    // [FIX] Compte gelé/suspendu — même contrôle que la connexion classique.
+    if (user!.status && user!.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Compte gelé ou suspendu. Contactez le support.", accountStatus: user!.status },
+        { status: 403 }
+      );
+    }
+
+    // [FIX] Blocage maintenance — les connexions Google continuaient d'émettre
+    // un token et une session valides pendant la maintenance.
+    const maintenanceBlock = await blockIfMaintenance(user!.role);
+    if (maintenanceBlock) {
+      return maintenanceBlock;
+    }
 
     // 5) Creation du JWT PIMOBIPAY (identique au flux Pi).
     const SECRET = process.env.JWT_SECRET;

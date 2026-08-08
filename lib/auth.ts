@@ -279,6 +279,20 @@ export async function verifyAuth(req: NextRequest) {
       return null;
     }
 
+    // [FIX] Révocation scopée à CET utilisateur — même logique que verifyJWT().
+    // Sans ce contrôle, un access token encore valide (15 min) restait accepté
+    // par toutes les routes utilisant verifyAuth() (agent/bank/business/user...)
+    // même après "déconnecter tous les appareils" ou une coupure de session
+    // liée à la maintenance : seules les routes passant par verifyJWT()
+    // étaient réellement révoquées, pas les 60+ routes basées sur verifyAuth().
+    if ((payload as any).purpose !== "mfa_verification") {
+      const [activeCount, totalCount] = await Promise.all([
+        prisma.session.count({ where: { userId, isActive: true } }),
+        prisma.session.count({ where: { userId } }),
+      ]);
+      if (totalCount > 0 && activeCount === 0) return null;
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId, status: "ACTIVE" },
       select: { 
