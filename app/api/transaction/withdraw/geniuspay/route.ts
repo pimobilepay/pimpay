@@ -4,12 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { calculateExchangeWithFee, convertFiatToPi } from "@/lib/exchange";
+import { calculateExchangeWithFee } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import {
   enforcePiPolicy,
+  assertDailyWithdrawalCount,
+  resolveUserLimits,
   WithdrawalPolicyError,
 } from "@/lib/withdrawal-limits";
 import {
@@ -232,18 +234,34 @@ export async function POST(req: NextRequest) {
 
         // Politique de retrait administree (/admin/limits) : plafonds resolus
         // dynamiquement, exceptions possibles par role ou par utilisateur.
-        // Les plafonds étant dénommés en Pi, un retrait depuis un wallet fiat
-        // est converti en équivalent Pi uniquement pour cette vérification.
-        const amountPiEquivalent = isPiSource
-          ? piAmount
-          : convertFiatToPi(piAmount, sourceCurrency, piPrice);
-        const { requiresAdminApproval } = await enforcePiPolicy(tx, {
-          userId,
-          amountPi: amountPiEquivalent,
-          kycStatus: user?.kycStatus,
-          role: user?.role,
-          channel: "WITHDRAW",
-        });
+        // [FIX] Les plafonds sont dénommés en Pi et n'ont de sens que pour un
+        // retrait qui débite réellement le wallet PI. Un wallet FIAT (XOF...)
+        // déjà crédité par un dépôt Mobile Money est retiré DANS SA PROPRE
+        // devise, sans conversion : le convertir artificiellement en
+        // "équivalent Pi" pouvait déclencher un faux plafond ("100 Pi") pour
+        // un simple retrait en XOF n'ayant jamais touché de Pi. Pour un
+        // wallet fiat, on n'applique donc que la limite du nombre de retraits
+        // par jour ; la conversion Pi reste réservée aux retraits crypto.
+        let requiresAdminApproval = false;
+        if (isPiSource) {
+          const res = await enforcePiPolicy(tx, {
+            userId,
+            amountPi: piAmount,
+            kycStatus: user?.kycStatus,
+            role: user?.role,
+            channel: "WITHDRAW",
+          });
+          requiresAdminApproval = res.requiresAdminApproval;
+        } else {
+          const fiatLimits = await resolveUserLimits({
+            userId,
+            role: user?.role,
+            kycStatus: user?.kycStatus,
+            channel: "WITHDRAW",
+            db: tx,
+          });
+          await assertDailyWithdrawalCount(tx, userId, fiatLimits.maxPerDay);
+        }
 
         const updatedWallet = await tx.wallet.update({
           where: { id: userWallet.id },

@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { calculateExchangeWithFee, convertFiatToPi } from "@/lib/exchange";
+import { calculateExchangeWithFee } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import {
   enforcePiPolicy,
+  assertDailyWithdrawalCount,
+  resolveUserLimits,
   WithdrawalPolicyError,
 } from "@/lib/withdrawal-limits";
 import {
@@ -133,20 +135,39 @@ export async function POST(req: NextRequest) {
 
       // B. POLITIQUE DE RETRAIT ADMINISTREE (/admin/limits)
       // Les plafonds (franchise KYC, max par transaction, seuil de validation
-      // admin, nombre et volume journaliers) sont resolus dynamiquement et
-      // peuvent faire l'objet d'exceptions par role ou par utilisateur.
-      // Les plafonds étant dénommés en Pi, un retrait depuis un wallet fiat
-      // est converti en équivalent Pi uniquement pour cette vérification.
-      const amountPiEquivalent = isPiSource
-        ? piAmount
-        : convertFiatToPi(piAmount, sourceCurrency, piPrice);
-      const { requiresAdminApproval } = await enforcePiPolicy(tx, {
-        userId,
-        amountPi: amountPiEquivalent,
-        kycStatus: user?.kycStatus,
-        role: user?.role,
-        channel: "WITHDRAW",
-      });
+      // admin, nombre et volume journaliers) sont dénommés en Pi : ils n'ont
+      // de sens QUE pour un retrait qui débite réellement le wallet Pi (ou une
+      // crypto, valorisable en Pi/USD de façon fiable).
+      // [FIX] Un wallet FIAT (XOF, XAF, EUR, USD...) déjà crédité par un dépôt
+      // Mobile Money/carte est retiré DANS SA PROPRE devise, sans jamais
+      // toucher au Pi : le convertir artificiellement en "équivalent Pi" via
+      // le taux FIAT_RATES/prix Pi produisait un montant fictif qui pouvait
+      // dépasser le plafond (ex: 100 Pi) pour un simple retrait de quelques
+      // dizaines de milliers de XOF, avec un message d'erreur "100 Pi" absurde
+      // puisqu'aucun Pi n'est en jeu. Pour un wallet fiat, on n'applique donc
+      // QUE la limite du nombre de retraits par jour (pas de plafond par
+      // montant ni de conversion) ; la conversion Pi reste utilisée
+      // uniquement pour un retrait crypto (source = wallet PI).
+      let requiresAdminApproval = false;
+      if (isPiSource) {
+        const res = await enforcePiPolicy(tx, {
+          userId,
+          amountPi: piAmount,
+          kycStatus: user?.kycStatus,
+          role: user?.role,
+          channel: "WITHDRAW",
+        });
+        requiresAdminApproval = res.requiresAdminApproval;
+      } else {
+        const fiatLimits = await resolveUserLimits({
+          userId,
+          role: user?.role,
+          kycStatus: user?.kycStatus,
+          channel: "WITHDRAW",
+          db: tx,
+        });
+        await assertDailyWithdrawalCount(tx, userId, fiatLimits.maxPerDay);
+      }
 
       // C. Débiter le montant du wallet source immédiatement (Sécurité Anti-Double dépense)
       const updatedWallet = await tx.wallet.update({
