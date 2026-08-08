@@ -53,7 +53,7 @@ export default function SummaryPage() {
         const params = new URLSearchParams({
           ref,
           amount: data.piAmount || data.amount,
-          currency: "PI",
+          currency: data.currency || "PI",
           fiatAmount: String(data.fiatAmount || ""),
           fiatCurrency: data.fiatCurrency || data.currency || "",
           method: data.method || "",
@@ -82,6 +82,14 @@ export default function SummaryPage() {
   if (!data) return null;
 
   const isMobile = data.method === "mobile";
+  // [FIX] Une conversion n'a de sens que si la devise source (le wallet
+  // débité) diffère réellement de la devise de sortie. Pour un wallet fiat
+  // (XAF, EUR, USD, XOF...) retiré dans SA PROPRE devise, il n'y a jamais de
+  // conversion — auparavant l'écran affichait quand même une fausse ligne
+  // "Conversion" (ex: 500 XAF -> 301 500 XAF).
+  const walletCurrency = data.currency || "PI";
+  const cashoutCurrency = data.fiatCurrency || walletCurrency;
+  const hasRealConversion = walletCurrency !== cashoutCurrency;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans">
@@ -129,21 +137,33 @@ export default function SummaryPage() {
             </div>
           )}
 
-          {/* Amount in Pi */}
+          {/* Amount */}
           <div className="flex justify-between border-b border-white/5 pb-4">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Montant</span>
-            <span className="text-xl font-black text-white">{data.piAmount || data.amount} Pi</span>
+            <span className="text-xl font-black text-white">{data.piAmount || data.amount} {walletCurrency}</span>
           </div>
 
-          {/* Conversion to local currency */}
-          <div className="flex justify-between border-b border-white/5 pb-4">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Conversion</span>
-            <span className="text-xl font-black text-blue-400">
-              {typeof data.fiatAmount === "number"
-                ? new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.fiatAmount)
-                : data.fiatAmount} {data.fiatCurrency || data.currency}
-            </span>
-          </div>
+          {/* Conversion vers la devise locale — uniquement si la devise du
+              wallet diffère réellement de la devise de sortie (PI/crypto). */}
+          {hasRealConversion ? (
+            <div className="flex justify-between border-b border-white/5 pb-4">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Conversion</span>
+              <span className="text-xl font-black text-blue-400">
+                {typeof data.fiatAmount === "number"
+                  ? new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.fiatAmount)
+                  : data.fiatAmount} {cashoutCurrency}
+              </span>
+            </div>
+          ) : (
+            <div className="flex justify-between border-b border-white/5 pb-4">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Net a recevoir</span>
+              <span className="text-xl font-black text-blue-400">
+                {typeof data.fiatAmount === "number"
+                  ? new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.fiatAmount)
+                  : data.fiatAmount} {cashoutCurrency}
+              </span>
+            </div>
+          )}
 
           {/* Method */}
           <div className="flex justify-between border-b border-white/5 pb-4">
