@@ -295,8 +295,6 @@ export default function UserDashboard() {
   const { currency, setCurrency: setCtxCurrency, currencyInfo, convertFromXAF, formatAmount } = useCurrency();
   const [data, setData] = useState<any>(null);
   const [balances, setBalances] = useState<Record<string, number>>({});
-  // [FIX] Soldes fiat (USD/XOF/EUR/XAF) — auparavant absents du dashboard.
-  const [fiatBalances, setFiatBalances] = useState<Record<string, number>>({ USD: 0, XOF: 0, EUR: 0, XAF: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
@@ -456,19 +454,6 @@ export default function UserDashboard() {
           parsed[key] = parseFloat(balData[key] || "0") || 0;
         }
         setBalances(parsed);
-        // [FIX] Le solde FIAT (USD/XOF/EUR/XAF) était totalement ignoré ici :
-        // il n'entrait ni dans le total affiché en haut du dashboard, ni
-        // dans la liste des wallets. Il est désormais extrait de la liste
-        // complète `wallets` renvoyée par /api/wallet/balance.
-        const fiat: Record<string, number> = { USD: 0, XOF: 0, EUR: 0, XAF: 0 };
-        if (Array.isArray(balData.wallets)) {
-          for (const w of balData.wallets) {
-            if (w.currency in fiat) fiat[w.currency] = w.balance || 0;
-          }
-        }
-        // XAF est aussi exposé directement à la racine par l'API.
-        fiat.XAF = fiat.XAF || parseFloat(balData.XAF || "0") || 0;
-        setFiatBalances(fiat);
       }
     } catch {
       toast.error("Sync error");
@@ -503,18 +488,7 @@ export default function UserDashboard() {
     (balances.DOGE || 0) * marketPrices.DOGE +
     (balances.TON || 0) * marketPrices.TON;
 
-  // [FIX] Valeur des soldes FIAT convertie en USD puis ajoutée au total,
-  // exactement comme les cryptos ci-dessus. XOF/XAF sont pegged à
-  // 655.957 pour 1 EUR (union monétaire CFA) ; EUR converti en USD via
-  // le taux USD_TO_XAF déjà utilisé pour tout le dashboard.
-  const XAF_PER_EUR = 655.957;
-  const fiatUsdValue =
-    (fiatBalances.USD || 0) +
-    (fiatBalances.EUR || 0) * (XAF_PER_EUR / USD_TO_XAF) +
-    (fiatBalances.XOF || 0) / USD_TO_XAF +
-    (fiatBalances.XAF || 0) / USD_TO_XAF;
-
-  const totalInXAF = (totalUSDValue + fiatUsdValue) * USD_TO_XAF;
+  const totalInXAF = totalUSDValue * USD_TO_XAF;
   const totalInSelectedCurrency = convertFromXAF(totalInXAF);
 
   const formatTotalBalance = () => {
@@ -561,20 +535,8 @@ export default function UserDashboard() {
   const pieData = stats.total > 0 ? stats.pie.filter((s) => s.value > 0) : [{ name: "Aucune", value: 1 }];
 
   // Top wallets by value
-  // [FIX] Les wallets FIAT (USD/XOF/EUR/XAF) sont désormais inclus ici, avec
-  // le même taux de conversion utilisé pour le total (voir fiatUsdValue
-  // ci-dessus) — ils apparaissent maintenant dans les "wallets" du dashboard
-  // au lieu d'être invisibles.
-  const FIAT_USD_RATE: Record<string, number> = {
-    USD: 1,
-    EUR: XAF_PER_EUR / USD_TO_XAF,
-    XOF: 1 / USD_TO_XAF,
-    XAF: 1 / USD_TO_XAF,
-  };
-  const topWallets = [
-    ...Object.entries(balances).map(([k, v]) => ({ currency: k, balance: v, usdValue: v * (marketPrices[k] || 0) })),
-    ...Object.entries(fiatBalances).map(([k, v]) => ({ currency: k, balance: v, usdValue: v * (FIAT_USD_RATE[k] || 0) })),
-  ]
+  const topWallets = Object.entries(balances)
+    .map(([k, v]) => ({ currency: k, balance: v, usdValue: v * (marketPrices[k] || 0) }))
     .filter((w) => w.usdValue > 0)
     .sort((a, b) => b.usdValue - a.usdValue)
     .slice(0, 4);

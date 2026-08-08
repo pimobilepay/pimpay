@@ -191,17 +191,6 @@ export default function WalletPage() {
   const [adaBalance, setAdaBalance] = useState("0.000000");
   const [dogeBalance, setDogeBalance] = useState("0.000000");
   const [tonBalance, setTonBalance] = useState("0.000000");
-  // [FIX] Soldes des wallets FIAT (USD, XOF, EUR, XAF...) — crédités par les
-  // dépôts Mobile Money / Carte GeniusPay. Auparavant, ces soldes n'étaient
-  // jamais affichés : le wallet fiat existait bien en base mais aucune carte
-  // ne le montrait à l'écran.
-  const [fiatWallets, setFiatWallets] = useState<{ currency: string; balance: number }[]>([]);
-  const FIAT_CURRENCY_META: Record<string, { name: string; flag: string }> = {
-    USD: { name: "Dollar US", flag: "🇺🇸" },
-    XOF: { name: "Franc CFA (UEMOA)", flag: "🌍" },
-    EUR: { name: "Euro", flag: "🇪🇺" },
-    XAF: { name: "Franc CFA (CEMAC)", flag: "🌍" },
-  };
 
   const [addresses, setAddresses] = useState<WalletAddresses>({
     PI: "", SDA: "", USDT: "", BTC: "", ETH: "", BNB: "", SOL: "", TRX: "", ADA: "", DOGE: "", TON: "", USDC: "", DAI: "", BUSD: "", EURC: "", OUSD: "", XRP: "", XLM: ""
@@ -318,17 +307,6 @@ export default function WalletPage() {
         setAdaBalance(parseFloat(balData.ADA || "0").toFixed(6));
         setDogeBalance(parseFloat(balData.DOGE || "0").toFixed(6));
         setTonBalance(parseFloat(balData.TON || "0").toFixed(6));
-        // [FIX] Extraire les wallets FIAT (USD/XOF/EUR/XAF) depuis la liste
-        // complète renvoyée par /api/wallet/balance (déjà présente en base,
-        // simplement jamais affichée côté client).
-        if (Array.isArray(balData.wallets)) {
-          const FIAT_CODES = ["USD", "XOF", "EUR", "XAF"];
-          setFiatWallets(
-            balData.wallets
-              .filter((w: any) => FIAT_CODES.includes(w.currency))
-              .map((w: any) => ({ currency: w.currency, balance: w.balance }))
-          );
-        }
         if (balData.addresses) {
           setAddresses({
             PI: balData.addresses.PI || "", SDA: balData.addresses.SDA || "", USDT: balData.addresses.USDT || "", BTC: balData.addresses.BTC || "", ETH: balData.addresses.ETH || "", BNB: balData.addresses.BNB || "", SOL: balData.addresses.SOL || "", TRX: balData.addresses.TRX || "", ADA: balData.addresses.ADA || "", DOGE: balData.addresses.DOGE || "", TON: balData.addresses.TON || "", USDC: balData.addresses.USDC || "", DAI: balData.addresses.DAI || "", BUSD: balData.addresses.BUSD || "", EURC: balData.addresses.EURC || "", OUSD: balData.addresses.OUSD || "", XRP: balData.addresses.XRP || "", XLM: balData.addresses.XLM || "",
@@ -522,37 +500,6 @@ export default function WalletPage() {
         {/* Assets Tab */}
         {activeTab === "assets" && (
         <div>
-        {/* [FIX] Soldes FIAT — crédités par les dépôts Mobile Money / Carte
-            (GeniusPay). Affichés uniquement si l'utilisateur possède au
-            moins un wallet fiat avec un solde (>0) pour ne pas encombrer
-            l'écran des nouveaux utilisateurs. */}
-        {fiatWallets.some((w) => w.balance > 0) && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solde Fiat</h3>
-            </div>
-            <div className="space-y-2.5">
-              {fiatWallets.filter((w) => w.balance > 0).map((w) => (
-                <div key={w.currency} className="flex items-center justify-between p-3.5 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg">
-                      {FIAT_CURRENCY_META[w.currency]?.flag || "💵"}
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-white tracking-tight">{w.currency}</p>
-                      <p className="text-[10px] font-bold text-slate-500">{FIAT_CURRENCY_META[w.currency]?.name || w.currency}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-white tracking-tight">{w.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    <button onClick={() => router.push('/swap')} className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">Convertir en PI →</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.yourAssets")}</h3>
           <span className="text-[9px] font-bold text-slate-600">18 {t("wallet.assetsCount")}</span>

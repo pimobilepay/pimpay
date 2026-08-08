@@ -133,11 +133,117 @@ export async function reconcileGeniusPayPayment(
     return { outcome: "failed" };
   }
 
-  // SUCCÈS -> financement carte virtuelle OU crédit wallet PI
+  // SUCCÈS -> financement carte virtuelle OU crédit wallet FIAT OU (legacy) wallet PI
   if (meta.kind === "card_fund") {
     return await creditVirtualCard(transaction, meta, authoritative, event);
   }
+  // [FIX] Un dépôt Mobile Money / Carte via GeniusPay est de l'argent FIAT
+  // réel : il doit arriver sur le wallet fiat de l'utilisateur (USD, XOF,
+  // EUR, XAF...) et non plus être converti automatiquement en PI. La
+  // conversion en PI reste possible ENSUITE, par le choix de l'utilisateur,
+  // via /api/transaction/swap. meta.kind === "fiat_deposit" pour toute
+  // nouvelle transaction ; on garde creditPiWallet en repli pour les
+  // anciennes transactions déjà en PENDING avant ce correctif (destCurrency
+  // encore égal à "PI").
+  if (meta.kind === "fiat_deposit" || transaction.destCurrency !== "PI") {
+    return await creditFiatWallet(transaction, meta, authoritative, event);
+  }
   return await creditPiWallet(transaction, meta, authoritative, event);
+}
+
+/** Crédite le wallet FIAT (USD/XOF/EUR/XAF...) du montant NET local (calculé à l'initiation). */
+async function creditFiatWallet(
+  transaction: any,
+  meta: any,
+  authoritative: string,
+  event: string
+): Promise<ReconcileResult> {
+  const userId = transaction.fromUserId as string | null;
+  const creditCurrency: string =
+    meta.localCurrency || transaction.destCurrency || transaction.currency || "XAF";
+  // netLocal calculé à l'initiation (montant local net de frais). Si absent
+  // (anciennes transactions), on retombe sur le montant brut de la transaction.
+  const netLocal: number =
+    typeof meta.netLocal === "number" && meta.netLocal > 0
+      ? meta.netLocal
+      : Number(transaction.amount) || 0;
+
+  if (!userId || netLocal <= 0) {
+    await prisma.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "SUCCESS",
+        statusClass: "AGGREGATOR_COMPLETED",
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+    return { outcome: "success", credited: 0 };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const wallet = await tx.wallet.upsert({
+      where: { userId_currency: { userId, currency: creditCurrency } },
+      update: { balance: { increment: netLocal } },
+      create: {
+        userId,
+        currency: creditCurrency,
+        balance: netLocal,
+        type: "FIAT",
+      },
+    });
+
+    await tx.transaction.update({
+      where: { id: transaction.id, status: "PENDING" },
+      data: {
+        status: "SUCCESS",
+        statusClass: "AGGREGATOR_COMPLETED",
+        netAmount: netLocal,
+        destCurrency: creditCurrency,
+        toUserId: userId,
+        toWalletId: wallet.id,
+        metadata: { ...meta, geniusPayFinalStatus: authoritative, event },
+      },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId,
+        title: "Dépôt réussi",
+        message: `Votre compte a été crédité de ${netLocal.toLocaleString(
+          "fr-FR"
+        )} ${creditCurrency}.`,
+        type: "SUCCESS",
+        metadata: JSON.stringify({
+          amount: netLocal,
+          currency: creditCurrency,
+          reference: transaction.reference,
+          method: "GeniusPay",
+          status: "SUCCESS",
+        }),
+      },
+    });
+
+    await tx.securityLog.create({
+      data: {
+        userId,
+        action: `DEPOSIT_GENIUSPAY_SUCCESS | ref:${transaction.reference} | ${netLocal} ${creditCurrency}`,
+        ip: "SYSTEM_WEBHOOK",
+      },
+    });
+  });
+
+  if (transaction.fee && transaction.fee > 0) {
+    autoConvertFeeToPi(
+      transaction.fee,
+      "USD",
+      transaction.id,
+      transaction.reference
+    ).catch((err) =>
+      console.error("[GENIUSPAY_RECONCILE] Fee conversion:", err.message)
+    );
+  }
+
+  return { outcome: "success", credited: netLocal };
 }
 
 /** Crédite le wallet PI du montant NET (calculé à l'initiation). */

@@ -126,7 +126,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Frais + montant net crédité (en Pi)
+    // 3. Frais + montant net crédité
+    // [FIX] Un dépôt Mobile Money (GeniusPay) est de l'argent FIAT réel.
+    // Avant ce correctif, il était systématiquement converti en PI au
+    // moment du crédit (creditPiWallet), sans jamais transiter par le
+    // wallet fiat (USD/XOF/EUR/XAF) — l'utilisateur ne pouvait donc pas
+    // voir ni retrouver ce solde fiat sur le dashboard/wallet, et n'avait
+    // aucun moyen de choisir LUI-MÊME de le convertir en PI.
+    // On calcule toujours netPi/piPrice à titre informatif (affiché au
+    // client comme "équivalent PI"), mais le CRÉDIT réel se fait dans la
+    // devise fiat locale (currency) — voir metadata.kind = "fiat_deposit"
+    // et lib/geniuspay-reconcile.ts::creditFiatWallet. La conversion en PI
+    // reste possible ensuite via /api/transaction/swap (wallet -> PI).
     const feeConfig = await getFeeConfig();
     const feeRate = isMobileMoney
       ? feeConfig.depositMobileFee
@@ -135,6 +146,8 @@ export async function POST(req: NextRequest) {
     const feeUsd = usd * feeRate;
     const netUsd = usd - feeUsd;
     const netPi = piPrice > 0 ? netUsd / piPrice : 0;
+    // Montant net dans la devise locale réellement créditée sur le wallet fiat.
+    const netLocal = Math.round(localAmount * (1 - feeRate) * 100) / 100;
 
     // 4. Anti-doublon (30s)
     const existingTx = await prisma.transaction.findFirst({
@@ -163,9 +176,11 @@ export async function POST(req: NextRequest) {
         fee: feeUsd,
         netAmount: netUsd,
         currency,
-        destCurrency: "PI",
         type: "DEPOSIT",
         status: "PENDING",
+        // [FIX] destCurrency reflète désormais la devise fiat réellement
+        // créditée (ex: XOF, XAF), plus "PI" — cohérent avec le crédit fiat.
+        destCurrency: currency,
         description: `Dépôt via GeniusPay${
           isMobileMoney
             ? ` (${operatorName || mmoProvider || paymentMethod})`
@@ -177,14 +192,20 @@ export async function POST(req: NextRequest) {
         fromUserId: userId,
         metadata: {
           aggregator: "GENIUSPAY",
+          // [FIX] Indique au réconciliateur (webhook + confirm manuel) de
+          // créditer le WALLET FIAT (currency) plutôt que le wallet PI.
+          kind: "fiat_deposit",
           paymentMethod: paymentMethod || "card",
           mmoProvider: mmoProvider || null,
           phoneNumber: normalizedPhone || null,
           localAmount,
           localCurrency: currency,
+          netLocal,
           usdAmount: usd,
           feeUsd,
           netUsd,
+          // Conservés à titre indicatif uniquement (affichage "≈ X PI" côté
+          // client) — n'est PLUS utilisé pour le crédit automatique.
           netPi,
           piPrice,
           submittedAt: new Date().toISOString(),
