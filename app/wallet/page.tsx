@@ -2,14 +2,13 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   RefreshCcw, ArrowUpRight, ArrowLeftRight, History, X, Copy, Check, Download, ArrowDownLeft, Clock, Calendar, Facebook, Twitter, Linkedin,
-  TrendingUp, TrendingDown, ChevronRight, Shield, Layers, BarChart3, Lock, Music2
+  TrendingUp, TrendingDown, ChevronRight, Shield, Layers, BarChart3, Lock, Music2, Wallet
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BottomNav } from "@/components/bottom-nav";
 import SideMenu from "@/components/SideMenu";
 import { useRouter } from "next/navigation";
 import SendModal from "@/components/SendModal";
-import { LimitsBanner } from "@/components/limits-banner";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -169,7 +168,7 @@ export default function WalletPage() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [recentTx, setRecentTx] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"assets" | "history">("assets");
+  const [activeTab, setActiveTab] = useState<"assets" | "fiat" | "history">("assets");
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("Pioneer");
@@ -498,9 +497,6 @@ export default function WalletPage() {
           <QuickAction icon={<Lock size={20} />} label="Staking" onClick={() => router.push('/wallet/staking')} />
         </div>
 
-        {/* Plafonds applicables au canal WALLET, servis par /api/user/limits */}
-        <LimitsBanner channel="WALLET" className="mb-8" />
-
         {/* Tabs */}
         <div className="flex gap-1 mb-6 p-1 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
           <button
@@ -509,6 +505,13 @@ export default function WalletPage() {
           >
             <Layers size={14} />
             {t("wallet.yourAssets") || "Actifs"}
+          </button>
+          <button
+            onClick={() => setActiveTab("fiat")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === "fiat" ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
+          >
+            <Wallet size={14} />
+            Fiat
           </button>
           <button
             onClick={() => setActiveTab("history")}
@@ -522,37 +525,6 @@ export default function WalletPage() {
         {/* Assets Tab */}
         {activeTab === "assets" && (
         <div>
-        {/* [FIX] Soldes FIAT — crédités par les dépôts Mobile Money / Carte
-            (GeniusPay). Affichés uniquement si l'utilisateur possède au
-            moins un wallet fiat avec un solde (>0) pour ne pas encombrer
-            l'écran des nouveaux utilisateurs. */}
-        {fiatWallets.some((w) => w.balance > 0) && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solde Fiat</h3>
-            </div>
-            <div className="space-y-2.5">
-              {fiatWallets.filter((w) => w.balance > 0).map((w) => (
-                <div key={w.currency} className="flex items-center justify-between p-3.5 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg">
-                      {FIAT_CURRENCY_META[w.currency]?.flag || "💵"}
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-white tracking-tight">{w.currency}</p>
-                      <p className="text-[10px] font-bold text-slate-500">{FIAT_CURRENCY_META[w.currency]?.name || w.currency}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-white tracking-tight">{w.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    <button onClick={() => router.push('/swap')} className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">Convertir en PI →</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t("wallet.yourAssets")}</h3>
           <span className="text-[9px] font-bold text-slate-600">18 {t("wallet.assetsCount")}</span>
@@ -579,6 +551,54 @@ export default function WalletPage() {
           <AssetCard logo={<EurcLogo />} name="Euro Coin" symbol="EURC" network="ERC20" balance={eurcBalance} marketPrice={marketPrices.EURC} usdValue={parseFloat(eurcBalance) * marketPrices.EURC} priceChange={priceChanges.EURC} loading={loading} onClick={() => router.push('/wallet/eurc')} />
           <AssetCard logo={<OusdLogo />} name="Origin Dollar" symbol="OUSD" network="ERC20" balance={ousdBalance} marketPrice={marketPrices.OUSD} usdValue={parseFloat(ousdBalance) * marketPrices.OUSD} priceChange={priceChanges.OUSD} loading={loading} onClick={() => router.push('/wallet/ousd')} />
         </div>
+        </div>
+        )}
+
+        {/* Fiat Tab — soldes USD/XOF/EUR/XAF crédités par les dépôts Mobile
+            Money / Carte (GeniusPay). Séparé des cryptos dans son propre
+            onglet pour un rendu plus sobre et professionnel. */}
+        {activeTab === "fiat" && (
+        <div className="mb-8">
+          {fiatWallets.length === 0 || fiatWallets.every((w) => w.balance <= 0) ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
+                <Wallet size={26} className="text-slate-600" />
+              </div>
+              <p className="text-sm font-black text-white mb-1">Aucun solde fiat</p>
+              <p className="text-[11px] text-slate-500 font-medium mb-5 max-w-[240px]">
+                Vos dépôts Mobile Money ou Carte apparaîtront ici, dans leur devise d'origine.
+              </p>
+              <button onClick={() => router.push('/deposit')} className="px-5 py-2.5 bg-blue-600 rounded-xl text-[11px] font-black uppercase tracking-wider text-white active:scale-95 transition-all">
+                Effectuer un dépôt
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-4 px-1">
+                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solde Fiat</h3>
+                <span className="text-[9px] font-bold text-slate-600">{fiatWallets.filter((w) => w.balance > 0).length} devise{fiatWallets.filter((w) => w.balance > 0).length > 1 ? "s" : ""}</span>
+              </div>
+              <div className="space-y-2.5">
+                {fiatWallets.filter((w) => w.balance > 0).map((w) => (
+                  <div key={w.currency} className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/[0.06] hover:bg-white/[0.05] transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg">
+                        {FIAT_CURRENCY_META[w.currency]?.flag || "💵"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-white tracking-tight">{w.currency}</p>
+                        <p className="text-[10px] font-bold text-slate-500">{FIAT_CURRENCY_META[w.currency]?.name || w.currency}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-white tracking-tight">{w.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <button onClick={() => router.push('/swap')} className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">Convertir en PI →</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
         )}
 

@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { QRScanner } from "@/components/qr-scanner";
 import { ReceiveQR } from "@/components/receive-qr";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
-import { LimitsBanner } from "@/components/limits-banner";
 import { PaymentServices } from "@/components/mpay/payment-services";
 import { useLanguage } from "@/context/LanguageContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -875,9 +874,6 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             </div>
           </div>
         </section>
-
-        {/* PLAFONDS APPLICABLES (politiques admin incluses) */}
-        <LimitsBanner channel="MPAY" />
 
         {/* QUICK ACTIONS */}
         <section>
