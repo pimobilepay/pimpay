@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { calculateExchangeWithFee } from "@/lib/exchange";
+import { calculateExchangeWithFee, convertFiatToPi } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
@@ -166,6 +166,14 @@ export async function POST(req: NextRequest) {
     const currency =
       body.fiatCurrency || getGeniusPayCurrency(countryCode) || "XOF";
 
+    // Devise SOURCE du retrait : le wallet réellement sélectionné par
+    // l'utilisateur (peut être "PI" ou un wallet fiat déjà crédité par un
+    // dépôt Mobile Money / carte). [FIX] Avant ce correctif, le solde était
+    // TOUJOURS vérifié/débité sur le wallet "PI", même quand l'utilisateur
+    // avait sélectionné un wallet fiat → message erroné "Solde Pi insuffisant".
+    const sourceCurrency = String(body.currency || "PI").toUpperCase();
+    const isPiSource = sourceCurrency === "PI";
+
     // Montant net versé au bénéficiaire (devise locale).
     // On privilégie le montant déjà calculé/affiché côté client (fiatAmount) ;
     // à défaut, on recalcule Pi -> devise locale avec les frais retrait mobile.
@@ -177,10 +185,16 @@ export async function POST(req: NextRequest) {
       feeConfig.withdrawMobileFee,
       piPrice
     );
+    // Wallet fiat retiré dans sa propre devise : pas de conversion, seuls les
+    // frais de la plateforme s'appliquent directement au montant saisi.
+    const directFee = piAmount * feeConfig.withdrawMobileFee;
+    const directNet = piAmount - directFee;
     const localAmount = Math.round(
       parseFloat(body.fiatAmount) > 0
         ? parseFloat(body.fiatAmount)
-        : conversion.total
+        : isPiSource
+        ? conversion.total
+        : directNet
     );
     if (localAmount <= 0) {
       return NextResponse.json(
@@ -205,18 +219,27 @@ export async function POST(req: NextRequest) {
       async (tx) => {
         const user = await tx.user.findUnique({
           where: { id: userId },
-          include: { wallets: { where: { currency: "PI" } } },
+          include: { wallets: { where: { currency: sourceCurrency } } },
         });
         const userWallet = user?.wallets[0];
         if (!userWallet || userWallet.balance < piAmount) {
-          throw new Error("Solde Pi insuffisant pour cette opération");
+          throw new Error(
+            isPiSource
+              ? "Solde Pi insuffisant pour cette opération"
+              : `Solde ${sourceCurrency} insuffisant pour cette opération`
+          );
         }
 
         // Politique de retrait administree (/admin/limits) : plafonds resolus
         // dynamiquement, exceptions possibles par role ou par utilisateur.
+        // Les plafonds étant dénommés en Pi, un retrait depuis un wallet fiat
+        // est converti en équivalent Pi uniquement pour cette vérification.
+        const amountPiEquivalent = isPiSource
+          ? piAmount
+          : convertFiatToPi(piAmount, sourceCurrency, piPrice);
         const { requiresAdminApproval } = await enforcePiPolicy(tx, {
           userId,
-          amountPi: piAmount,
+          amountPi: amountPiEquivalent,
           kycStatus: user?.kycStatus,
           role: user?.role,
           channel: "WITHDRAW",
@@ -227,7 +250,9 @@ export async function POST(req: NextRequest) {
           data: { balance: { decrement: piAmount } },
         });
 
-        const feePi = conversion.fee / (piPrice > 0 ? piPrice : 1);
+        const feePi = isPiSource
+          ? conversion.fee / (piPrice > 0 ? piPrice : 1)
+          : directFee;
 
         const transaction = await tx.transaction.create({
           data: {
@@ -243,7 +268,7 @@ export async function POST(req: NextRequest) {
             description: `Retrait Mobile Money via GeniusPay${
               details?.provider ? ` (${details.provider})` : ""
             }`,
-            currency: "PI",
+            currency: sourceCurrency,
             destCurrency: currency,
             countryCode,
             fee: feePi,
@@ -257,8 +282,8 @@ export async function POST(req: NextRequest) {
               recipientName,
               localAmount,
               localCurrency: currency,
-              exchangeRate: piPrice,
-              debitedPi: piAmount, // utilisé par le webhook pour rembourser si échec
+              exchangeRate: isPiSource ? piPrice : 1,
+              debitedPi: piAmount, // utilisé par le webhook pour rembourser si échec (dans `currency` ci-dessus)
               feePi,
               requiresAdminApproval,
               submittedAt: new Date().toISOString(),
@@ -271,8 +296,8 @@ export async function POST(req: NextRequest) {
             userId,
             title: "Demande de retrait reçue",
             message: requiresAdminApproval
-              ? `Votre retrait de ${piAmount} PI doit être validé par un administrateur.`
-              : `Votre retrait de ${piAmount} PI est en cours de traitement.`,
+              ? `Votre retrait de ${piAmount} ${sourceCurrency} doit être validé par un administrateur.`
+              : `Votre retrait de ${piAmount} ${sourceCurrency} est en cours de traitement.`,
             type: "INFO",
           },
         });
@@ -289,7 +314,9 @@ export async function POST(req: NextRequest) {
     );
 
     // Auto-conversion des frais en Pi (non bloquant)
-    if (result.feePi > 0) {
+    // Uniquement pertinent quand la source du retrait est le wallet PI : les
+    // frais prélevés sur un wallet fiat sont déjà dans cette devise fiat.
+    if (isPiSource && result.feePi > 0) {
       autoConvertFeeToPi(
         result.feePi,
         "PI",

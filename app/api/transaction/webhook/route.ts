@@ -154,10 +154,15 @@ async function handleCashout(reference: string, event: string) {
   // ÉCHEC -> rembourser le montant débité (réservé à l'initiation)
   if (status === "FAILED") {
     const refundPi = Number(meta.debitedPi) || 0;
+    // [FIX] Le remboursement doit créditer le wallet réellement débité à
+    // l'initiation (PI ou un wallet fiat sélectionné par l'utilisateur), pas
+    // systématiquement le wallet "PI" — sinon un retrait payé depuis un
+    // wallet fiat était remboursé sur le mauvais solde.
+    const refundCurrency = transaction.currency || "PI";
     await prisma.$transaction(async (tx) => {
       if (userId && refundPi > 0) {
         await tx.wallet.update({
-          where: { userId_currency: { userId, currency: "PI" } },
+          where: { userId_currency: { userId, currency: refundCurrency } },
           data: { balance: { increment: refundPi } },
         });
       }

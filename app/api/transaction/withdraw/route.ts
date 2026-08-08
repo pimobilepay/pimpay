@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { calculateExchangeWithFee } from "@/lib/exchange";
+import { calculateExchangeWithFee, convertFiatToPi } from "@/lib/exchange";
 import { TransactionStatus } from "@prisma/client";
 import { getFeeConfig, getPiPrice } from "@/lib/fees";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
@@ -92,40 +92,63 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    // 2.c Devise SOURCE du retrait : le wallet réellement sélectionné par
+    //     l'utilisateur (peut être "PI" ou un wallet fiat déjà crédité par un
+    //     dépôt Mobile Money / carte, ex: XAF, XOF, EUR...).
+    //     [FIX] Avant ce correctif, le solde était TOUJOURS vérifié/débité sur
+    //     le wallet "PI", même quand l'utilisateur avait sélectionné un wallet
+    //     fiat dans l'interface → message erroné "Solde Pi insuffisant".
+    const sourceCurrency = String(currency || "PI").toUpperCase();
+    const isPiSource = sourceCurrency === "PI";
+
     // 3. Calcul de la conversion (Pi -> Fiat) - Frais centralisés + prix Pi admin
+    //    Uniquement pertinent quand la source du retrait est le wallet PI.
     const targetCurrency = currency || "USD";
     const feeConfig = await getFeeConfig();
     const piPrice = await getPiPrice();
     const conversion = calculateExchangeWithFee(piAmount, targetCurrency, feeConfig.withdrawFee, piPrice);
+    // Pour un wallet fiat retiré dans sa propre devise : pas de conversion,
+    // seuls les frais de la plateforme s'appliquent directement au montant saisi.
+    const directFee = piAmount * feeConfig.withdrawFee;
+    const directNet = piAmount - directFee;
 
     // 4. Exécution de la transaction atomique (Prisma $transaction)
     const result = await prisma.$transaction(async (tx) => {
 
-      // A. Vérifier l'utilisateur et son solde
+      // A. Vérifier l'utilisateur et son solde DANS LA DEVISE SOURCE sélectionnée
       const user = await tx.user.findUnique({
         where: { id: userId },
-        include: { wallets: { where: { currency: "PI" } } }
+        include: { wallets: { where: { currency: sourceCurrency } } }
       });
 
       const userWallet = user?.wallets[0];
 
       if (!userWallet || userWallet.balance < piAmount) {
-        throw new Error("Solde Pi insuffisant pour cette opération");
+        throw new Error(
+          isPiSource
+            ? "Solde Pi insuffisant pour cette opération"
+            : `Solde ${sourceCurrency} insuffisant pour cette opération`
+        );
       }
 
       // B. POLITIQUE DE RETRAIT ADMINISTREE (/admin/limits)
       // Les plafonds (franchise KYC, max par transaction, seuil de validation
       // admin, nombre et volume journaliers) sont resolus dynamiquement et
       // peuvent faire l'objet d'exceptions par role ou par utilisateur.
+      // Les plafonds étant dénommés en Pi, un retrait depuis un wallet fiat
+      // est converti en équivalent Pi uniquement pour cette vérification.
+      const amountPiEquivalent = isPiSource
+        ? piAmount
+        : convertFiatToPi(piAmount, sourceCurrency, piPrice);
       const { requiresAdminApproval } = await enforcePiPolicy(tx, {
         userId,
-        amountPi: piAmount,
+        amountPi: amountPiEquivalent,
         kycStatus: user?.kycStatus,
         role: user?.role,
         channel: "WITHDRAW",
       });
 
-      // C. Débiter le montant du wallet immédiatement (Sécurité Anti-Double dépense)
+      // C. Débiter le montant du wallet source immédiatement (Sécurité Anti-Double dépense)
       const updatedWallet = await tx.wallet.update({
         where: { id: userWallet.id },
         data: { balance: { decrement: piAmount } }
@@ -176,10 +199,12 @@ export async function POST(req: NextRequest) {
           fromUserId: userId,
           fromWalletId: userWallet.id,
           description: description,
-          currency: "PI",
+          currency: sourceCurrency,
           destCurrency: payoutPlan?.fiatCurrency || targetCurrency,
           countryCode: body.countryCode || null,
-          fee: conversion.fee / piPrice, // Frais convertis en PI
+          // PI source : frais convertis en PI. Wallet fiat : frais déjà dans
+          // la devise du wallet débité, pas de conversion supplémentaire.
+          fee: isPiSource ? conversion.fee / piPrice : directFee,
           // Stocker directement le numéro de compte/téléphone dans le champ DB
           accountNumber: accountNumberValue,
           accountName: body.details?.accountName || null,
@@ -187,8 +212,8 @@ export async function POST(req: NextRequest) {
           metadata: {
             method: method, // "mobile" ou "bank"
             transferDetails: body.details,
-            fiatAmount: payoutPlan?.fiatAmount ?? conversion.total,
-            exchangeRate: piPrice,
+            fiatAmount: payoutPlan?.fiatAmount ?? (isPiSource ? conversion.total : directNet),
+            exchangeRate: isPiSource ? piPrice : 1,
             requiresAdminApproval,
             autoApproved: !requiresAdminApproval,
             submittedAt: new Date().toISOString(),
@@ -212,17 +237,25 @@ export async function POST(req: NextRequest) {
           userId: userId,
           title: "Demande de retrait reçue",
           message: requiresAdminApproval
-            ? `Votre retrait de ${piAmount} PI (${method}) dépasse ${50} PI et doit être validé par un administrateur.`
-            : `Votre retrait de ${piAmount} PI est en cours de traitement (${method}).`,
+            ? `Votre retrait de ${piAmount} ${sourceCurrency} (${method}) dépasse le seuil autorisé et doit être validé par un administrateur.`
+            : `Votre retrait de ${piAmount} ${sourceCurrency} est en cours de traitement (${method}).`,
           type: "INFO"
         }
       });
 
-      return { transaction, newBalance: updatedWallet.balance, fee: conversion.fee / piPrice, requiresAdminApproval, walletId: userWallet.id };
+      return {
+        transaction,
+        newBalance: updatedWallet.balance,
+        fee: isPiSource ? conversion.fee / piPrice : directFee,
+        requiresAdminApproval,
+        walletId: userWallet.id,
+      };
     }, { maxWait: 10000, timeout: 30000 });
 
     // AUTO-CONVERSION DES FRAIS EN PI (sans intervention admin)
-    if (result.fee > 0) {
+    // Uniquement pertinent quand la source du retrait est le wallet PI : les
+    // frais prélevés sur un wallet fiat sont déjà dans cette devise fiat.
+    if (isPiSource && result.fee > 0) {
       autoConvertFeeToPi(
         result.fee,
         "PI",
