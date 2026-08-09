@@ -685,6 +685,7 @@ export default function WithdrawPage() {
                   </p>
                 </div>
               ) : (
+              <>
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 {/* Country */}
                 <div className="space-y-2">
@@ -886,6 +887,7 @@ export default function WithdrawPage() {
                   )}
                 </button>
               </div>
+              </>
               )}
             </motion.div>
           )}
