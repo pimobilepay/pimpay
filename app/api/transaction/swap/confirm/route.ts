@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
+import { getBlockedSwapPair } from "@/lib/swapAvailability";
 
 // [FIX N2] CORS_HEADERS statique retiré — remplacé par getCorsHeaders(request).
 
@@ -33,7 +34,14 @@ export async function POST(req: Request) {
       // On utilise sourceCurrency et targetCurrency du schéma pour éviter de deviner
       const fromCurrency = quote.sourceCurrency.toUpperCase();
       const targetCurrency = quote.targetCurrency.toUpperCase();
-                                              
+
+      // Re-verification : l'admin peut avoir suspendu l'actif (source OU
+      // destination) depuis la creation du devis.
+      const blockedAsset = await getBlockedSwapPair(fromCurrency, targetCurrency);
+      if (blockedAsset) {
+        throw new Error(`Bientôt disponible : le swap de/vers ${blockedAsset} est temporairement suspendu.`);
+      }
+
       // --- ETAPE A : DÉBIT DU SOLDE SOURCE ---
       const sourceWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId, currency: fromCurrency } }

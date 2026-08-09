@@ -5,7 +5,7 @@ import { verifyJWT } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
-import { getBlockedSwapTarget } from "@/lib/swapAvailability";
+import { getBlockedSwapPair } from "@/lib/swapAvailability";
 
 // [FIX N2] CORS_HEADERS statique retiré — remplacé par getCorsHeaders(request).
 
@@ -36,14 +36,15 @@ export async function POST(req: Request) {
       if (!quote) throw new Error("Devis introuvable");
       if (new Date() > quote.expiresAt) throw new Error("Devis expiré");
 
-      // Re-verification : l'admin peut avoir suspendu l'actif depuis la creation du devis
-      const blockedAsset = await getBlockedSwapTarget(quote.targetCurrency);
-      if (blockedAsset) {
-        throw new Error(`Bientôt disponible : le swap vers ${blockedAsset} est temporairement suspendu.`);
-      }
-
       // On utilise sourceCurrency stocké dans le quote lors de la création
       const fromCurrency = quote.sourceCurrency.toUpperCase();
+
+      // Re-verification : l'admin peut avoir suspendu l'actif (source OU
+      // destination) depuis la creation du devis.
+      const blockedAsset = await getBlockedSwapPair(fromCurrency, quote.targetCurrency);
+      if (blockedAsset) {
+        throw new Error(`Bientôt disponible : le swap de/vers ${blockedAsset} est temporairement suspendu.`);
+      }
 
       const sourceWallet = await tx.wallet.findUnique({
         where: { userId_currency: { userId, currency: fromCurrency } }

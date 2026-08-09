@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 import { getPiPrice, getFeeConfig, calculateFee } from "@/lib/fees";
-import { getBlockedSwapTarget } from "@/lib/swapAvailability";
+import { getBlockedSwapPair } from "@/lib/swapAvailability";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
 
@@ -27,14 +27,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400, headers: cors });
     }
 
-    // ACTIF SUSPENDU PAR L'ADMIN (Admin > Reglages > Apercu) : swap vers PI / SDA
-    const blockedAsset = await getBlockedSwapTarget(toCurr);
+    // ACTIF SUSPENDU PAR L'ADMIN (Admin > Reglages > Apercu) : swap PI / SDA
+    // bloque dans les DEUX sens (source ET destination).
+    const blockedAsset = await getBlockedSwapPair(fromCurr, toCurr);
     if (blockedAsset) {
       return NextResponse.json(
         {
-          error: `Bientôt disponible : le swap vers ${blockedAsset} est temporairement suspendu.`,
-          code: "SWAP_TARGET_UNAVAILABLE",
-          asset: toCurr,
+          error: `Bientôt disponible : le swap de/vers ${blockedAsset} est temporairement suspendu.`,
+          code: "SWAP_ASSET_UNAVAILABLE",
+          asset: blockedAsset,
         },
         { status: 403, headers: cors }
       );

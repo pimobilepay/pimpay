@@ -779,13 +779,18 @@ export default function SwapPage() {
     return () => { clearInterval(interval); clearInterval(availabilityInterval); };
   }, [fetchPrices, loadBalances, loadAvailability]);
 
-  /** Le swap VERS cet actif est-il suspendu par l'admin ? */
+  /**
+   * Cet actif est-il suspendu par l'admin (Admin > Reglages > Apercu) ?
+   * Un actif suspendu est gele dans les DEUX sens : impossible de l'acheter
+   * (destination) ET impossible de le vendre (source).
+   */
   const isTargetLocked = useCallback(
     (assetId: string) => swapAvailability[assetId] === false,
     [swapAvailability]
   );
 
   const toAssetLocked = isTargetLocked(toAsset.id);
+  const fromAssetLocked = isTargetLocked(fromAsset.id);
 
   /* ---------- CONVERSION LOGIC ---------- */
 
@@ -861,9 +866,10 @@ export default function SwapPage() {
   /* ---------- ACTIONS ---------- */
 
   const toggleAssets = () => {
-    // Inverser rendrait l'actif vendu la destination : refusé s'il est suspendu
-    if (isTargetLocked(fromAsset.id)) {
-      toast.error(`${fromAsset.name} — ${tr.comingSoon}`, {
+    // Inverser mettrait un actif suspendu en source ou en destination
+    if (isTargetLocked(fromAsset.id) || isTargetLocked(toAsset.id)) {
+      const lockedAsset = isTargetLocked(fromAsset.id) ? fromAsset : toAsset;
+      toast.error(`${lockedAsset.name} — ${tr.comingSoon}`, {
         description: tr.comingSoonToast,
         duration: 4000,
       });
@@ -879,8 +885,9 @@ export default function SwapPage() {
   };
 
   const handleRequestConfirm = () => {
-    if (toAssetLocked) {
-      return toast.error(`${toAsset.name} — ${tr.comingSoon}`, {
+    if (toAssetLocked || fromAssetLocked) {
+      const lockedAsset = fromAssetLocked ? fromAsset : toAsset;
+      return toast.error(`${lockedAsset.name} — ${tr.comingSoon}`, {
         description: tr.comingSoonNotice,
         duration: 4000,
       });
@@ -1048,8 +1055,9 @@ export default function SwapPage() {
   /* ---------- SELECTOR HELPERS ---------- */
 
   const handleSelectAsset = (asset: Asset) => {
-    // Actif suspendu par l'admin : impossible de le choisir comme actif à recevoir
-    if (isSelecting === "to" && isTargetLocked(asset.id)) {
+    // Actif suspendu par l'admin : impossible de le choisir, ni comme actif
+    // à recevoir, ni comme actif à vendre (gel dans les deux sens).
+    if (isTargetLocked(asset.id)) {
       toast.error(`${asset.name} — ${tr.comingSoon}`, {
         description: tr.comingSoonToast,
         duration: 4000,
@@ -1561,13 +1569,13 @@ export default function SwapPage() {
             </div>
           </div>
 
-          {/* Actif de destination suspendu par l'admin */}
-          {toAssetLocked && (
+          {/* Actif de destination ou de source suspendu par l'admin */}
+          {(toAssetLocked || fromAssetLocked) && (
             <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-500/5 border border-amber-500/25 rounded-2xl">
               <Clock size={14} className="text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-[11px] font-black text-amber-300 uppercase tracking-wide">
-                  {toAsset.symbol} · {tr.comingSoon}
+                  {(fromAssetLocked ? fromAsset : toAsset).symbol} · {tr.comingSoon}
                 </p>
                 <p className="text-[10px] text-amber-200/60 mt-0.5 leading-relaxed">{tr.comingSoonNotice}</p>
               </div>
@@ -1579,13 +1587,14 @@ export default function SwapPage() {
             disabled={
               loading ||
               toAssetLocked ||
+              fromAssetLocked ||
               !fromAmount ||
               parseFloat(fromAmount) <= 0 ||
               isQuoteLoading ||
               (swapRoute === "CHANGENOW" && !cnQuote?.rateId)
             }
             className="w-full bg-blue-600 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-30">
-            {toAssetLocked ? (
+            {(toAssetLocked || fromAssetLocked) ? (
               <><Clock size={16} /> {tr.comingSoon}</>
             ) : isQuoteLoading ? (
               <><Loader2 size={16} className="animate-spin" /> Calcul du prix fixe...</>

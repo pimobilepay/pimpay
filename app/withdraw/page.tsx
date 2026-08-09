@@ -627,11 +627,11 @@ export default function WithdrawPage() {
               {isPiPriceLoading ? (
                 <Loader2 size={24} className="animate-spin text-blue-500" />
               ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-4xl font-black tracking-tighter text-white">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-[26px] sm:text-3xl font-black tracking-tight text-white leading-none truncate">
                     {formatCryptoBalance(balance, currentWallet.currency)}
                   </span>
-                  <span className="text-xl font-bold text-blue-500">{currentWallet.currency}</span>
+                  <span className="text-base font-bold text-blue-500 shrink-0">{currentWallet.currency}</span>
                 </div>
               )}
             </div>
