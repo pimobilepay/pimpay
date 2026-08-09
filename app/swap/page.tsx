@@ -121,6 +121,10 @@ const SWAP_T = {
     warnInternal: "Cette operation de conversion est irreversible. Assurez-vous que les details sont corrects avant de confirmer.",
     processing: "Traitement en cours...", confirmSwap: "Confirmer le Swap",
     cancel: "Annuler",
+    // disponibilité des actifs
+    comingSoon: "Bientôt disponible",
+    comingSoonToast: "Le swap vers cet actif sera bientôt disponible.",
+    comingSoonNotice: "Le swap vers cet actif n'est pas encore ouvert. Il sera bientôt disponible.",
   },
   en: {
     catNative: "Ecosystem", catMajor: "Major", catStable: "Stablecoins", catFiat: "Fiat Currencies",
@@ -201,6 +205,10 @@ const SWAP_T = {
     warnInternal: "This conversion operation is irreversible. Make sure the details are correct before confirming.",
     processing: "Processing...", confirmSwap: "Confirm Swap",
     cancel: "Cancel",
+    // asset availability
+    comingSoon: "Coming soon",
+    comingSoonToast: "Swapping to this asset will be available soon.",
+    comingSoonNotice: "Swapping to this asset is not open yet. It will be available soon.",
   },
   zh: {
     catNative: "生态系统", catMajor: "主流币", catStable: "稳定币", catFiat: "法定货币",
@@ -281,6 +289,10 @@ const SWAP_T = {
     warnInternal: "此兑换操作不可撤销。确认前请确保详情正确。",
     processing: "正在处理…", confirmSwap: "确认兑换",
     cancel: "取消",
+    // 资产可用性
+    comingSoon: "即将上线",
+    comingSoonToast: "兑换为该资产的功能即将上线。",
+    comingSoonNotice: "暂不支持兑换为该资产，功能即将上线。",
   },
 } as const;
 
@@ -563,6 +575,9 @@ export default function SwapPage() {
     USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800,
     NGN: 1550, AED: 3.67, MGA: 4500,
   });
+  // ── Disponibilité des actifs (piloté depuis Admin > Réglages) ────────────
+  const [swapAvailability, setSwapAvailability] = useState<Record<string, boolean>>({ PI: true, SDA: true });
+
   const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
   const [isPriceLoading, setIsPriceLoading] = useState(false);
   const [balances, setBalances] = useState<Record<string, string>>({});
@@ -745,13 +760,32 @@ export default function SwapPage() {
     }
   }, []);
 
+  const loadAvailability = useCallback(async () => {
+    try {
+      const res = await fetch("/api/swap/availability", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSwapAvailability({ PI: data.PI !== false, SDA: data.SDA !== false });
+    } catch { /* on garde les valeurs par défaut (ouvert) */ }
+  }, []);
+
   useEffect(() => {
     setIsMounted(true);
     fetchPrices();
     loadBalances();
+    loadAvailability();
     const interval = setInterval(() => fetchPrices(), 30000);
-    return () => clearInterval(interval);
-  }, [fetchPrices, loadBalances]);
+    const availabilityInterval = setInterval(() => loadAvailability(), 60000);
+    return () => { clearInterval(interval); clearInterval(availabilityInterval); };
+  }, [fetchPrices, loadBalances, loadAvailability]);
+
+  /** Le swap VERS cet actif est-il suspendu par l'admin ? */
+  const isTargetLocked = useCallback(
+    (assetId: string) => swapAvailability[assetId] === false,
+    [swapAvailability]
+  );
+
+  const toAssetLocked = isTargetLocked(toAsset.id);
 
   /* ---------- CONVERSION LOGIC ---------- */
 
@@ -827,6 +861,14 @@ export default function SwapPage() {
   /* ---------- ACTIONS ---------- */
 
   const toggleAssets = () => {
+    // Inverser rendrait l'actif vendu la destination : refusé s'il est suspendu
+    if (isTargetLocked(fromAsset.id)) {
+      toast.error(`${fromAsset.name} — ${tr.comingSoon}`, {
+        description: tr.comingSoonToast,
+        duration: 4000,
+      });
+      return;
+    }
     const prev = fromAsset;
     setFromAsset(toAsset);
     setToAsset(prev);
@@ -837,6 +879,12 @@ export default function SwapPage() {
   };
 
   const handleRequestConfirm = () => {
+    if (toAssetLocked) {
+      return toast.error(`${toAsset.name} — ${tr.comingSoon}`, {
+        description: tr.comingSoonNotice,
+        duration: 4000,
+      });
+    }
     if (!fromAmount || parseFloat(fromAmount) <= 0) return toast.error(tr.enterValidAmount);
     if (parseFloat(fromAmount) > parseFloat(balances[fromAsset.id] || "0"))
       return toast.error(`${tr.balance} ${fromAsset.symbol} ${tr.insufficientBalanceOf}`);
@@ -1000,8 +1048,26 @@ export default function SwapPage() {
   /* ---------- SELECTOR HELPERS ---------- */
 
   const handleSelectAsset = (asset: Asset) => {
+    // Actif suspendu par l'admin : impossible de le choisir comme actif à recevoir
+    if (isSelecting === "to" && isTargetLocked(asset.id)) {
+      toast.error(`${asset.name} — ${tr.comingSoon}`, {
+        description: tr.comingSoonToast,
+        duration: 4000,
+      });
+      return;
+    }
     if (isSelecting === "from") {
-      if (asset.id === toAsset.id) setToAsset(fromAsset);
+      // Permutation implicite : ne jamais placer un actif suspendu en destination
+      if (asset.id === toAsset.id) {
+        if (isTargetLocked(fromAsset.id)) {
+          toast.error(`${fromAsset.name} — ${tr.comingSoon}`, {
+            description: tr.comingSoonToast,
+            duration: 4000,
+          });
+          return;
+        }
+        setToAsset(fromAsset);
+      }
       setFromAsset(asset);
     } else {
       if (asset.id === fromAsset.id) setFromAsset(toAsset);
@@ -1495,17 +1561,33 @@ export default function SwapPage() {
             </div>
           </div>
 
+          {/* Actif de destination suspendu par l'admin */}
+          {toAssetLocked && (
+            <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-500/5 border border-amber-500/25 rounded-2xl">
+              <Clock size={14} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[11px] font-black text-amber-300 uppercase tracking-wide">
+                  {toAsset.symbol} · {tr.comingSoon}
+                </p>
+                <p className="text-[10px] text-amber-200/60 mt-0.5 leading-relaxed">{tr.comingSoonNotice}</p>
+              </div>
+            </div>
+          )}
+
           {/* Action Button */}
           <button onClick={handleRequestConfirm}
             disabled={
               loading ||
+              toAssetLocked ||
               !fromAmount ||
               parseFloat(fromAmount) <= 0 ||
               isQuoteLoading ||
               (swapRoute === "CHANGENOW" && !cnQuote?.rateId)
             }
             className="w-full bg-blue-600 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-30">
-            {isQuoteLoading ? (
+            {toAssetLocked ? (
+              <><Clock size={16} /> {tr.comingSoon}</>
+            ) : isQuoteLoading ? (
               <><Loader2 size={16} className="animate-spin" /> Calcul du prix fixe...</>
             ) : swapRoute === "CHANGENOW" && !cnQuote && fromAmount && parseFloat(fromAmount) > 0 ? (
               <><Loader2 size={16} className="animate-spin" /> Chargement devis ChangeNow...</>

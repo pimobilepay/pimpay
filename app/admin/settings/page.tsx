@@ -122,6 +122,7 @@ export default function SystemSettings() {
   const [patchNotes, setPatchNotes] = useState('');
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);
+  const [togglingSwapAsset, setTogglingSwapAsset] = useState<'swapPiEnabled' | 'swapSdaEnabled' | null>(null);
   const [comingSoonDate, setComingSoonDate] = useState('');
   const [savingComingSoonDate, setSavingComingSoonDate] = useState(false);
   const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
@@ -207,6 +208,9 @@ export default function SystemSettings() {
     qrPaymentFee: 0.01,
     referralBonus: 0.0000318,
     referralWelcomeBonus: 0.0000159,
+    // Disponibilité des actifs au swap (true = swap autorisé)
+    swapPiEnabled: true,
+    swapSdaEnabled: true,
     // Notification settings
     emailNotifications: true,
     pushNotifications: true,
@@ -468,6 +472,37 @@ export default function SystemSettings() {
       toast.error("Erreur lors du changement de mode");
     } finally {
       setTogglingMode(null);
+    }
+  };
+
+  /* ─── DISPONIBILITÉ DES ACTIFS AU SWAP (PI / SDA) ───────────────── */
+  const toggleSwapAsset = async (field: 'swapPiEnabled' | 'swapSdaEnabled') => {
+    setTogglingSwapAsset(field);
+    const previous = config[field];
+    const optimistic = !previous;
+    setConfig(prev => ({ ...prev, [field]: optimistic }));
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "TOGGLE_MODE", modeType: field }),
+      });
+      if (!res.ok) throw new Error("Erreur serveur");
+      const updated = await res.json();
+      setConfig(prev => ({ ...prev, [field]: updated[field] }));
+      const label = field === 'swapPiEnabled' ? 'Pi Network (PI)' : 'Sidra Chain (SDA)';
+      toast.success(
+        updated[field]
+          ? `Swap vers ${label} réactivé`
+          : `Swap vers ${label} suspendu — « Bientôt disponible » affiché aux utilisateurs`,
+        { duration: 5000 }
+      );
+    } catch {
+      setConfig(prev => ({ ...prev, [field]: previous }));
+      toast.error("Erreur lors du changement de disponibilité");
+    } finally {
+      setTogglingSwapAsset(null);
     }
   };
 
@@ -1029,6 +1064,34 @@ export default function SystemSettings() {
                       color="blue"
                     />
                   </div>
+                </div>
+
+                {/* Disponibilité des actifs au Swap — PI / SDA */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Disponibilité des Actifs · Swap</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <SwapAssetToggleCard
+                      name="Pi Network"
+                      symbol="PI"
+                      logo="/pi.png"
+                      enabled={config.swapPiEnabled}
+                      toggling={togglingSwapAsset === 'swapPiEnabled'}
+                      onToggle={() => toggleSwapAsset('swapPiEnabled')}
+                      color="violet"
+                    />
+                    <SwapAssetToggleCard
+                      name="Sidra Chain"
+                      symbol="SDA"
+                      logo="/sda.png"
+                      enabled={config.swapSdaEnabled}
+                      toggling={togglingSwapAsset === 'swapSdaEnabled'}
+                      onToggle={() => toggleSwapAsset('swapSdaEnabled')}
+                      color="amber"
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-3 leading-relaxed">
+                    Interrupteur désactivé = le swap vers cet actif est bloqué côté serveur et l&apos;utilisateur voit le message « Bientôt disponible ».
+                  </p>
                 </div>
 
                 {/* Planificateur de lancement — Coming Soon */}
@@ -1952,7 +2015,7 @@ export default function SystemSettings() {
 
             {/* ═══════════════���═════���══════════════════════════════ */}
             {/* SECTION: SECURITY                                   */}
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ══════════════════════��═════════════════════════════ */}
             {activeSection === 'security' && (
               <div className="space-y-6">
                 {/* Login Security */}
@@ -3541,6 +3604,51 @@ function Modal({ children, onClose, wide = false }: { children: React.ReactNode;
         {children}
       </div>
     </div>
+  );
+}
+
+/* ─── CARTE DISPONIBILITÉ D'UN ACTIF AU SWAP (PI / SDA) ──────────── */
+function SwapAssetToggleCard({ name, symbol, logo, enabled, toggling, onToggle, color }: {
+  name: string; symbol: string; logo: string;
+  enabled: boolean; toggling: boolean; onToggle: () => void;
+  color: 'violet' | 'amber';
+}) {
+  const c = {
+    violet: { bg: 'bg-violet-500/8 border-violet-500/25', glow: 'bg-violet-500', dot: 'bg-violet-500' },
+    amber: { bg: 'bg-amber-500/8 border-amber-500/25', glow: 'bg-amber-500', dot: 'bg-amber-500' },
+  }[color];
+
+  return (
+    <button type="button" disabled={toggling} onClick={onToggle}
+      className={`relative overflow-hidden p-5 rounded-2xl border text-left w-full transition-all active:scale-[0.98]
+        ${enabled ? c.bg : 'bg-white/[0.02] border-white/[0.05] hover:border-white/10'}`}>
+      {enabled && <div className={`absolute top-0 right-0 w-20 h-20 ${c.glow} opacity-10 blur-2xl rounded-full`} />}
+      <div className="relative flex items-start justify-between mb-4">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden transition-all
+          ${enabled ? 'bg-white/10' : 'bg-white/5 grayscale opacity-50'}`}>
+          {toggling
+            ? <Loader2 size={16} className="animate-spin text-slate-400" />
+            : <img src={logo || "/placeholder.svg"} alt="" className="w-6 h-6 object-contain" />}
+        </div>
+        <div className={`relative w-10 h-5 rounded-full transition-colors ${enabled ? c.dot : 'bg-slate-700'}`}>
+          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${enabled ? 'left-5' : 'left-0.5'}`} />
+        </div>
+      </div>
+      <div className="relative">
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="text-[11px] font-black text-white uppercase tracking-wide">{name}</h3>
+          <span className="text-[8px] font-black text-slate-400 px-1.5 py-0.5 rounded bg-white/5 border border-white/10">{symbol}</span>
+        </div>
+        <p className={`text-[9px] font-bold uppercase tracking-wide ${enabled ? 'text-emerald-400' : 'text-amber-400'}`}>
+          {enabled ? 'Swap disponible' : 'Bientôt disponible · suspendu'}
+        </p>
+        <p className="text-[9px] text-slate-600 mt-2 leading-relaxed">
+          {enabled
+            ? `Les utilisateurs peuvent convertir leurs actifs vers ${symbol}.`
+            : `Toute conversion vers ${symbol} est refusée et affiche « Bientôt disponible ».`}
+        </p>
+      </div>
+    </button>
   );
 }
 

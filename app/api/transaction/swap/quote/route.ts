@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserIdFromRequest } from "@/lib/auth";
 import { getCorsHeaders, corsPreflightResponse } from "@/lib/cors";
 import { getPiPrice, getFeeConfig, calculateFee } from "@/lib/fees";
+import { getBlockedSwapTarget } from "@/lib/swapAvailability";
 
 const FALLBACK_FIAT: Record<string, number> = { USD: 1, EUR: 0.92, XAF: 615, XOF: 615, CDF: 2800, NGN: 1550, AED: 3.67, CNY: 7.24, VND: 25450, MGA: 4500 };
 
@@ -24,6 +25,19 @@ export async function POST(req: Request) {
     const swapAmount = parseFloat(amount);
     if (!Number.isFinite(swapAmount) || swapAmount <= 0) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400, headers: cors });
+    }
+
+    // ACTIF SUSPENDU PAR L'ADMIN (Admin > Reglages > Apercu) : swap vers PI / SDA
+    const blockedAsset = await getBlockedSwapTarget(toCurr);
+    if (blockedAsset) {
+      return NextResponse.json(
+        {
+          error: `Bientôt disponible : le swap vers ${blockedAsset} est temporairement suspendu.`,
+          code: "SWAP_TARGET_UNAVAILABLE",
+          asset: toCurr,
+        },
+        { status: 403, headers: cors }
+      );
     }
 
     // FRAIS DE SWAP : taux administre (SystemConfig.exchangeFee), preleve en

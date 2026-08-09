@@ -29,6 +29,9 @@ const FALLBACK_CONFIG = {
   maxLoginAttempts: 5,
   lockoutDuration: 30,
   sessionTimeout: 60,
+  // Disponibilite des actifs au swap
+  swapPiEnabled: true,
+  swapSdaEnabled: true,
   auditLogs: [],
   isAdmin: false,
   stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
@@ -268,7 +271,11 @@ export async function POST(req: NextRequest) {
 
     // 2. ACTION : TOGGLE SPECIFIQUE (Maintenance ou Coming Soon)
     if (action === "TOGGLE_MODE") {
-      const { modeType } = body; // 'maintenanceMode' ou 'comingSoonMode'
+      const { modeType } = body; // 'maintenanceMode' | 'comingSoonMode' | 'swapPiEnabled' | 'swapSdaEnabled'
+      const TOGGLEABLE = ["maintenanceMode", "comingSoonMode", "swapPiEnabled", "swapSdaEnabled"];
+      if (!TOGGLEABLE.includes(modeType)) {
+        return NextResponse.json({ error: "Mode inconnu" }, { status: 400 });
+      }
       const current = await ConfigModel.findUnique({ where: { id: "GLOBAL_CONFIG" } });
 
       const nextValue = !current?.[modeType as keyof typeof current];
@@ -283,6 +290,17 @@ export async function POST(req: NextRequest) {
         where: { id: "GLOBAL_CONFIG" },
         data,
       });
+
+      if (modeType === "swapPiEnabled" || modeType === "swapSdaEnabled") {
+        const assetLabel = modeType === "swapPiEnabled" ? "Pi Network (PI)" : "Sidra Chain (SDA)";
+        await prisma.auditLog.create({
+          data: {
+            adminName: adminSession.email || "Admin",
+            action: nextValue ? "ENABLE_SWAP_ASSET" : "DISABLE_SWAP_ASSET",
+            details: `Swap vers ${assetLabel} ${nextValue ? "reactive" : "suspendu (Bientot disponible)"}.`,
+          },
+        }).catch(() => null);
+      }
 
       return NextResponse.json(updated);
     }
@@ -303,7 +321,9 @@ export async function POST(req: NextRequest) {
       // Referral bonus
       referralBonus, referralWelcomeBonus,
       // Security settings
-      maxLoginAttempts, lockoutDuration, sessionTimeout
+      maxLoginAttempts, lockoutDuration, sessionTimeout,
+      // Disponibilite des actifs au swap
+      swapPiEnabled, swapSdaEnabled
     } = body;
 
     // Build update data, handling maintenanceUntil properly
@@ -350,6 +370,9 @@ export async function POST(req: NextRequest) {
     if (maxLoginAttempts !== undefined) updateData.maxLoginAttempts = Math.max(1, Math.round(Number(maxLoginAttempts)));
     if (lockoutDuration !== undefined) updateData.lockoutDuration = Math.max(1, Math.round(Number(lockoutDuration)));
     if (sessionTimeout !== undefined) updateData.sessionTimeout = Math.max(1, Math.round(Number(sessionTimeout)));
+    // Disponibilite des actifs au swap (PI / SDA)
+    if (swapPiEnabled !== undefined) updateData.swapPiEnabled = Boolean(swapPiEnabled);
+    if (swapSdaEnabled !== undefined) updateData.swapSdaEnabled = Boolean(swapSdaEnabled);
 
     const updatedConfig = await ConfigModel.update({
       where: { id: "GLOBAL_CONFIG" },
