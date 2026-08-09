@@ -152,6 +152,36 @@ const TonLogo = () => (
   </div>
 );
 
+// Drapeau reel d'une devise fiat (image flagcdn.com), meme rendu que
+// l'AssetIcon de la page /swap — pour une identite visuelle coherente
+// entre l'onglet Fiat du wallet et le selecteur de swap.
+function FiatFlagBadge({ flagCode, size = 44 }: { flagCode?: string; size?: number }) {
+  if (!flagCode) {
+    return (
+      <div
+        className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg shrink-0"
+        style={{ width: size, height: size }}
+      >
+        💵
+      </div>
+    );
+  }
+  return (
+    <div
+      className="rounded-2xl overflow-hidden bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <img
+        src={`https://flagcdn.com/w80/${flagCode}.png`}
+        srcSet={`https://flagcdn.com/w160/${flagCode}.png 2x`}
+        alt=""
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
 // --- TYPES ---
 interface WalletAddresses {
   PI: string; SDA: string; USDT: string; BTC: string; ETH: string; BNB: string; SOL: string; TRX: string; ADA: string; DOGE: string; TON: string; USDC: string; DAI: string; BUSD: string; EURC: string; OUSD: string; XRP: string; XLM: string;
@@ -195,11 +225,19 @@ export default function WalletPage() {
   // jamais affichés : le wallet fiat existait bien en base mais aucune carte
   // ne le montrait à l'écran.
   const [fiatWallets, setFiatWallets] = useState<{ currency: string; balance: number }[]>([]);
+  // Drapeaux reels (flagcdn.com) — meme source que la page /swap, pour un
+  // rendu identique entre les deux ecrans. Couvre toutes les devises fiat
+  // proposees par PIMOBIPAY (alignees sur ALL_ASSETS de /swap).
   const FIAT_CURRENCY_META: Record<string, { name: string; flag: string }> = {
-    USD: { name: "Dollar US", flag: "🇺🇸" },
-    XOF: { name: "Franc CFA (UEMOA)", flag: "🌍" },
-    EUR: { name: "Euro", flag: "🇪🇺" },
-    XAF: { name: "Franc CFA (CEMAC)", flag: "🌍" },
+    USD: { name: "Dollar US", flag: "us" },
+    EUR: { name: "Euro", flag: "eu" },
+    XAF: { name: "Franc CFA (CEMAC)", flag: "cm" },
+    XOF: { name: "Franc CFA (UEMOA)", flag: "sn" },
+    CDF: { name: "Franc Congolais", flag: "cd" },
+    NGN: { name: "Naira Nigerian", flag: "ng" },
+    AED: { name: "Dirham Emirats", flag: "ae" },
+    MGA: { name: "Ariary Malgache", flag: "mg" },
+    CNY: { name: "Yuan Chinois", flag: "cn" },
   };
 
   const [addresses, setAddresses] = useState<WalletAddresses>({
@@ -317,11 +355,11 @@ export default function WalletPage() {
         setAdaBalance(parseFloat(balData.ADA || "0").toFixed(6));
         setDogeBalance(parseFloat(balData.DOGE || "0").toFixed(6));
         setTonBalance(parseFloat(balData.TON || "0").toFixed(6));
-        // [FIX] Extraire les wallets FIAT (USD/XOF/EUR/XAF) depuis la liste
-        // complète renvoyée par /api/wallet/balance (déjà présente en base,
-        // simplement jamais affichée côté client).
+        // [FIX] Extraire les wallets FIAT depuis la liste complète renvoyée
+        // par /api/wallet/balance (déjà présente en base, simplement jamais
+        // affichée côté client). Liste alignée sur les devises fiat de /swap.
         if (Array.isArray(balData.wallets)) {
-          const FIAT_CODES = ["USD", "XOF", "EUR", "XAF"];
+          const FIAT_CODES = ["USD", "XOF", "EUR", "XAF", "CDF", "NGN", "AED", "MGA", "CNY"];
           setFiatWallets(
             balData.wallets
               .filter((w: any) => FIAT_CODES.includes(w.currency))
@@ -582,9 +620,7 @@ export default function WalletPage() {
                 {fiatWallets.filter((w) => w.balance > 0).map((w) => (
                   <div key={w.currency} className="flex items-center justify-between p-4 bg-white/[0.03] rounded-2xl border border-white/[0.06] hover:bg-white/[0.05] transition-all">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg">
-                        {FIAT_CURRENCY_META[w.currency]?.flag || "💵"}
-                      </div>
+                      <FiatFlagBadge flagCode={FIAT_CURRENCY_META[w.currency]?.flag} size={44} />
                       <div>
                         <p className="text-sm font-black text-white tracking-tight">{w.currency}</p>
                         <p className="text-[10px] font-bold text-slate-500">{FIAT_CURRENCY_META[w.currency]?.name || w.currency}</p>
