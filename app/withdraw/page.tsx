@@ -8,7 +8,7 @@ import {
   TrendingUp, Search, X,
   Globe, Activity, ArrowUpRight, ArrowDownLeft,
   CreditCard, Landmark, Copy, Info, ChevronRight,
-  AlertTriangle, Loader2
+  AlertTriangle, Loader2, Clock
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { countries, searchCountries, type Country, type Bank } from "@/lib/country-data";
@@ -113,6 +113,24 @@ export default function WithdrawPage() {
 
   // KYC / limites — message professionnel
   const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
+
+  // Disponibilité du retrait Mobile Money (interrupteur admin)
+  const [mobileMoneyEnabled, setMobileMoneyEnabled] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMobileMoneyAvailability = async () => {
+      try {
+        const res = await fetch("/api/withdraw/availability", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setMobileMoneyEnabled(data.mobileMoneyEnabled !== false);
+      } catch { /* on garde la valeur par défaut (ouvert) */ }
+    };
+    loadMobileMoneyAvailability();
+    const interval = setInterval(loadMobileMoneyAvailability, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -386,6 +404,13 @@ export default function WithdrawPage() {
   const canSubmitBank = priceReady && piAmount && parseFloat(piAmount) > 0 && parseFloat(piAmount) <= balance && (selectedBank || bankName) && accountNumber;
 
   async function handleWithdraw() {
+    if (activeTab === "mobile" && !mobileMoneyEnabled) {
+      toast.error("Retrait Mobile Money — Bientôt disponible", {
+        description: "Ce mode de retrait est momentanément indisponible.",
+        duration: 4000,
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const method = activeTab === "mobile" ? "mobile" : "bank";
@@ -623,7 +648,7 @@ export default function WithdrawPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
+              className={`relative flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
                 activeTab === tab.id
                   ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
                   : "text-slate-500 hover:text-slate-300"
@@ -631,6 +656,9 @@ export default function WithdrawPage() {
             >
               <tab.icon size={16} />
               {tab.label}
+              {tab.id === "mobile" && !mobileMoneyEnabled && (
+                <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 rounded-full bg-amber-400" />
+              )}
             </button>
           ))}
         </nav>
@@ -646,6 +674,17 @@ export default function WithdrawPage() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
+              {!mobileMoneyEnabled ? (
+                <div className="bg-white/[0.02] border border-amber-500/25 rounded-[2rem] p-8 flex flex-col items-center text-center gap-3">
+                  <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center">
+                    <Clock size={24} className="text-amber-400" />
+                  </div>
+                  <p className="text-sm font-black text-amber-300 uppercase tracking-wide">Bientôt disponible</p>
+                  <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
+                    Le retrait vers Mobile Money est momentanément indisponible. Merci de réessayer un peu plus tard, ou d'utiliser le retrait Crypto en attendant.
+                  </p>
+                </div>
+              ) : (
               <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-6 space-y-5">
                 {/* Country */}
                 <div className="space-y-2">
@@ -847,6 +886,7 @@ export default function WithdrawPage() {
                   )}
                 </button>
               </div>
+              )}
             </motion.div>
           )}
 

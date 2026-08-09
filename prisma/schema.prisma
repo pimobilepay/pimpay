@@ -273,6 +273,11 @@ model SystemConfig {
   swapPiEnabled         Boolean  @default(true)
   /// Swap vers Sidra Chain (SDA) autorisé. false => "Bientôt disponible" côté client.
   swapSdaEnabled        Boolean  @default(true)
+
+  // ─── DISPONIBILITÉ DU RETRAIT MOBILE MONEY ────────────────────────────────
+  /// Retrait vers Mobile Money (PawaPay / GeniusPay) autorisé.
+  /// false => "Bientôt disponible" côté client, aucune tentative de payout.
+  withdrawMobileMoneyEnabled Boolean @default(true)
 }
 
 /// Campagne de notification diffusée par un administrateur.

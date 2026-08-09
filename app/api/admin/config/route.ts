@@ -32,6 +32,8 @@ const FALLBACK_CONFIG = {
   // Disponibilite des actifs au swap
   swapPiEnabled: true,
   swapSdaEnabled: true,
+  // Disponibilite du retrait Mobile Money
+  withdrawMobileMoneyEnabled: true,
   auditLogs: [],
   isAdmin: false,
   stats: { totalUsers: 0, activeSessions: 0, piVolume24h: 0 },
@@ -271,8 +273,8 @@ export async function POST(req: NextRequest) {
 
     // 2. ACTION : TOGGLE SPECIFIQUE (Maintenance ou Coming Soon)
     if (action === "TOGGLE_MODE") {
-      const { modeType } = body; // 'maintenanceMode' | 'comingSoonMode' | 'swapPiEnabled' | 'swapSdaEnabled'
-      const TOGGLEABLE = ["maintenanceMode", "comingSoonMode", "swapPiEnabled", "swapSdaEnabled"];
+      const { modeType } = body; // 'maintenanceMode' | 'comingSoonMode' | 'swapPiEnabled' | 'swapSdaEnabled' | 'withdrawMobileMoneyEnabled'
+      const TOGGLEABLE = ["maintenanceMode", "comingSoonMode", "swapPiEnabled", "swapSdaEnabled", "withdrawMobileMoneyEnabled"];
       if (!TOGGLEABLE.includes(modeType)) {
         return NextResponse.json({ error: "Mode inconnu" }, { status: 400 });
       }

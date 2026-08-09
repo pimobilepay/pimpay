@@ -20,6 +20,10 @@ import {
   newPawaPayId,
   getAppBaseUrl,
 } from "@/lib/pawapay";
+import {
+  isMobileMoneyWithdrawEnabled,
+  mobileMoneyWithdrawDisabledPayload,
+} from "@/lib/withdrawAvailability";
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +60,12 @@ export async function POST(req: NextRequest) {
       | null = null;
 
     if (isMobilePayout) {
+      // [FIX] Interrupteur admin "Retrait Mobile Money" : coupe la route AVANT
+      // tout debit/appel agregateur, et renvoie un code dedie que le client
+      // reconnait pour afficher "Bientot disponible" au lieu d'un echec brut.
+      if (!(await isMobileMoneyWithdrawEnabled())) {
+        return NextResponse.json(mobileMoneyWithdrawDisabledPayload(), { status: 503 });
+      }
       const countryCode = body.countryCode || "";
       const resolved = resolveProvider(
         countryCode,

@@ -122,7 +122,7 @@ export default function SystemSettings() {
   const [patchNotes, setPatchNotes] = useState('');
   const [feeTab, setFeeTab] = useState<'crypto' | 'fiat' | 'payment'>('crypto');
   const [togglingMode, setTogglingMode] = useState<'maintenanceMode' | 'comingSoonMode' | null>(null);
-  const [togglingSwapAsset, setTogglingSwapAsset] = useState<'swapPiEnabled' | 'swapSdaEnabled' | null>(null);
+  const [togglingSwapAsset, setTogglingSwapAsset] = useState<'swapPiEnabled' | 'swapSdaEnabled' | 'withdrawMobileMoneyEnabled' | null>(null);
   const [comingSoonDate, setComingSoonDate] = useState('');
   const [savingComingSoonDate, setSavingComingSoonDate] = useState(false);
   const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
@@ -211,6 +211,8 @@ export default function SystemSettings() {
     // Disponibilité des actifs au swap (true = swap autorisé)
     swapPiEnabled: true,
     swapSdaEnabled: true,
+    // Disponibilité du retrait Mobile Money (true = retrait autorisé)
+    withdrawMobileMoneyEnabled: true,
     // Notification settings
     emailNotifications: true,
     pushNotifications: true,
@@ -475,8 +477,8 @@ export default function SystemSettings() {
     }
   };
 
-  /* ─── DISPONIBILITÉ DES ACTIFS AU SWAP (PI / SDA) ───────────────── */
-  const toggleSwapAsset = async (field: 'swapPiEnabled' | 'swapSdaEnabled') => {
+  /* ─── DISPONIBILITÉ DES ACTIFS AU SWAP (PI / SDA) + RETRAIT MOBILE MONEY ── */
+  const toggleSwapAsset = async (field: 'swapPiEnabled' | 'swapSdaEnabled' | 'withdrawMobileMoneyEnabled') => {
     setTogglingSwapAsset(field);
     const previous = config[field];
     const optimistic = !previous;
@@ -491,11 +493,14 @@ export default function SystemSettings() {
       if (!res.ok) throw new Error("Erreur serveur");
       const updated = await res.json();
       setConfig(prev => ({ ...prev, [field]: updated[field] }));
-      const label = field === 'swapPiEnabled' ? 'Pi Network (PI)' : 'Sidra Chain (SDA)';
+      const label =
+        field === 'swapPiEnabled' ? 'Pi Network (PI)'
+        : field === 'swapSdaEnabled' ? 'Sidra Chain (SDA)'
+        : 'Retrait Mobile Money';
       toast.success(
         updated[field]
-          ? `Swap vers ${label} réactivé`
-          : `Swap vers ${label} suspendu — « Bientôt disponible » affiché aux utilisateurs`,
+          ? `${label} réactivé`
+          : `${label} suspendu — « Bientôt disponible » affiché aux utilisateurs`,
         { duration: 5000 }
       );
     } catch {
@@ -1092,6 +1097,21 @@ export default function SystemSettings() {
                   <p className="text-[9px] text-slate-500 mt-3 leading-relaxed">
                     Interrupteur désactivé = le swap vers cet actif est bloqué côté serveur et l&apos;utilisateur voit le message « Bientôt disponible ».
                   </p>
+                </div>
+
+                {/* Disponibilité du retrait Mobile Money */}
+                <div>
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mb-4">Disponibilité · Retrait Mobile Money</h2>
+                  <ModeToggleCard
+                    title="Retrait Mobile Money"
+                    subtitle="PawaPay · GeniusPay"
+                    description="Désactiver bloque tout nouveau retrait vers Mobile Money côté serveur (avant tout débit) et affiche « Bientôt disponible » à l'utilisateur, au lieu d'un échec de traitement."
+                    active={config.withdrawMobileMoneyEnabled}
+                    toggling={togglingSwapAsset === 'withdrawMobileMoneyEnabled'}
+                    onToggle={() => toggleSwapAsset('withdrawMobileMoneyEnabled')}
+                    icon={<Smartphone size={18} />}
+                    color="blue"
+                  />
                 </div>
 
                 {/* Planificateur de lancement — Coming Soon */}

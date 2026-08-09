@@ -70,6 +70,13 @@ export default function SummaryPage() {
         router.push(`/withdraw/success?${params.toString()}`);
       } else {
         const err = await response.json().catch(() => ({}));
+        // [FIX] Retrait Mobile Money suspendu par l'admin : écran dédié
+        // "Bientôt disponible" au lieu de l'écran d'échec générique.
+        if (err.code === "WITHDRAW_MOBILE_MONEY_DISABLED" || err.comingSoon) {
+          toast.error("Retrait Mobile Money — Bientôt disponible", { duration: 5000 });
+          router.push("/withdraw/failed?reason=coming_soon");
+          return;
+        }
         toast.error(err.error || "Echec du retrait");
         router.push("/withdraw/failed");
       }

@@ -29,6 +29,10 @@ import { requestPayout, newPawaPayId } from "@/lib/pawapay";
 import { resolveProvider } from "@/lib/pawapay-catalog";
 import { convert } from "@/lib/exchange";
 import { logSystemEvent } from "@/lib/systemLogger";
+import {
+  isMobileMoneyWithdrawEnabled,
+  mobileMoneyWithdrawDisabledPayload,
+} from "@/lib/withdrawAvailability";
 
 /**
  * POST /api/transaction/withdraw/geniuspay
@@ -145,6 +149,14 @@ export async function POST(req: NextRequest) {
     if (!payload)
       return NextResponse.json({ error: "Token invalide" }, { status: 401 });
     const userId = payload.id;
+
+    // [FIX] Interrupteur admin "Retrait Mobile Money" : coupe cette route
+    // (100% Mobile Money) AVANT tout debit/appel GeniusPay, et renvoie un
+    // code dedie que le client reconnait pour afficher "Bientot disponible"
+    // au lieu de laisser l'utilisateur tomber sur "Echec du retrait".
+    if (!(await isMobileMoneyWithdrawEnabled())) {
+      return NextResponse.json(mobileMoneyWithdrawDisabledPayload(), { status: 503 });
+    }
 
     const body = await req.json();
     const { details } = body;
