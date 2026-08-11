@@ -31,7 +31,10 @@ function isPrivateIp(ip: string): boolean {
   if (ip === "::1" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80")) return true;
   const p = ip.split(".").map(Number);
   if (p.length !== 4 || p.some((n) => Number.isNaN(n))) {
-    // IPv6 ou format inattendu : ne pas traiter en heuristique
+    // IPv6 ou format inattendu : ne pas traiter en heuristique.
+    // Les IPv6 sont gérées séparément (voir isMobileIpv6 / detectProxy) car les
+    // opérateurs mobiles (notamment sur iOS) sont en IPv6 natif et les bases de
+    // réputation les classent à tort en datacenter.
     return ip.includes(":") ? false : true;
   }
   const [a, b] = p;
@@ -122,9 +125,40 @@ export interface BotInfo {
 
 // Détection d'agent automatisé à partir du User-Agent. Les UA vides sont aussi
 // considérés comme automatisés (un navigateur réel envoie toujours un UA).
+// [FIX iOS] Signatures de navigateurs réels — évaluées AVANT les motifs de bot.
+// Sur iOS, toutes les WebViews (dont le Pi Browser) sont basées sur WebKit et
+// portent "iPhone"/"iPad" + "Safari" ou "AppleWebKit". Certains de ces UA
+// contiennent des sous-chaînes qui déclenchaient à tort les motifs de bot
+// (ex. "GSA", "CriOS", ou un UA tronqué par une WebView), et l'utilisateur se
+// retrouvait bloqué. Un vrai navigateur mobile n'est jamais un bot ici.
+const REAL_BROWSER_PATTERNS = [
+  /\b(iphone|ipad|ipod)\b/i,
+  /\bandroid\b.*\bmobile\b/i,
+  /\b(crios|fxios|edgios)\b/i, // Chrome / Firefox / Edge sur iOS
+  /\bpibrowser\b/i,
+  /\bversion\/[\d.]+\s+(mobile\/\S+\s+)?safari\//i,
+];
+
+function looksLikeRealBrowser(ua: string): boolean {
+  return REAL_BROWSER_PATTERNS.some((re) => re.test(ua));
+}
+
 export function detectBotUserAgent(userAgent: string | null | undefined): BotInfo {
   const ua = (userAgent || "").trim();
   if (!ua) return { isBot: true, botName: "no-user-agent" };
+
+  // Navigateur mobile/desktop réel : on ne cherche que les outils explicitement
+  // hostiles (scanners), pas les motifs génériques type "bot"/"crawler".
+  if (looksLikeRealBrowser(ua)) {
+    const scanner = BOT_UA_PATTERNS.find(
+      ({ name }) => name === "scanner" || name === "headless",
+    );
+    if (scanner && scanner.re.test(ua)) {
+      return { isBot: true, botName: scanner.name };
+    }
+    return { isBot: false, botName: null };
+  }
+
   for (const { re, name } of BOT_UA_PATTERNS) {
     if (re.test(ua)) return { isBot: true, botName: name };
   }
@@ -172,6 +206,22 @@ async function apiDetect(ip: string): Promise<ProxyInfo | null> {
   }
 }
 
+// [FIX iOS] Les IPv6 des opérateurs mobiles sont très fréquemment classées à
+// tort "DCH"/"PUB"/datacenter par les bases de réputation (proxycheck.io &
+// consorts), parce que les préfixes /32 des opérateurs sont annoncés par des AS
+// qui hébergent aussi de l'infrastructure. Résultat concret : les utilisateurs
+// iPhone — qui sont en IPv6 natif sur la quasi-totalité des réseaux mobiles,
+// et dont le Pi Browser/Safari privilégie l'IPv6 — se voyaient refuser l'accès
+// avec « connexion via VPN, proxy ou réseau anonyme non autorisée », alors que
+// les Android en IPv4/CGNAT passaient sans problème.
+//
+// On ne désactive PAS la détection pour l'IPv6 : Tor et les VPN commerciaux
+// restent bloqués (signaux fiables et explicites). On neutralise uniquement la
+// classification "datacenter/proxy générique" qui produit les faux positifs.
+function isIpv6(ip: string): boolean {
+  return ip.includes(":");
+}
+
 export async function detectProxy(ip: string): Promise<ProxyInfo> {
   if (isPrivateIp(ip)) {
     return {
@@ -195,6 +245,23 @@ export async function detectProxy(ip: string): Promise<ProxyInfo> {
 
   let info = await apiDetect(ip);
   if (!info) info = heuristicDetect(ip);
+
+  // [FIX iOS] Correction des faux positifs sur IPv6 mobile : on conserve Tor et
+  // les VPN commerciaux nommément identifiés, mais on annule le classement
+  // "datacenter / proxy générique" qui bloquait les iPhone en IPv6 natif.
+  if (isIpv6(ip) && !info.isTor && !info.isVpn) {
+    const org = (info.isp || info.provider || "").toLowerCase();
+    const isRealVpnProvider = VPN_KEYWORDS.some((k) => org.includes(k));
+    if (!isRealVpnProvider) {
+      info = {
+        ...info,
+        isProxy: false,
+        isDatacenter: false,
+        proxyType: null,
+        riskScore: Math.min(info.riskScore, 40),
+      };
+    }
+  }
 
   cache.set(ip, { info, expiresAt: Date.now() + CACHE_TTL_MS });
   return info;

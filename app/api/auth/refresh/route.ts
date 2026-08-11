@@ -78,11 +78,20 @@ export async function POST(req: NextRequest) {
     });
 
     // 5. Poser le nouvel access token en cookie httpOnly
+    //
+    // [FIX iOS] Ce cookie était posé avec SameSite=Strict, alors que /api/auth/login
+    // le pose avec SameSite=None en production. Conséquence : dans un contexte
+    // cross-site (Pi Browser / iframe), Safari iOS — qui applique strictement la
+    // politique des cookies tiers — REJETAIT le cookie renouvelé. L'access token
+    // de 15 min n'était donc jamais rafraîchi et l'utilisateur iPhone était
+    // déconnecté puis renvoyé vers /auth/login en boucle. On aligne exactement
+    // les attributs sur ceux de la pose initiale.
+    const isProduction = process.env.NODE_ENV === "production";
     const response = NextResponse.json({ success: true });
     response.cookies.set("token", newAccessToken, {
       httpOnly: true,
-      secure:   true,
-      sameSite: "strict",
+      secure:   isProduction,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
       maxAge:   60 * 15, // 15 minutes
       path:     "/",
     });

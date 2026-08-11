@@ -178,10 +178,15 @@ export async function POST(req: Request) {
     });
 
     const isProduction = process.env.NODE_ENV === "production";
+    // [FIX iOS] Aligné sur /api/auth/login : SameSite=None en production, sinon
+    // Safari iOS rejette ces cookies dans l'iframe cross-origin du Pi Browser et
+    // l'utilisateur n'est jamais réellement connecté après son inscription.
+    const sameSiteVal = isProduction ? ("none" as const) : ("lax" as const);
+
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: "lax",
+      sameSite: sameSiteVal,
       path: "/",
       maxAge: 900,
     });
@@ -189,7 +194,7 @@ export async function POST(req: Request) {
     response.cookies.set("refresh_token", refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: "lax",
+      sameSite: sameSiteVal,
       path: "/api/auth/refresh",
       maxAge: 604800,
     });

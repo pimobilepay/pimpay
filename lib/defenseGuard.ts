@@ -71,15 +71,25 @@ export function invalidateSettingsCache() {
 }
 
 // Vérifie l'appartenance d'une IP à une liste blanche (IP exactes ou CIDR /24, /16, /8).
+// [FIX iOS] Prend aussi en charge les préfixes IPv6 déclarés en texte (ex.
+// "2a02:8010:" ) : les opérateurs mobiles attribuent une IPv6 différente à
+// chaque session, une correspondance exacte ne suffit donc jamais.
 function ipInWhitelist(ip: string, whitelist: string): boolean {
   if (!whitelist) return false;
   const entries = whitelist.split(",").map((e) => e.trim()).filter(Boolean);
+  const lowerIp = ip.toLowerCase();
   for (const entry of entries) {
     if (entry === ip) return true;
     if (entry.includes("/")) {
       const [base, bitsStr] = entry.split("/");
       const bits = Number(bitsStr);
       if (matchCidr(ip, base, bits)) return true;
+      // Préfixe IPv6 en CIDR : comparaison textuelle sur la partie fixe.
+      if (base.includes(":") && lowerIp.startsWith(base.toLowerCase().replace(/:+$/, ""))) {
+        return true;
+      }
+    } else if (entry.includes(":") && lowerIp.startsWith(entry.toLowerCase())) {
+      return true;
     }
   }
   return false;
@@ -158,6 +168,14 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
 
   // 3. Détection désactivée → on laisse passer.
   if (!settings.proxyDetectionEnabled) {
+    return { allowed: true, status: 200, ip };
+  }
+
+  // 3a. [FIX iOS] IP du client non résolvable : on ne bloque JAMAIS sur une
+  //     absence d'information. Certains chemins opérateurs (notamment sur iOS)
+  //     n'exposent pas d'en-tête x-forwarded-for exploitable ; bloquer ici
+  //     revenait à refuser l'accès à des utilisateurs parfaitement légitimes.
+  if (ip === "unknown") {
     return { allowed: true, status: 200, ip };
   }
 

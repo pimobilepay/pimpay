@@ -261,7 +261,12 @@ export default function SignupPage() {
       if (data.token) {
         setAuthToken(data.token);
         localStorage.setItem("pimpay_token", data.token);
-        document.cookie = `pi_session_token=${data.token}; path=/; max-age=3600; SameSite=Lax`;
+        // [FIX iOS] En HTTPS on pose SameSite=None; Secure : Safari iOS refuse
+        // les cookies SameSite=Lax dans l'iframe cross-origin du Pi Browser.
+        document.cookie =
+          window.location.protocol === "https:"
+            ? `pi_session_token=${data.token}; path=/; max-age=3600; SameSite=None; Secure`
+            : `pi_session_token=${data.token}; path=/; max-age=3600; SameSite=Lax`;
       }
 
       setStep(2); // Go to MFA selection
