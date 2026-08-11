@@ -41,6 +41,10 @@ interface Transaction {
   accountName: string | null;
   isBlockchainWithdraw: boolean;
   method: string;
+  /** Nature de la methode, calculee cote serveur (voir lib/currency-kind.ts). */
+  methodKind?: "CRYPTO" | "MOBILE_MONEY" | "BANK" | "INTERNAL" | "CARD" | "CASH";
+  /** Reseau blockchain lisible (ex. "TRON") pour les transactions on-chain. */
+  network?: string | null;
   countryCode: string | null;
   createdAt: string;
   fromUser: TxUser | null;
@@ -220,11 +224,28 @@ function TransactionDetailModal({ tx, onClose, piPrice, priceMode }: { tx: Trans
               label="Date"
               value={new Date(tx.createdAt).toLocaleString("fr-FR")}
             />
+            {/* L'icone suit desormais la nature reelle de la methode : un depot
+                crypto (TRX, USDT, SOL...) ne doit plus afficher un telephone. */}
             <DetailRow
-              icon={<Smartphone size={16} />}
+              icon={
+                tx.methodKind === "CRYPTO" ? <Globe size={16} /> :
+                tx.methodKind === "BANK" ? <Banknote size={16} /> :
+                tx.methodKind === "CARD" ? <CreditCard size={16} /> :
+                tx.methodKind === "MOBILE_MONEY" ? <Smartphone size={16} /> :
+                <ArrowRightLeft size={16} />
+              }
               label="Methode"
               value={tx.method || tx.description || "Pi Wallet"}
+              valueClassName={tx.methodKind === "CRYPTO" ? "text-amber-400" : undefined}
             />
+            {tx.network && (
+              <DetailRow
+                icon={<ShieldCheck size={16} />}
+                label="Reseau"
+                value={tx.network}
+                valueClassName="text-amber-400"
+              />
+            )}
             {feeAmount > 0 && (
               <DetailRow
                 icon={<Banknote size={16} />}

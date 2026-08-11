@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { adminAuth } from '@/lib/adminAuth';
+import { isCryptoCurrency, getNetworkLabel, resolveTransactionMethod } from '@/lib/currency-kind';
 
 export async function GET(req: NextRequest) {
   const adminPayload = await adminAuth(req);
@@ -85,8 +86,28 @@ export async function GET(req: NextRequest) {
     const formatted = transactions.map((tx) => {
       const meta = (tx.metadata as any) || {};
       const user = tx.fromUser || tx.toUser;
-      const isBlockchainWithdraw = meta.isBlockchainWithdraw === true || meta.isExternal === true;
       const externalAddress = meta.externalAddress || meta.destination || null;
+
+      // On considère la transaction comme on-chain dès qu'un signal blockchain
+      // existe (flag, hash, adresse externe) OU que la devise est une crypto.
+      const isBlockchainWithdraw =
+        meta.isBlockchainWithdraw === true ||
+        meta.isExternal === true ||
+        Boolean(tx.blockchainTx) ||
+        isCryptoCurrency(tx.currency);
+
+      // [FIX] La méthode était calculée avec un fallback « MOBILE » dès que la
+      // devise n'était pas "PI". Un dépôt TRX (ou USDT, SOL, BTC...) s'affichait
+      // donc « MOBILE » dans le détail admin alors qu'il s'agit d'un dépôt
+      // crypto. resolveTransactionMethod s'appuie sur la nature de la devise et
+      // les signaux metadata au lieu de deviner.
+      const resolved = resolveTransactionMethod({
+        currency: tx.currency,
+        type: tx.type,
+        accountNumber: tx.accountNumber,
+        blockchainTx: tx.blockchainTx,
+        metadata: meta,
+      });
 
       return {
         id: tx.id,
@@ -107,9 +128,11 @@ export async function GET(req: NextRequest) {
           : tx.accountNumber || meta.phoneNumber || meta.phone || null,
         accountName: tx.accountName,
         isBlockchainWithdraw,
-        method: isBlockchainWithdraw
-          ? (meta.network || tx.currency || "BLOCKCHAIN")
-          : (meta.method || meta.provider || (tx.currency === "PI" ? "PI_NETWORK" : "MOBILE")),
+        method: resolved.method,
+        methodKind: resolved.kind,
+        network: isBlockchainWithdraw
+          ? (meta.network || getNetworkLabel(tx.currency) || null)
+          : null,
         countryCode: tx.countryCode,
         createdAt: tx.createdAt.toISOString(),
         fromUser: tx.fromUser ? {
