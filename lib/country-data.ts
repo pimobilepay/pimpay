@@ -59,7 +59,10 @@ const OP: Record<string, string> = {
   gmoney:       "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/G-Money_logo.png/200px-G-Money_logo.png",
   zeepay:       "https://myzeepay.com/images/logo.png",
   emoney:       "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/E-money_logo.png/200px-E-money_logo.png",
-  coris:        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
+  // Coris Money (Burkina Faso) : l'URL Wikimedia renvoyait une erreur HTTP 400
+  // (fichier inexistant côté Wikimedia), l'icône ne s'affichait donc jamais.
+  // On sert désormais l'asset local depuis /public.
+  coris:        "/coris.png",
   sama:         "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Sama_money_logo.png/200px-Sama_money_logo.png",
   celtiis:      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Celtiis_logo.png/200px-Celtiis_logo.png",
   tnm:          "https://upload.wikimedia.org/wikipedia/en/thumb/6/6e/Telekom_Networks_Malawi_logo.png/200px-Telekom_Networks_Malawi_logo.png",
@@ -121,7 +124,7 @@ const BK: Record<string, string> = {
   absa:             "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Absa_Group_logo.svg/200px-Absa_Group_logo.svg.png",
   cbao:             "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/CBAO_logo.png/200px-CBAO_logo.png",
   bici:             "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Bicici-logo.png/200px-Bicici-logo.png",
-  coris_bank:       "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
+  coris_bank:       "/coris.png",
   nsia:             "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/NSIA_Banque_logo.png/200px-NSIA_Banque_logo.png",
   boc:              "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/BOC_CI_logo.png/200px-BOC_CI_logo.png",
   // Central Africa
