@@ -14,12 +14,16 @@ import {
   extractGeniusPayMessage,
   isGeniusPayUnavailable,
   isGeniusPaySandboxQuotaError,
+  isGeniusPayProviderPredictionError,
   GENIUSPAY_SANDBOX_QUOTA_MESSAGE,
   type GeniusPayPayment,
   type GeniusPayMomoMethod,
 } from "@/lib/geniuspay";
 import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
-import { resolveProvider } from "@/lib/pawapay-catalog";
+import {
+  resolveProvider,
+  isCountrySupported as isPawaPayCountrySupported,
+} from "@/lib/pawapay-catalog";
 import {
   createPaymentPageSession,
   newPawaPayId,
@@ -94,9 +98,25 @@ export async function POST(req: NextRequest) {
 
     if (method !== "card") {
       if (XOF_NATIVE_ZONE.has(countryCode)) {
-        // Opérateur XOF direct (Wave, Orange, MTN, Moov).
-        paymentMethod = resolveMomoMethod(operatorHint);
-        isMobileMoney = !!paymentMethod;
+        // [FIX TOGO +228] Les codes MoMo directs de GeniusPay (moov_money,
+        // orange_money, mtn_money, wave) ne sont poussables que si la
+        // passerelle sait relier le numéro à un opérateur. Pour les pays XOF
+        // sans rails MMO (Togo, Mali, Niger, Guinée-Bissau — aucun
+        // `provider code` n'existe côté passerelle), l'API répondait :
+        //   « Unable to predict provider for phone number: 228xxxxxxxx.
+        //     Please provide a provider code. »
+        // ...et le dépôt échouait alors qu'aucun code n'était fournissable.
+        // On part donc directement sur le checkout hébergé (le client choisit
+        // son moyen de paiement chez GeniusPay) au lieu de tenter un push voué
+        // à l'échec. La Côte d'Ivoire (marché natif GeniusPay) et les pays
+        // couverts par la passerelle MMO conservent le push direct.
+        const gatewayHasMmoRails =
+          countryCode === "CI" || isPawaPayCountrySupported(countryCode);
+        if (gatewayHasMmoRails) {
+          // Opérateur XOF direct (Wave, Orange, MTN, Moov).
+          paymentMethod = resolveMomoMethod(operatorHint);
+          isMobileMoney = !!paymentMethod;
+        }
       } else {
         // Hors zone XOF : GeniusPay route via PawaPay -> mmo_provider explicite.
         const pp = resolveProvider(countryCode, operatorHint);
@@ -234,23 +254,48 @@ export async function POST(req: NextRequest) {
     // statut, relance la réconciliation active GeniusPay, puis redirige
     // automatiquement vers /deposit/success une fois confirmé) et vers
     // /deposit/failed en cas d'échec (page dédiée avec message d'erreur).
-    const depositMethodLabel = isMobileMoney ? "mobile" : "card";
-    const gp = await createPayment({
-      amount: localAmount,
-      currency,
-      paymentMethod,
-      mmoProvider,
-      description: `PimobiPay depot ${reference}`,
-      customer: {
-        name: customerName,
-        email: customerEmail,
-        phone: normalizedPhone,
-        country: countryCode,
-      },
-      successUrl: `${appBaseUrl}/deposit/summary?ref=${reference}&method=${depositMethodLabel}&amount=${usd}`,
-      errorUrl: `${appBaseUrl}/deposit/failed?ref=${reference}`,
-      metadata: { reference, userId, kind: "deposit" },
-    });
+    const submitPayment = (
+      pm: GeniusPayMomoMethod | "pawapay" | undefined,
+      mmo: string | undefined
+    ) =>
+      createPayment({
+        amount: localAmount,
+        currency,
+        paymentMethod: pm,
+        mmoProvider: mmo,
+        description: `PimobiPay depot ${reference}`,
+        customer: {
+          name: customerName,
+          email: customerEmail,
+          phone: normalizedPhone,
+          country: countryCode,
+        },
+        successUrl: `${appBaseUrl}/deposit/summary?ref=${reference}&method=${
+          pm ? "mobile" : "card"
+        }&amount=${usd}`,
+        errorUrl: `${appBaseUrl}/deposit/failed?ref=${reference}`,
+        metadata: { reference, userId, kind: "deposit" },
+      });
+
+    let gp = await submitPayment(paymentMethod, mmoProvider);
+
+    // [FIX TOGO +228] Si la passerelle ne parvient pas à déduire l'opérateur du
+    // numéro (« Unable to predict provider for phone number: ... Please provide
+    // a provider code. »), aucun code fournisseur n'est fournissable pour ce
+    // pays : on rejoue immédiatement le paiement SANS `payment_method` afin
+    // d'obtenir la page de paiement hébergée GeniusPay, au lieu de renvoyer une
+    // erreur technique à l'utilisateur.
+    if (!gp.ok && paymentMethod && isGeniusPayProviderPredictionError(gp.data)) {
+      console.log(
+        "[v0] GENIUSPAY_DEPOSIT_PREDICT_FALLBACK: push MoMo impossible pour",
+        countryCode,
+        "-> checkout hébergé"
+      );
+      paymentMethod = undefined;
+      mmoProvider = undefined;
+      isMobileMoney = false;
+      gp = await submitPayment(undefined, undefined);
+    }
 
     // 7. Gérer la réponse de l'agrégateur
     const rawGpResponse = gp.data as any;
@@ -489,6 +534,10 @@ export async function POST(req: NextRequest) {
         externalId: payment.reference,
         metadata: {
           ...(transaction.metadata as any),
+          // Reflète le mode RÉELLEMENT accepté : il peut avoir basculé en
+          // checkout hébergé si la passerelle n'a pas pu déduire l'opérateur.
+          paymentMethod: paymentMethod || "card",
+          mmoProvider: mmoProvider || null,
           geniusPayReference: payment.reference,
           checkoutUrl: paymentUrl,
           netAmountXof: payment.net_amount ?? null,

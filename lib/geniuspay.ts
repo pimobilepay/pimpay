@@ -348,6 +348,27 @@ export function isGeniusPaySandboxQuotaError(data: any): boolean {
   );
 }
 
+/**
+ * GeniusPay (ou sa passerelle PawaPay) n'a pas pu déduire l'opérateur Mobile
+ * Money à partir du numéro fourni :
+ *   "Unable to predict provider for phone number: 22898554742.
+ *    Please provide a provider code."
+ *
+ * C'est le cas des pays hors couverture MMO de la passerelle (ex. Togo +228 :
+ * aucun `provider code` n'existe, il est donc impossible d'en fournir un).
+ * Ce n'est PAS un refus de paiement : le dépôt doit être rejoué SANS
+ * `payment_method` afin d'obtenir la page de paiement hébergée GeniusPay, où le
+ * client choisit lui-même son moyen de paiement.
+ */
+export function isGeniusPayProviderPredictionError(data: any): boolean {
+  const msg = `${extractGeniusPayMessage(data) || ""} ${
+    typeof data === "string" ? data : JSON.stringify(data ?? "")
+  }`;
+  return /unable to predict (the )?provider|provide a provider code|provider_?code is required|unknown provider for (the )?(phone|msisdn)/i.test(
+    msg
+  );
+}
+
 /** Message explicite (FR) à afficher / journaliser pour un quota sandbox épuisé. */
 export const GENIUSPAY_SANDBOX_QUOTA_MESSAGE =
   "Le compte GeniusPay Sandbox n'a plus de jetons de test (No tokens remaining). " +
