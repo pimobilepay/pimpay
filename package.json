@@ -161,7 +161,7 @@
       "body-parser": ">=2.3.0",
       "secp256k1": ">=3.8.1",
       "valibot": ">=1.4.2",
-      "dompurify": ">=3.4.12",
+      "dompurify": ">=3.4.13",
       "tar": ">=7.5.21",
       "qs": ">=6.15.2",
       "minimatch": ">=10.2.3",
@@ -192,6 +192,7 @@
       "follow-redirects": ">=1.16.0",
       "node-fetch": ">=2.6.7",
       "sharp": ">=0.35.0",
+      "nanoid": ">=3.3.17",
       "protobufjs": ">=8.6.6"
     },
     "onlyBuiltDependencies": [
