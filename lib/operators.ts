@@ -31,7 +31,8 @@ const OP_LOGOS: Record<string, string> = {
   // West Africa
   free:           "https://upload.wikimedia.org/wikipedia/fr/thumb/4/4b/Free_logo.svg/200px-Free_logo.svg.png",
   express_union:  "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Express_Union_Logo.png/200px-Express_Union_Logo.png",
-  coris:          "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Coris_Bank_International_logo.svg/200px-Coris_Bank_International_logo.svg.png",
+  // Coris Money (Burkina Faso) : asset local, l'URL Wikimedia renvoyait un 400.
+  coris:          "/coris.png",
   sama:           "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Sama_money_logo.png/200px-Sama_money_logo.png",
   celtiis:        "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Celtiis_logo.png/200px-Celtiis_logo.png",
   togocel:        "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Togocel_logo.svg/200px-Togocel_logo.svg.png",
