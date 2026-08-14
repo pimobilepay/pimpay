@@ -19,11 +19,11 @@ import {
   type GeniusPayPayment,
   type GeniusPayMomoMethod,
 } from "@/lib/geniuspay";
-import { getGeniusPayCurrency } from "@/lib/geniuspay-catalog";
 import {
-  resolveProvider,
-  isCountrySupported as isPawaPayCountrySupported,
-} from "@/lib/pawapay-catalog";
+  getGeniusPayCurrency,
+  isGeniusPayMomoPushCountry,
+} from "@/lib/geniuspay-catalog";
+import { resolveProvider } from "@/lib/pawapay-catalog";
 import {
   createPaymentPageSession,
   newPawaPayId,
@@ -88,37 +88,32 @@ export async function POST(req: NextRequest) {
     //    et provoquaient l'erreur "validation.in". On passe donc par le
     //    fournisseur PawaPay explicite.
     const operatorHint = `${operatorId || ""} ${operatorName || ""}`;
-    const XOF_NATIVE_ZONE = new Set([
-      "CI", "SN", "BJ", "BF", "ML", "TG", "NE", "GW",
-    ]);
 
     let paymentMethod: GeniusPayMomoMethod | "pawapay" | undefined;
     let mmoProvider: string | undefined;
     let isMobileMoney = false;
 
     if (method !== "card") {
-      if (XOF_NATIVE_ZONE.has(countryCode)) {
-        // [FIX TOGO +228] Les codes MoMo directs de GeniusPay (moov_money,
-        // orange_money, mtn_money, wave) ne sont poussables que si la
-        // passerelle sait relier le numéro à un opérateur. Pour les pays XOF
-        // sans rails MMO (Togo, Mali, Niger, Guinée-Bissau — aucun
-        // `provider code` n'existe côté passerelle), l'API répondait :
-        //   « Unable to predict provider for phone number: 228xxxxxxxx.
-        //     Please provide a provider code. »
-        // ...et le dépôt échouait alors qu'aucun code n'était fournissable.
-        // On part donc directement sur le checkout hébergé (le client choisit
-        // son moyen de paiement chez GeniusPay) au lieu de tenter un push voué
-        // à l'échec. La Côte d'Ivoire (marché natif GeniusPay) et les pays
-        // couverts par la passerelle MMO conservent le push direct.
-        const gatewayHasMmoRails =
-          countryCode === "CI" || isPawaPayCountrySupported(countryCode);
-        if (gatewayHasMmoRails) {
-          // Opérateur XOF direct (Wave, Orange, MTN, Moov).
-          paymentMethod = resolveMomoMethod(operatorHint);
-          isMobileMoney = !!paymentMethod;
-        }
+      if (isGeniusPayMomoPushCountry(countryCode)) {
+        // Push Mobile Money NATIF de GeniusPay — Côte d'Ivoire uniquement
+        // (Wave / Orange Money / MTN MoMo / Moov Money). C'est le seul marché
+        // où GeniusPay sait relier le numéro à un opérateur et pousser le
+        // paiement directement (cf. lib/geniuspay-catalog).
+        paymentMethod = resolveMomoMethod(operatorHint);
+        isMobileMoney = !!paymentMethod;
       } else {
-        // Hors zone XOF : GeniusPay route via PawaPay -> mmo_provider explicite.
+        // [FIX BURKINA FASO +226 / TOGO +228] Partout ailleurs, les codes MoMo
+        // directs (orange_money, moov_money…) ne sont PAS routables par
+        // GeniusPay : l'API répond « Unable to predict provider for phone
+        // number: <indicatif>… » et le dépôt échoue. On passe donc par le
+        // fournisseur PawaPay EXPLICITE (ex. Burkina Faso : ORANGE_BFA /
+        // MOOV_BFA) via le routage PawaPay de GeniusPay. Sans rail natif
+        // (Coris Money, Togo…), on retombe sur le checkout hébergé (carte).
+        //
+        // NB : côté client, `resolveEndpoint` (lib/aggregator-client) route déjà
+        // ces dépôts Mobile Money directement vers l'endpoint PawaPay. Cette
+        // branche reste comme filet de sécurité si la route GeniusPay est
+        // appelée malgré tout.
         const pp = resolveProvider(countryCode, operatorHint);
         if (pp.supported && pp.provider) {
           paymentMethod = "pawapay";

@@ -45,9 +45,13 @@ export function resolveAggregator(
   countryCode: string,
   operatorHint: string
 ): AggregatorResolution {
-  // 1. GeniusPay (primaire)
   const gp = resolveGeniusPay(countryCode, operatorHint);
-  if (gp.supported) {
+  const pp = resolveProvider(countryCode, operatorHint);
+
+  // 1. GeniusPay avec PUSH Mobile Money natif (Côte d'Ivoire : wave /
+  //    orange_money / mtn_money / moov_money). C'est le seul cas où GeniusPay
+  //    peut réellement router un paiement Mobile Money vers l'opérateur.
+  if (gp.supported && gp.method) {
     return {
       aggregator: "GENIUSPAY",
       supported: true,
@@ -56,8 +60,11 @@ export function resolveAggregator(
     };
   }
 
-  // 2. PawaPay (secours)
-  const pp = resolveProvider(countryCode, operatorHint);
+  // 2. PawaPay avec rails Mobile Money natifs pour ce pays/opérateur
+  //    (ex. Burkina Faso : ORANGE_BFA / MOOV_BFA ; Sénégal, Bénin, Mali…).
+  //    [FIX BURKINA FASO +226] On préfère PawaPay au simple checkout carte
+  //    GeniusPay dès qu'un rail Mobile Money natif existe, sinon le dépôt Mobile
+  //    Money du client échouait (GeniusPay ne pousse pas de MoMo hors CI).
   if (pp.supported && pp.provider) {
     return {
       aggregator: "PAWAPAY",
@@ -67,7 +74,19 @@ export function resolveAggregator(
     };
   }
 
-  // 3. Non supporté
+  // 3. Repli GeniusPay : checkout hébergé (carte) quand la devise est
+  //    compatible mais qu'aucun rail Mobile Money natif n'est disponible
+  //    (ex. Coris Money au Burkina Faso, Togo, Niger…).
+  if (gp.supported) {
+    return {
+      aggregator: "GENIUSPAY",
+      supported: true,
+      currency: gp.currency,
+      method: gp.method,
+    };
+  }
+
+  // 4. Non supporté
   return {
     aggregator: null,
     supported: false,

@@ -70,16 +70,23 @@ export interface GeniusPayCountry {
   currency: string;
 }
 
+// [FIX BURKINA FASO +226] Le push Mobile Money NATIF de GeniusPay (un
+// `payment_method` direct wave / orange_money / mtn_money / moov_money qui
+// déclenche une notification de paiement sur le téléphone) n'existe QU'EN CÔTE
+// D'IVOIRE, marché historique de l'agrégateur (cf. doc officielle
+// https://pay.genius.ci/docs/api : Wave, Orange Money, MTN MoMo, Moov Money —
+// Côte d'Ivoire uniquement). Partout ailleurs, GeniusPay ne sait pas relier le
+// numéro à un opérateur local et répond « Unable to predict provider for phone
+// number: <indicatif>… », faisant échouer le dépôt (cas Burkina Faso +226,
+// Bénin, Mali, Niger, Togo, Guinée-Bissau…).
+//
+// => Seule la Côte d'Ivoire figure donc dans la zone de push MoMo native. Les
+// autres pays UEMOA sont routés vers leurs rails Mobile Money natifs par
+// l'agrégateur de secours (PawaPay : ORANGE_BFA / MOOV_BFA au Burkina Faso,
+// etc.), et retombent sur le checkout hébergé GeniusPay (carte) si aucun rail
+// natif n'existe (ex. Coris Money).
 export const GENIUSPAY_MOMO_COUNTRIES: Record<string, GeniusPayCountry> = {
-  CI: { alpha3: "CIV", currency: "XOF" }, // Côte d'Ivoire
-  SN: { alpha3: "SEN", currency: "XOF" }, // Sénégal
-  BJ: { alpha3: "BEN", currency: "XOF" }, // Bénin
-  BF: { alpha3: "BFA", currency: "XOF" }, // Burkina Faso
-  ML: { alpha3: "MLI", currency: "XOF" }, // Mali
-  TG: { alpha3: "TGO", currency: "XOF" }, // Togo
-  NE: { alpha3: "NER", currency: "XOF" }, // Niger
-  GW: { alpha3: "GNB", currency: "XOF" }, // Guinée-Bissau
-  CG: { alpha3: "COG", currency: "XAF" }, // Congo (Brazzaville) — via GeniusPay
+  CI: { alpha3: "CIV", currency: "XOF" }, // Côte d'Ivoire (seul push MoMo natif)
 };
 
 /**
@@ -115,9 +122,19 @@ export interface ResolvedGeniusPay {
   supported: boolean;
 }
 
-/** true si le pays (alpha-2) fait partie de la zone Mobile Money native. */
+/**
+ * true si le pays (alpha-2) fait partie de la zone où GeniusPay pousse
+ * NATIVEMENT le Mobile Money (Côte d'Ivoire uniquement — cf.
+ * GENIUSPAY_MOMO_COUNTRIES). Ailleurs, `resolveGeniusPay` ne renvoie pas de
+ * `method` : le routage Mobile Money passe par PawaPay (voir lib/aggregator).
+ */
 function isMomoZone(countryCode: string): boolean {
   return !!GENIUSPAY_MOMO_COUNTRIES[(countryCode || "").toUpperCase()];
+}
+
+/** true si GeniusPay pousse nativement le Mobile Money dans ce pays (alpha-2). */
+export function isGeniusPayMomoPushCountry(countryCode: string): boolean {
+  return isMomoZone(countryCode);
 }
 
 // -----------------------------------------------------------------------------
