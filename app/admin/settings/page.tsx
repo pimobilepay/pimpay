@@ -177,8 +177,6 @@ export default function SystemSettings() {
     deployedVersion?: string | null;
   } | null>(null);
   const [systemInfoLoading, setSystemInfoLoading] = useState(false);
-  const [uploadingAnnouncementImage, setUploadingAnnouncementImage] = useState(false);
-  const announcementFileRef = useRef<HTMLInputElement>(null);
   const [config, setConfig] = useState({
     appVersion: "",
     globalAnnouncement: "",
@@ -1460,101 +1458,25 @@ export default function SystemSettings() {
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                        <Bell size={11} className="text-slate-600" />
-                        Annonce Globale (bannière dashboard)
-                      </label>
-                      <textarea
-                        className="w-full bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3 text-white text-sm focus:border-blue-500/40 outline-none min-h-[90px] resize-none placeholder-slate-600 transition-colors"
-                        placeholder="Message affiché en haut du dashboard pour tous les utilisateurs..."
-                        value={config.globalAnnouncement}
-                        onChange={e => setConfig({ ...config, globalAnnouncement: e.target.value })}
-                      />
-                      {config.globalAnnouncement && (
-                        <div className="flex items-start gap-2 p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl">
-                          <Info size={12} className="text-blue-400 mt-0.5 shrink-0" />
-                          <p className="text-[10px] text-blue-300/70 leading-relaxed">Aperçu: {config.globalAnnouncement}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Image d'annonce (PNG) */}
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                        <ImageIcon size={11} className="text-slate-600" />
-                        Image de l'annonce (PNG / JPG — max 4MB)
-                      </label>
-                      <input
-                        ref={announcementFileRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        onChange={handleAnnouncementImageUpload}
-                        className="hidden"
-                      />
-                      {config.announcementImage ? (
-                        <div className="flex items-center gap-4 p-3 bg-black/30 border border-white/[0.06] rounded-xl">
-                          <img
-                            src={config.announcementImage || "/placeholder.svg"}
-                            alt="Aperçu de l'image d'annonce"
-                            className="h-14 w-14 rounded-lg object-cover border border-white/10"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Image active</p>
-                            <p className="text-[9px] text-slate-500 truncate">{config.announcementImage}</p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => announcementFileRef.current?.click()}
-                              disabled={uploadingAnnouncementImage}
-                              className="px-3 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] text-slate-300 text-[9px] font-bold uppercase tracking-wider hover:bg-white/[0.08] transition-colors disabled:opacity-50"
-                            >
-                              Remplacer
-                            </button>
-                            <button
-                              type="button"
-                              onClick={removeAnnouncementImage}
-                              className="px-3 h-9 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-bold uppercase tracking-wider hover:bg-red-500/20 transition-colors"
-                            >
-                              Retirer
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => announcementFileRef.current?.click()}
-                          disabled={uploadingAnnouncementImage}
-                          className="w-full h-[90px] rounded-xl border border-dashed border-white/[0.1] bg-black/20 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-slate-300 hover:border-white/[0.2] transition-all disabled:opacity-50"
-                        >
-                          <ImageIcon size={20} />
-                          <span className="text-[10px] font-bold uppercase tracking-wider">
-                            {uploadingAnnouncementImage ? "Téléchargement..." : "Ajouter une image PNG"}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Lien de l'annonce */}
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                        <LinkIcon size={11} className="text-slate-600" />
-                        Lien de l'annonce (bouton "Cliquez ici")
-                      </label>
-                      <div className="flex items-center gap-2 bg-black/30 border border-white/[0.06] rounded-xl px-4 py-3">
-                        <LinkIcon size={13} className="text-slate-500 shrink-0" />
-                        <input
-                          className="bg-transparent text-white text-sm outline-none w-full placeholder-slate-600"
-                          value={config.announcementLink}
-                          onChange={e => setConfig({ ...config, announcementLink: e.target.value })}
-                          placeholder="https://exemple.com/promo  ou  /settings/kyc"
-                        />
+                    {/* La gestion de l'Annonce Globale (bannière) a été déplacée
+                        vers la page Diffusion & Maintenance pour centraliser la
+                        communication au même endroit. */}
+                    <button
+                      type="button"
+                      onClick={() => router.push("/admin/broadcast")}
+                      className="w-full flex items-center gap-3 p-4 rounded-xl border border-blue-500/15 bg-blue-500/[0.04] text-left transition-colors hover:bg-blue-500/[0.08]"
+                    >
+                      <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 shrink-0">
+                        <Radio size={16} />
                       </div>
-                      <p className="text-[9px] text-slate-600 leading-relaxed">
-                        Le lien complet reste masqué. Les utilisateurs voient un bouton « Cliquez ici » qui ouvre ce lien.
-                      </p>
-                    </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold text-white">Annonce Globale (bannière)</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          Message, image et lien de la bannière se gèrent désormais sur la page Diffusion & Maintenance.
+                        </p>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-500 shrink-0" />
+                    </button>
                   </div>
                 </div>
 

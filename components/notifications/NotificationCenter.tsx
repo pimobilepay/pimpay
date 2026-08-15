@@ -2,6 +2,7 @@
 
 import { Bell, Check, Info, AlertTriangle, X, Loader2, ArrowDownLeft, ArrowUpRight, Repeat, Banknote, DollarSign, TrendingUp, Coins, Gift } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 interface NotificationMetadata {
@@ -48,87 +49,120 @@ interface Notification {
   metadata?: NotificationMetadata;
 }
 
-// Helper pour afficher un toast enrichi selon le type de notification
-function showNotificationToast(notif: Notification) {
+type ToastVariant = "success" | "info" | "warning" | "default";
+
+// Construit le contenu du toast (variante, description, durée) selon le type
+function buildNotificationToast(notif: Notification): {
+  variant: ToastVariant;
+  description: string;
+  duration: number;
+} {
   const meta = notif.metadata;
-  
+
   if (notif.type === "SUCCESS" || notif.type === "PAYMENT_RECEIVED") {
-    toast.success(notif.title, {
-      description: meta?.amount 
-        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} credite` 
+    return {
+      variant: "success",
+      description: meta?.amount
+        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} credite`
         : notif.message,
       duration: 6000,
-    });
-  } else if (notif.type === "PAYMENT_SENT") {
-    toast.info(notif.title, {
-      description: meta?.amount 
-        ? `-${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} envoye` 
+    };
+  }
+  if (notif.type === "PAYMENT_SENT") {
+    return {
+      variant: "info",
+      description: meta?.amount
+        ? `-${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} envoye`
         : notif.message,
       duration: 6000,
-    });
-  } else if (notif.type === "SWAP") {
-    toast.success(notif.title, {
-      description: meta?.fromAmount && meta?.toAmount 
-        ? `${meta.fromAmount} ${meta.fromCurrency} → ${Number(meta.toAmount).toLocaleString()} ${meta.toCurrency}` 
+    };
+  }
+  if (notif.type === "SWAP") {
+    return {
+      variant: "success",
+      description: meta?.fromAmount && meta?.toAmount
+        ? `${meta.fromAmount} ${meta.fromCurrency} → ${Number(meta.toAmount).toLocaleString()} ${meta.toCurrency}`
         : notif.message,
       duration: 6000,
-    });
-  } else if (notif.type === "SALARY" || meta?.type === "SALARY") {
-    // Notification de salaire recu
-    toast.success(notif.title, {
-      description: meta?.amount && meta?.senderName 
-        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "USD"} de ${meta.senderName}` 
+    };
+  }
+  if (notif.type === "SALARY" || meta?.type === "SALARY") {
+    return {
+      variant: "success",
+      description: meta?.amount && meta?.senderName
+        ? `+${Number(meta.amount).toLocaleString()} ${meta.currency || "USD"} de ${meta.senderName}`
         : notif.message,
       duration: 8000,
-    });
-  } else if (meta?.type === "SALARY_BATCH") {
-    // Notification de paiement salaires envoye (business)
-    toast.success(notif.title, {
-      description: meta?.employeeCount 
-        ? `${meta.employeeCount} employe(s) payes pour ${Number(meta.amount).toLocaleString()} ${meta.currency || "USD"}` 
+    };
+  }
+  if (meta?.type === "SALARY_BATCH") {
+    return {
+      variant: "success",
+      description: meta?.employeeCount
+        ? `${meta.employeeCount} employe(s) payes pour ${Number(meta.amount).toLocaleString()} ${meta.currency || "USD"}`
         : notif.message,
       duration: 8000,
-    });
-  } else if (notif.type === "SECURITY" || notif.type === "LOGIN") {
-    toast.warning(notif.title, {
+    };
+  }
+  if (notif.type === "SECURITY" || notif.type === "LOGIN") {
+    return {
+      variant: "warning",
       description: meta?.location ? `Connexion depuis ${meta.location}` : notif.message,
       duration: 8000,
-    });
-  } else if (notif.type === "STAKING" || notif.type === "STAKING_REWARD" || meta?.type === "STAKING" || meta?.type === "STAKING_REWARD") {
-    // Notification de staking - afficher les details complets
+    };
+  }
+  if (notif.type === "STAKING" || notif.type === "STAKING_REWARD" || meta?.type === "STAKING" || meta?.type === "STAKING_REWARD") {
     let description = notif.message;
-    
     if (meta?.type === "STAKING_REWARD" || notif.type === "STAKING_REWARD") {
-      // Recompense de staking avec details complets
       const rewardAmt = Number(meta?.rewardAmount || 0).toFixed(6);
       const stakingAmt = Number(meta?.stakingAmount || 0).toLocaleString();
       const totalRewards = Number(meta?.totalRewards || 0).toFixed(6);
       const currency = meta?.currency || "PI";
       const apy = meta?.apy || 0;
-      
       description = `+${rewardAmt} ${currency} gagne aujourd'hui | Staking: ${stakingAmt} ${currency} @ ${apy}% APY | Total cumule: ${totalRewards} ${currency}`;
     } else if (meta?.stakingAmount) {
       description = `${Number(meta.stakingAmount).toLocaleString()} ${meta.currency || "PI"} stake a ${meta.apy || 0}% APY`;
     }
-    
-    toast.success(notif.title, {
-      description,
-      duration: 8000,
-    });
-  } else if (notif.type === "STAKING_UNSTAKE" || meta?.type === "UNSTAKE") {
-    // Notification de unstaking
-    toast.info(notif.title, {
-      description: meta?.amount 
-        ? `${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} debloques` 
+    return { variant: "success", description, duration: 8000 };
+  }
+  if (notif.type === "STAKING_UNSTAKE" || meta?.type === "UNSTAKE") {
+    return {
+      variant: "info",
+      description: meta?.amount
+        ? `${Number(meta.amount).toLocaleString()} ${meta.currency || "PI"} debloques`
         : notif.message,
       duration: 6000,
-    });
-  } else {
-    toast(notif.title, { description: notif.message, duration: 5000 });
+    };
   }
+  return { variant: "default", description: notif.message, duration: 5000 };
+}
+
+// Affiche un toast compact (max ~4 lignes) avec un bouton "Voir plus"
+// qui renvoie l'utilisateur vers la page complète des notifications.
+function showNotificationToast(notif: Notification, onSeeMore: () => void) {
+  const { variant, description, duration } = buildNotificationToast(notif);
+
+  const options = {
+    duration,
+    description: (
+      <span className="mt-0.5 block max-w-full overflow-hidden text-ellipsis leading-relaxed line-clamp-4">
+        {description}
+      </span>
+    ),
+    action: {
+      label: "Voir plus",
+      onClick: onSeeMore,
+    },
+  };
+
+  if (variant === "success") toast.success(notif.title, options);
+  else if (variant === "info") toast.info(notif.title, options);
+  else if (variant === "warning") toast.warning(notif.title, options);
+  else toast(notif.title, options);
 }
 
 export default function NotificationCenter() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -153,8 +187,11 @@ export default function NotificationCenter() {
       if (!isFirstFetch.current && notifsArray.length > 0) {
         const latestNotif = notifsArray[0];
         if (lastNotifIdRef.current && latestNotif.id !== lastNotifIdRef.current && !latestNotif.read) {
-          // Nouvelle notification detectee - afficher un toast
-          showNotificationToast(latestNotif);
+          // Nouvelle notification detectee - afficher un toast compact avec "Voir plus"
+          showNotificationToast(latestNotif, () => {
+            setIsOpen(false);
+            router.push("/notifications");
+          });
         }
       }
       
@@ -170,7 +207,7 @@ export default function NotificationCenter() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchNotifications();

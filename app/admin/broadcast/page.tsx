@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Megaphone,
   Loader2,
@@ -11,6 +11,10 @@ import {
   Wrench,
   History,
   Link2,
+  Radio,
+  Image as ImageIcon,
+  Save,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
@@ -83,10 +87,21 @@ const emptyForm = {
 };
 
 export default function AdminBroadcastPage() {
-  const [tab, setTab] = useState<"compose" | "history" | "maintenance">("compose");
+  const [tab, setTab] = useState<"compose" | "history" | "banner" | "maintenance">("compose");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  // ─── Bannière globale (annonce marquee du dashboard) ──────────────────────
+  const [banner, setBanner] = useState({
+    globalAnnouncement: "",
+    announcementImage: "",
+    announcementLink: "",
+  });
+  const [bannerLoading, setBannerLoading] = useState(true);
+  const [savingBanner, setSavingBanner] = useState(false);
+  const [uploadingBannerImage, setUploadingBannerImage] = useState(false);
+  const bannerFileRef = useRef<HTMLInputElement>(null);
   const [audience, setAudience] = useState<AudienceValue>({
     scope: "ALL",
     roles: [],
@@ -114,6 +129,100 @@ export default function AdminBroadcastPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Charge la bannière globale courante depuis la configuration système.
+  const loadBanner = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/config", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setBanner({
+        globalAnnouncement: data.globalAnnouncement ?? "",
+        announcementImage: data.announcementImage ?? "",
+        announcementLink: data.announcementLink ?? "",
+      });
+    } catch {
+      /* échec silencieux — on garde les valeurs par défaut */
+    } finally {
+      setBannerLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBanner();
+  }, [loadBanner]);
+
+  const saveBanner = async () => {
+    setSavingBanner(true);
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          globalAnnouncement: banner.globalAnnouncement.trim(),
+          announcementImage: banner.announcementImage.trim() || null,
+          announcementLink: banner.announcementLink.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(
+        banner.globalAnnouncement.trim()
+          ? "Bannière globale publiée"
+          : "Bannière globale retirée"
+      );
+      await loadBanner();
+    } catch {
+      toast.error("Impossible d'enregistrer la bannière");
+    } finally {
+      setSavingBanner(false);
+    }
+  };
+
+  const handleBannerImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Le fichier doit être une image (PNG, JPG...)");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("L'image ne doit pas dépasser 4MB");
+      return;
+    }
+    setUploadingBannerImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/admin/announcement/image", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setBanner((b) => ({ ...b, announcementImage: data.url }));
+        toast.success("Image ajoutée. Enregistrez pour publier.");
+      } else {
+        throw new Error(data.error || "Échec de l'upload");
+      }
+    } catch {
+      toast.error("Échec de l'upload de l'image");
+    } finally {
+      setUploadingBannerImage(false);
+      if (bannerFileRef.current) bannerFileRef.current.value = "";
+    }
+  };
+
+  const removeBannerImage = () => {
+    setBanner((b) => ({ ...b, announcementImage: "" }));
+    toast.success("Image retirée. Enregistrez pour appliquer.");
+  };
 
   // Prévisualise le nombre de destinataires pour le ciblage courant.
   useEffect(() => {
@@ -240,6 +349,7 @@ export default function AdminBroadcastPage() {
           {[
             { id: "compose" as const, label: "Composer", icon: <Megaphone size={14} /> },
             { id: "history" as const, label: "Historique", icon: <History size={14} /> },
+            { id: "banner" as const, label: "Bannière", icon: <Radio size={14} /> },
             { id: "maintenance" as const, label: "Maintenance", icon: <Wrench size={14} /> },
           ].map((t) => (
             <button
@@ -488,6 +598,155 @@ export default function AdminBroadcastPage() {
                   </div>
                 </article>
               ))
+            )}
+          </section>
+        )}
+
+        {tab === "banner" && (
+          <section className="flex flex-col gap-4 rounded-3xl border border-white/5 bg-slate-900/50 p-5">
+            <header className="flex items-center gap-3">
+              <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400">
+                <Radio size={18} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-bold text-white">Bannière globale</h2>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Marquee affiché en haut de l&apos;application
+                </p>
+              </div>
+            </header>
+
+            {bannerLoading ? (
+              <div className="flex justify-center py-10 text-emerald-500">
+                <Loader2 className="animate-spin" size={24} />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-3">
+                  <Info size={13} className="mt-0.5 shrink-0 text-emerald-400" />
+                  <p className="text-[10px] leading-relaxed text-emerald-300/80">
+                    Ce message défile en permanence pour tous les utilisateurs.
+                    Laissez le champ vide puis enregistrez pour retirer la bannière.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className={labelClass} htmlFor="banner-message">
+                    Message de la bannière
+                  </label>
+                  <textarea
+                    id="banner-message"
+                    rows={3}
+                    value={banner.globalAnnouncement}
+                    onChange={(e) =>
+                      setBanner((b) => ({ ...b, globalAnnouncement: e.target.value }))
+                    }
+                    placeholder="Message affiché en haut de l'application pour tous les utilisateurs..."
+                    className={`${inputClass} resize-none leading-relaxed`}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className={labelClass}>Image de l&apos;annonce (PNG / JPG — max 4MB)</span>
+                  <input
+                    ref={bannerFileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleBannerImageUpload}
+                    className="hidden"
+                  />
+                  {banner.announcementImage ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 p-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={banner.announcementImage || "/placeholder.svg"}
+                        alt="Aperçu de l'image d'annonce"
+                        className="h-12 w-12 rounded-lg border border-white/10 object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                          Image active
+                        </p>
+                        <p className="truncate text-[9px] text-slate-500">
+                          {banner.announcementImage}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => bannerFileRef.current?.click()}
+                          disabled={uploadingBannerImage}
+                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+                        >
+                          Remplacer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeBannerImage}
+                          className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-rose-400 transition-colors hover:bg-rose-500/20"
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => bannerFileRef.current?.click()}
+                      disabled={uploadingBannerImage}
+                      className="flex h-[84px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 bg-black/20 text-slate-500 transition-all hover:border-white/20 hover:text-slate-300 disabled:opacity-50"
+                    >
+                      {uploadingBannerImage ? (
+                        <Loader2 className="animate-spin" size={18} />
+                      ) : (
+                        <ImageIcon size={18} />
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-wider">
+                        {uploadingBannerImage ? "Téléchargement..." : "Ajouter une image"}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className={labelClass} htmlFor="banner-link">
+                    Lien de l&apos;annonce (bouton « Cliquez ici »)
+                  </label>
+                  <div className="relative">
+                    <Link2
+                      size={14}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600"
+                    />
+                    <input
+                      id="banner-link"
+                      value={banner.announcementLink}
+                      onChange={(e) =>
+                        setBanner((b) => ({ ...b, announcementLink: e.target.value }))
+                      }
+                      placeholder="/settings/kyc ou https://..."
+                      className={`${inputClass} pl-9`}
+                    />
+                  </div>
+                  <p className="text-[9px] leading-relaxed text-slate-600">
+                    Le lien complet reste masqué. Les utilisateurs voient un bouton
+                    « Cliquez ici » qui ouvre ce lien.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveBanner}
+                  disabled={savingBanner}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {savingBanner ? (
+                    <Loader2 className="animate-spin" size={14} />
+                  ) : (
+                    <Save size={14} />
+                  )}
+                  Enregistrer la bannière
+                </button>
+              </>
             )}
           </section>
         )}
