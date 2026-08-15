@@ -50,7 +50,7 @@ const OP: Record<string, string> = {
   africell:     "https://upload.wikimedia.org/wikipedia/commons/9/99/Logoafricell.png",
   free:         "https://upload.wikimedia.org/wikipedia/commons/5/52/Free_logo.svg",
   tigo:         "https://upload.wikimedia.org/wikipedia/commons/4/47/Tigo.JPG",
-  opay:         "/opay.jpg",
+  opay:         "https://pimpay.vercel.app/opay.jpg",
   palmpay:      "https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/z4x0x9sfkglbdwitqyfl?ik-sanitizeSvg=true",
   kuda:         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRuLb2uzmNv3ppmEscXSZjF98IM7Y9NqRSlpw&s",
   paga:         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqPAPAbO45MAnmN3Zgq9kqg9B2Yw1ClZU-q49IeHIFkrN44eowFIC2PuRp&s=10",
@@ -62,7 +62,7 @@ const OP: Record<string, string> = {
   // Coris Money (Burkina Faso) : l'URL Wikimedia renvoyait une erreur HTTP 400
   // (fichier inexistant côté Wikimedia), l'icône ne s'affichait donc jamais.
   // On sert désormais l'asset local depuis /public.
-  coris:        "/coris.png",
+  coris:        "https://pimpay.vercel.app/coris.png",
   sama:         "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Sama_money_logo.png/200px-Sama_money_logo.png",
   celtiis:      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Celtiis_logo.png/200px-Celtiis_logo.png",
   tnm:          "https://upload.wikimedia.org/wikipedia/en/thumb/6/6e/Telekom_Networks_Malawi_logo.png/200px-Telekom_Networks_Malawi_logo.png",
