@@ -280,9 +280,6 @@ export default function AdminBroadcastPage() {
         toast.error(data.error ?? "Envoi impossible");
         return;
       }
-      toast.success("Diffusion envoyée", {
-        description: `${data.notified ?? data.recipientCount ?? 0} utilisateur(s) notifié(s)`,
-      });
       setForm(emptyForm);
       setAudience({ scope: "ALL", roles: [], userIds: [] });
       await load();
