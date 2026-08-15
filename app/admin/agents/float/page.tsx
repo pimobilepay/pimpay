@@ -811,7 +811,7 @@ function Sheet({
   return (
     <>
       <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-x-0 bottom-0 z-[70] max-h-[92vh] overflow-y-auto rounded-t-[2rem] border-t border-white/10 bg-[#0a0f1a] px-5 pb-8 pt-5 sm:inset-x-auto sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:w-[420px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[2rem] sm:border">
+      <div className="fixed inset-x-0 bottom-0 z-[70] max-h-[90dvh] overflow-y-auto rounded-t-[2rem] border-t border-white/10 bg-[#0a0f1a] px-5 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:w-[420px] sm:max-h-[90dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[2rem] sm:border sm:pb-8">
         <div className="flex items-start justify-between mb-5">
           <div className="min-w-0">
             <h2 className="text-sm font-black uppercase tracking-wider text-white">{title}</h2>
