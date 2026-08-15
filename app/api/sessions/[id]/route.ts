@@ -10,8 +10,13 @@ export async function DELETE(
 ) {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-    
+    // La session courante est identifiée par le REFRESH token (stocké dans
+    // `session.token`), pas par l'access token du cookie `token`.
+    const currentRefreshToken =
+      cookieStore.get("refresh_token")?.value ||
+      cookieStore.get("pimpay_refresh")?.value ||
+      "";
+
     const userId = await getAuthUserId();
     if (!userId) return new NextResponse("Non autorise", { status: 401 });
 
@@ -24,7 +29,7 @@ export async function DELETE(
         id: id,
         userId: userId,
         NOT: {
-          token: token,
+          token: currentRefreshToken,
         },
       },
     });

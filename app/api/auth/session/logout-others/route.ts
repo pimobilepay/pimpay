@@ -7,7 +7,15 @@ import { getAuthUserId } from "@/lib/auth";
 export async function POST() {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
+    // La session courante est identifiée par le REFRESH token (c'est lui qui
+    // est stocké dans `session.token`). L'ancien code comparait avec l'access
+    // token du cookie `token`, qui ne correspond jamais à `session.token` :
+    // le `NOT` ne protégeait donc PAS la session courante et la déconnexion
+    // "totale" supprimait aussi la session de l'appareil en cours.
+    const currentRefreshToken =
+      cookieStore.get("refresh_token")?.value ||
+      cookieStore.get("pimpay_refresh")?.value ||
+      "";
 
     const userId = await getAuthUserId();
     if (!userId) {
@@ -19,7 +27,7 @@ export async function POST() {
       where: {
         userId: userId,
         NOT: {
-          token: token
+          token: currentRefreshToken
         }
       }
     });
@@ -39,7 +47,7 @@ export async function POST() {
       where: {
         userId: userId,
         NOT: {
-          token: token
+          token: currentRefreshToken
         }
       }
     });

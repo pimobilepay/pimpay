@@ -5,32 +5,33 @@
 // client component SessionsView so it respects the user's selected language.
 // ============================================================================
 
+export const dynamic = "force-dynamic";
+
 import { cookies } from "next/headers";
-import * as jose from "jose";
 import { prisma } from "@/lib/prisma";
+import { getAuthUserId } from "@/lib/auth";
 import SessionsContent from "@/components/sessions/SessionsContent";
 import SessionsView, { type SessionData } from "@/components/sessions/SessionsView";
 
 export default async function SessionsPage() {
   // --------------------------------------------------------------------------
-  // Auth — read JWT from cookies and verify
+  // Auth — résolution centralisée (JWT classique + Pi Browser + pimpay_token)
   // --------------------------------------------------------------------------
+  const userId = await getAuthUserId();
+
+  if (!userId) {
+    return <SessionsView authenticated={false} sessions={[]} />;
+  }
+
+  // La session courante est identifiée par le REFRESH token : c'est lui qui est
+  // stocké dans `session.token` en base (voir /api/auth/login). L'access token
+  // du cookie `token` (15 min) ne correspond jamais à `session.token`, d'où
+  // l'ancien bug où la session courante n'était jamais reconnue.
   const cookieStore = await cookies();
-  const currentToken = cookieStore.get("token")?.value;
-
-  if (!currentToken) {
-    return <SessionsView authenticated={false} sessions={[]} />;
-  }
-
-  let userId: string;
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(currentToken, secret);
-    userId = payload.id as string;
-  } catch {
-    return <SessionsView authenticated={false} sessions={[]} />;
-  }
+  const currentRefreshToken =
+    cookieStore.get("refresh_token")?.value ||
+    cookieStore.get("pimpay_refresh")?.value ||
+    null;
 
   // --------------------------------------------------------------------------
   // Data — fetch all active sessions for this user, most recent first
@@ -56,7 +57,7 @@ export default async function SessionsPage() {
     region: null,
     country: session.country ?? null,
     lastActiveAt: new Date(session.lastActiveAt).toISOString(),
-    isCurrent: session.token === currentToken,
+    isCurrent: !!currentRefreshToken && session.token === currentRefreshToken,
   }));
 
   return (
