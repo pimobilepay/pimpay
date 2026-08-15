@@ -785,13 +785,19 @@ export const worldCountries: Country[] = [
       { id: "telma_mg",  name: "MVola (Telma)",icon: OP.telma,  features: { cashIn: true, cashOut: true, airtime: true } },
       { id: "airtel_mg", name: "Airtel Money", icon: OP.airtel, features: { cashIn: true, cashOut: true, airtime: true } },
     ] },
-  { name: "Togo",      code: "TG", flag: "TG", currency: "XOF", currencySymbol: "FCFA",piToLocalRate: 605.5, dialCode: "+228", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
+  { name: "Togo",      code: "TG", flag: "TG", currency: "XOF", currencySymbol: "FCFA",piToLocalRate: 605.5, dialCode: "+228", continent: "AFRICA", isoStandard: "ISO20022", isActive: true,
     banks: [
       { name: "Ecobank Togo",       bic: "ECOCTGTG", swift: "ECOCTGTG", logo: BK.ecobank },
       { name: "BOA Togo",           bic: "BOAFTGTG", swift: "BOAFTGTG", logo: BK.boa },
       { name: "Société Générale TG",bic: "SGCITGTG", swift: "SGCITGTG", logo: BK.societe_generale },
     ],
-    operators: [{ id: "moov_tg", name: "Moov Money (Flooz)", icon: OP.moov, features: { cashIn: true, cashOut: true, airtime: true } }] },
+    // Togo : dépôt (cash-in) via checkout GeniusPay (XOF). Le versement Mobile
+    // Money (cash-out / airtime) n'est pas encore couvert (PawaPay n'a pas le
+    // Togo, et le push MoMo natif GeniusPay est limité à la Côte d'Ivoire).
+    operators: [
+      { id: "moov_tg",   name: "Moov Money (Flooz)", icon: OP.moov,    features: { cashIn: true, cashOut: false, airtime: false } },
+      { id: "tmoney_tg", name: "T-Money (Togocom)",  icon: OP.togocel, features: { cashIn: true, cashOut: false, airtime: false } },
+    ] },
   { name: "Niger",     code: "NE", flag: "NE", currency: "XOF", currencySymbol: "FCFA",piToLocalRate: 605.5, dialCode: "+227", continent: "AFRICA", isoStandard: "ISO20022", isActive: false,
     banks: [
       { name: "Ecobank Niger",bic: "ECOCNENI", swift: "ECOCNENI", logo: BK.ecobank },
