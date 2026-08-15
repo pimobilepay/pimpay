@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { revokeTokenJWT } from "@/lib/jwt";
 import { cookies } from "next/headers";
+import { buildAuthCookieOptions } from "@/lib/auth-cookies";
 
 export async function POST(req: Request) {
   try {
@@ -62,17 +63,20 @@ export async function POST(req: Request) {
     // avec exactement les memes attributs qu'a la pose (voir pi-login) mais
     // avec maxAge: 0, pour que la suppression soit acceptee dans TOUS les
     // contextes (Pi Browser iframe ET navigateur classique).
-    const isProduction = process.env.NODE_ENV === "production";
-    const clearCookieOptions = {
-      path: "/",
-      maxAge: 0,
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
-      secure: isProduction,
-      httpOnly: true,
-    };
+    // [FIX iOS] — La suppression doit porter les mêmes attributs que la pose,
+    // y compris Partitioned (CHIPS), sinon le navigateur ignore silencieusement
+    // la suppression en contexte cross-site (iframe Pi Browser).
+    const clearCookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 0 });
     for (const name of ["token", "pimpay_token", "refresh_token", "pi_session_token"]) {
       response.cookies.set(name, "", clearCookieOptions);
     }
+    // Le refresh_token est scopé sur /api/auth/refresh : on le supprime aussi
+    // avec ce path pour qu'il soit réellement effacé.
+    response.cookies.set(
+      "refresh_token",
+      "",
+      buildAuthCookieOptions({ path: "/api/auth/refresh", maxAge: 0 })
+    );
 
     return response;
   } catch (error: any) {

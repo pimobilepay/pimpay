@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { blockIfMaintenance } from "@/lib/maintenance";
+import { buildAuthCookieOptions } from "@/lib/auth-cookies";
 
 export async function POST(req: NextRequest) {
   try {
@@ -196,14 +197,8 @@ export async function POST(req: NextRequest) {
       mustChangePassword: !!(user as any).mustChangePassword,
     });
 
-    const isProduction = process.env.NODE_ENV === "production";
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
-      path: "/",
-      maxAge: 60 * 60 * 24,
-    };
+    // [FIX iOS] — Partitioned (CHIPS) pour l'iframe Pi Browser sur iPhone
+    const cookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 60 * 60 * 24 });
 
     response.cookies.set("token", newToken, cookieOptions);
     response.cookies.set("pimpay_token", newToken, cookieOptions);

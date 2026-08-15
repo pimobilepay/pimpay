@@ -11,6 +11,7 @@ import { logSystemEvent } from "@/lib/systemLogger";
 import { guardRequest } from "@/lib/defenseGuard";
 import { detectProxy } from "@/lib/proxyDetection";
 import { blockIfMaintenance } from "@/lib/maintenance";
+import { buildAuthCookieOptions } from "@/lib/auth-cookies";
 
 export async function POST(req: Request) {
   try {
@@ -491,28 +492,18 @@ export async function POST(req: Request) {
       token: token
     });
 
-    const isProduction = process.env.NODE_ENV === "production";
-    const sameSiteVal = isProduction ? ("none" as const) : ("lax" as const);
-
     // [FIX V15] — Access token : 15min (court, renouvelé via /api/auth/refresh)
-    const accessCookieOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: sameSiteVal,
-      path: "/",
-      maxAge: 60 * 15,
-    };
+    // [FIX iOS] — Partitioned (CHIPS) appliqué via buildAuthCookieOptions
+    const accessCookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 60 * 15 });
     response.cookies.set("token", token, accessCookieOptions);
     response.cookies.set("pimpay_token", token, accessCookieOptions);
 
     // [FIX V15] — Refresh token : 7j, stocké en DB (révocable)
-    response.cookies.set("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: sameSiteVal,
-      path: "/api/auth/refresh",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    response.cookies.set(
+      "refresh_token",
+      refreshToken,
+      buildAuthCookieOptions({ path: "/api/auth/refresh", maxAge: 60 * 60 * 24 * 7 })
+    );
 
     return response;
 

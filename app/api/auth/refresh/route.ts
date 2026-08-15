@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyRefreshToken, signAccessToken } from "@/lib/jwt";
+import { buildAuthCookieOptions } from "@/lib/auth-cookies";
 
 /**
  * POST /api/auth/refresh
@@ -85,16 +86,14 @@ export async function POST(req: NextRequest) {
     // politique des cookies tiers — REJETAIT le cookie renouvelé. L'access token
     // de 15 min n'était donc jamais rafraîchi et l'utilisateur iPhone était
     // déconnecté puis renvoyé vers /auth/login en boucle. On aligne exactement
-    // les attributs sur ceux de la pose initiale.
-    const isProduction = process.env.NODE_ENV === "production";
+    // les attributs sur ceux de la pose initiale, avec l'attribut Partitioned
+    // (CHIPS) indispensable pour iOS/WebKit en iframe cross-origin.
     const response = NextResponse.json({ success: true });
-    response.cookies.set("token", newAccessToken, {
-      httpOnly: true,
-      secure:   isProduction,
-      sameSite: isProduction ? ("none" as const) : ("lax" as const),
-      maxAge:   60 * 15, // 15 minutes
-      path:     "/",
-    });
+    response.cookies.set(
+      "token",
+      newAccessToken,
+      buildAuthCookieOptions({ path: "/", maxAge: 60 * 15 })
+    );
 
     return response;
   } catch {

@@ -19,6 +19,7 @@ import { checkDistributedRateLimit, RATE_LIMITS } from "@/lib/distributedRateLim
 import { getClientIp } from "@/lib/rate-limit";
 import { logAuthEvent } from "@/lib/secureLogger";
 import { validateCsrfMiddleware } from "@/lib/csrf";
+import { buildAuthCookieOptions } from "@/lib/auth-cookies";
 
 export async function POST(req: Request) {
   try {
@@ -177,27 +178,17 @@ export async function POST(req: Request) {
       message: "Inscription réussie",
     });
 
-    const isProduction = process.env.NODE_ENV === "production";
-    // [FIX iOS] Aligné sur /api/auth/login : SameSite=None en production, sinon
-    // Safari iOS rejette ces cookies dans l'iframe cross-origin du Pi Browser et
-    // l'utilisateur n'est jamais réellement connecté après son inscription.
-    const sameSiteVal = isProduction ? ("none" as const) : ("lax" as const);
+    // [FIX iOS] Aligné sur /api/auth/login : SameSite=None + Partitioned (CHIPS)
+    // en production, sinon Safari iOS rejette ces cookies dans l'iframe
+    // cross-origin du Pi Browser et l'utilisateur n'est jamais réellement
+    // connecté après son inscription.
+    response.cookies.set("token", token, buildAuthCookieOptions({ path: "/", maxAge: 900 }));
 
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: sameSiteVal,
-      path: "/",
-      maxAge: 900,
-    });
-
-    response.cookies.set("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: sameSiteVal,
-      path: "/api/auth/refresh",
-      maxAge: 604800,
-    });
+    response.cookies.set(
+      "refresh_token",
+      refreshToken,
+      buildAuthCookieOptions({ path: "/api/auth/refresh", maxAge: 604800 })
+    );
 
     return response;
 
