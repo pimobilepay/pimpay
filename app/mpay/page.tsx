@@ -308,7 +308,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
       const data = await res.json();
       if (data.success && data.user) {
         setUserBalance(data.user.balances?.pi || 0);
-        const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
+        const merchantCode = `PIMOBIPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
         setUserMerchantId(merchantCode);
         setUserName(data.user.name || data.user.username || "Utilisateur");
         setUserAvatar(data.user.avatar || "");
@@ -489,7 +489,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
     }
   }, [router, t]);
 
-  // Recherche d'un utilisateur PIMOBIPAY (ID, username, PIMPAY-XXXX ou adresse externe)
+  // Recherche d'un utilisateur PIMOBIPAY (ID, username, PIMOBIPAY-XXXX ou adresse externe)
   const searchMerchant = useCallback(async (query: string) => {
     const q = query.trim();
     if (q.length < 2) {
@@ -690,7 +690,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
               </div>
             </div>
           )}
-          <ReceiveQR userIdentifier={userMerchantId || t("mpay.loading")} userId={userId} />
+          <ReceiveQR userIdentifier={userMerchantId || t("mpay.loading")} />
         </div>
       </div>
     );

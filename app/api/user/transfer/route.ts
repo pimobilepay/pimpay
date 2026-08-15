@@ -317,8 +317,8 @@ export async function POST(req: NextRequest) {
 
         // Recherche destinataire (interne PIMOBIPAY)
         let recipientUser = null;
-        if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
-          const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
+        if (/^(PIMOBIPAY|PIMPAY)-/i.test(cleanInput)) {
+          const userIdPart = cleanInput.replace(/^(PIMOBIPAY|PIMPAY)-/i, "").toLowerCase();
           recipientUser = await tx.user.findFirst({
             where: { id: { startsWith: userIdPart } },
           });

@@ -5,17 +5,8 @@ import { ShieldCheck, Copy, Check, Zap, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
-export function ReceiveQR({ userIdentifier, userId }: { userIdentifier: string; userId?: string }) {
+export function ReceiveQR({ userIdentifier }: { userIdentifier: string }) {
   const [copied, setCopied] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
-
-  const copyUserId = () => {
-    if (!userId) return;
-    navigator.clipboard.writeText(userId);
-    setCopiedId(true);
-    toast.success("ID utilisateur copie !");
-    setTimeout(() => setCopiedId(false), 2000);
-  };
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(userIdentifier);
@@ -56,24 +47,6 @@ export function ReceiveQR({ userIdentifier, userId }: { userIdentifier: string; 
         <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
           <p className="text-lg font-mono font-black text-blue-400 break-all">{userIdentifier}</p>
         </div>
-
-        {/* ID Utilisateur (recherchable dans l'onglet Payer) */}
-        {userId && (
-          <div className="space-y-2">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[4px]">ID Utilisateur</p>
-            <button
-              onClick={copyUserId}
-              className="w-full bg-white/5 rounded-2xl border border-white/10 p-3 flex items-center justify-between gap-3 hover:bg-white/10 transition-all"
-            >
-              <span className="text-[11px] font-mono font-bold text-slate-300 break-all text-left">{userId}</span>
-              {copiedId ? (
-                <Check size={16} className="text-emerald-400 flex-shrink-0" />
-              ) : (
-                <Copy size={16} className="text-slate-400 flex-shrink-0" />
-              )}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Action Buttons */}

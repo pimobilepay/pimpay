@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
     // Recherche du destinataire par email, username, telephone ou code PIMOBIPAY
     let cleanInput = recipientId.startsWith("@") ? recipientId.substring(1) : recipientId;
     
-    // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
+    // Support pour le format PIMOBIPAY-XXXXXX (code marchand de mpay, ancien prefixe PIMPAY- toujours accepte)
     let recipient = null;
-    if (cleanInput.toUpperCase().startsWith("PIMPAY-")) {
-      const userIdPart = cleanInput.replace(/PIMPAY-/i, "").toLowerCase();
+    if (/^(PIMOBIPAY|PIMPAY)-/i.test(cleanInput)) {
+      const userIdPart = cleanInput.replace(/^(PIMOBIPAY|PIMPAY)-/i, "").toLowerCase();
       recipient = await prisma.user.findFirst({
         where: {
           id: { startsWith: userIdPart }

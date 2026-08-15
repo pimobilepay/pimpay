@@ -21,9 +21,9 @@ export async function GET(request: Request) {
     // --- 1. RECHERCHE INTERNE (PIMOBIPAY Database) ---
     let foundUser = null;
     
-    // Support pour le format PIMPAY-XXXXXX (code marchand de mpay)
-    if (query.toUpperCase().startsWith("PIMPAY-")) {
-      const userIdPart = query.replace(/PIMPAY-/i, "").toLowerCase();
+    // Support pour le format PIMOBIPAY-XXXXXX (code marchand de mpay, ancien prefixe PIMPAY- toujours accepte)
+    if (/^(PIMOBIPAY|PIMPAY)-/i.test(query)) {
+      const userIdPart = query.replace(/^(PIMOBIPAY|PIMPAY)-/i, "").toLowerCase();
       foundUser = await prisma.user.findFirst({
         where: {
           id: { startsWith: userIdPart }

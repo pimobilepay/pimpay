@@ -620,8 +620,8 @@ export function validateAccountNumber(account: string, type: string): boolean {
     }
 
     case 'INTERNAL': {
-      // PIMPAY internal account: PIMPAY- followed by 10 alphanumeric chars
-      return /^PIMPAY-[A-Z0-9]{10}$/.test(cleaned);
+      // PIMOBIPAY internal account: PIMOBIPAY- (ou ancien PIMPAY-) suivi de 10 caracteres alphanumeriques
+      return /^(PIMOBIPAY|PIMPAY)-[A-Z0-9]{10}$/.test(cleaned);
     }
 
     case 'MOBILE': {
