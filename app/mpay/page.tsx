@@ -63,6 +63,30 @@ interface P2PContact {
   transactionCount: number;
 }
 
+// Type for a user found via /api/user/search (pay tab lookup)
+interface SearchedUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string | null;
+  avatar: string | null;
+  kycStatus: string;
+  sidraAddress?: string | null;
+  usdtAddress?: string | null;
+  walletAddress?: string | null;
+  isExternal: boolean;
+  fullExternalAddress?: string | null;
+}
+
+// Small helper for avatar fallback initials
+const getInitials = (name: string): string =>
+  name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
 // Transaction history type from API
 interface TransactionHistory {
   id: string;
@@ -229,6 +253,13 @@ export default function MPayPage() {
   const [isOnline, setIsOnline] = useState(true);
   const [userMerchantId, setUserMerchantId] = useState("");
   const [userName, setUserName] = useState("");
+  const [userAvatar, setUserAvatar] = useState("");
+
+  // Pay tab (pay-merchant) live user lookup
+  const [merchantSearchResult, setMerchantSearchResult] = useState<SearchedUser | null>(null);
+  const [isSearchingMerchant, setIsSearchingMerchant] = useState(false);
+  const [merchantSearchError, setMerchantSearchError] = useState("");
+  const [merchantDisplayName, setMerchantDisplayName] = useState("");
 
   // Map of Pi merchants state
   const [mapOfPiMerchants, setMapOfPiMerchants] = useState<MapOfPiMerchant[]>([]);
@@ -280,6 +311,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
         const merchantCode = `PIMPAY-${(data.user.id || "").slice(0, 8).toUpperCase()}`;
         setUserMerchantId(merchantCode);
         setUserName(data.user.name || data.user.username || "Utilisateur");
+        setUserAvatar(data.user.avatar || "");
         setUserId(data.user.id || "");
       }
     } catch {
@@ -457,8 +489,68 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
     }
   }, [router, t]);
 
+  // Recherche d'un utilisateur PIMOBIPAY (ID, username, PIMPAY-XXXX ou adresse externe)
+  const searchMerchant = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setMerchantSearchResult(null);
+      setMerchantSearchError("");
+      return;
+    }
+    setIsSearchingMerchant(true);
+    setMerchantSearchError("");
+    try {
+      const res = await fetch(`/api/user/search?query=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (res.ok && data.id) {
+        if (data.isExternal) data.fullExternalAddress = q;
+        setMerchantSearchResult(data);
+      } else if (res.status === 404) {
+        setMerchantSearchResult(null);
+        setMerchantSearchError(t("mpay.sendFlow.userNotFound"));
+      } else {
+        setMerchantSearchResult(null);
+        setMerchantSearchError(data.error || t("mpay.sendFlow.searchErr"));
+      }
+    } catch {
+      setMerchantSearchResult(null);
+      setMerchantSearchError(t("mpay.connectionError"));
+    } finally {
+      setIsSearchingMerchant(false);
+    }
+  }, [t]);
+
+  // Recherche debounced pendant la saisie sur l'etape 1 de l'onglet "Payer"
+  useEffect(() => {
+    if (activeView !== "pay-merchant" || payStep !== 1) return;
+    const timer = setTimeout(() => {
+      if (merchantId.trim().length >= 2) {
+        searchMerchant(merchantId);
+      } else {
+        setMerchantSearchResult(null);
+        setMerchantSearchError("");
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [merchantId, activeView, payStep, searchMerchant]);
+
+  // Selection de l'utilisateur trouve : on retient son identifiant resolu puis on passe au montant
+  const handleSelectMerchant = (u: SearchedUser) => {
+    const resolved = u.isExternal
+      ? (u.walletAddress || u.fullExternalAddress || u.username || "")
+      : (u.username || u.id);
+    const displayName = `${u.firstName} ${u.lastName}`.trim() || u.username || "";
+    setMerchantId(resolved || "");
+    setMerchantDisplayName(displayName);
+    setMerchantSearchResult(null);
+    setMerchantSearchError("");
+    setPayStep(2);
+    toast.success(`${t("mpay.merchantDetected")}: ${displayName || resolved}`);
+  };
+
   const handleMerchantTap = (merchant: MapOfPiMerchant) => {
     setMerchantId(merchant.piPaymentId);
+    setMerchantDisplayName(merchant.name);
     setActiveView("pay-merchant");
     setPayStep(2);
     toast.success(`${t("mpay.merchant")}: ${merchant.name}`, {
@@ -582,14 +674,23 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           <div className="w-11" />
         </header>
         <div className="px-6 pt-4 space-y-4">
-          {/* Nom de l'utilisateur */}
+          {/* Avatar + nom de l'utilisateur */}
           {userName && (
-            <div className="text-center">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("mpay.merchantAccount")}</p>
-              <p className="text-lg font-black text-white">{userName}</p>
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center border border-blue-500/30 bg-gradient-to-br from-blue-600/20 to-indigo-600/20 overflow-hidden shadow-lg shadow-blue-600/20">
+                {userAvatar ? (
+                  <img src={userAvatar || "/placeholder.svg"} alt={userName} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg font-black text-blue-400">{getInitials(userName)}</span>
+                )}
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{t("mpay.merchantAccount")}</p>
+                <p className="text-lg font-black text-white">{userName}</p>
+              </div>
             </div>
           )}
-          <ReceiveQR userIdentifier={userMerchantId || t("mpay.loading")} />
+          <ReceiveQR userIdentifier={userMerchantId || t("mpay.loading")} userId={userId} />
         </div>
       </div>
     );
@@ -609,6 +710,9 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                 setMerchantId("");
                 setAmount("");
                 setPayStep(1);
+                setMerchantDisplayName("");
+                setMerchantSearchResult(null);
+                setMerchantSearchError("");
               }
             }}
             className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all"
@@ -622,7 +726,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             </p>
           </div>
           <button
-            onClick={() => { setActiveView("hub"); setMerchantId(""); setAmount(""); setPayStep(1); }}
+            onClick={() => { setActiveView("hub"); setMerchantId(""); setAmount(""); setPayStep(1); setMerchantDisplayName(""); setMerchantSearchResult(null); setMerchantSearchError(""); }}
             className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all"
           >
             <X size={20} />
@@ -660,14 +764,75 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                 <input
                   type="text"
                   placeholder={t("mpay.merchantIdPlaceholder")}
-                  className="bg-transparent flex-1 outline-none font-black text-[10px] uppercase placeholder:text-slate-700"
+                  className="bg-transparent flex-1 outline-none font-black text-[10px] uppercase placeholder:text-slate-700 min-w-0"
                   value={merchantId}
-                  onChange={(e) => setMerchantId(e.target.value.toUpperCase())}
+                  onChange={(e) => setMerchantId(e.target.value)}
                 />
-                <button onClick={handlePayStep} className="bg-blue-600 hover:bg-blue-700 p-4 rounded-2xl transition-all shadow-lg shadow-blue-600/20">
-                  <Search size={20} className="text-white" />
-                </button>
+                {isSearchingMerchant ? (
+                  <div className="p-4">
+                    <Loader2 size={20} className="text-blue-500 animate-spin" />
+                  </div>
+                ) : merchantId ? (
+                  <button
+                    onClick={() => { setMerchantId(""); setMerchantSearchResult(null); setMerchantSearchError(""); }}
+                    className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:bg-white/10 transition-all"
+                    aria-label={t("common.close")}
+                  >
+                    <X size={20} />
+                  </button>
+                ) : (
+                  <button onClick={() => searchMerchant(merchantId)} className="bg-blue-600 hover:bg-blue-700 p-4 rounded-2xl transition-all shadow-lg shadow-blue-600/20">
+                    <Search size={20} className="text-white" />
+                  </button>
+                )}
               </div>
+
+              {/* Resultat de recherche utilisateur */}
+              {merchantSearchResult && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-emerald-500">
+                    <CheckCircle2 size={12} />
+                    {merchantSearchResult.isExternal ? t("mpay.sendFlow.piWalletAddress") : t("mpay.sendFlow.userFound")}
+                  </p>
+                  <button
+                    onClick={() => handleSelectMerchant(merchantSearchResult)}
+                    className="w-full flex items-center gap-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 hover:bg-emerald-500/10 transition-all"
+                  >
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center border border-emerald-500/20 bg-gradient-to-br from-emerald-600/20 to-cyan-600/20 overflow-hidden flex-shrink-0">
+                      {merchantSearchResult.avatar ? (
+                        <img src={merchantSearchResult.avatar || "/placeholder.svg"} alt={merchantSearchResult.firstName} className="w-full h-full object-cover" />
+                      ) : merchantSearchResult.isExternal ? (
+                        <CheckCircle2 size={20} className="text-emerald-400" />
+                      ) : (
+                        <span className="text-sm font-black text-emerald-400">
+                          {getInitials(`${merchantSearchResult.firstName} ${merchantSearchResult.lastName}`.trim() || merchantSearchResult.username || "U")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-black uppercase tracking-tight truncate">
+                        {merchantSearchResult.firstName} {merchantSearchResult.lastName}
+                      </p>
+                      {merchantSearchResult.username && (
+                        <p className={`text-[10px] font-bold truncate ${merchantSearchResult.isExternal ? "text-emerald-500 font-mono" : "text-cyan-500"}`}>
+                          {merchantSearchResult.isExternal ? merchantSearchResult.username : `@${merchantSearchResult.username.replace("@", "")}`}
+                        </p>
+                      )}
+                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">
+                        {merchantSearchResult.isExternal ? "Pi Network" : t("mpay.sendFlow.pimpayUser")}
+                      </p>
+                    </div>
+                    <ChevronRight size={18} className="text-emerald-400 flex-shrink-0" />
+                  </button>
+                </div>
+              )}
+
+              {/* Erreur de recherche */}
+              {merchantSearchError && merchantId.trim().length >= 2 && !merchantSearchResult && !isSearchingMerchant && (
+                <div className="animate-in fade-in duration-300 py-4 px-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                  <p className="text-[10px] font-bold text-red-400 uppercase text-center">{merchantSearchError}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -680,9 +845,11 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
                     <Cpu size={24} />
                   </div>
                   <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest max-w-full truncate px-4">
-                    {merchantId && merchantId.length > 20 
-                      ? `${merchantId.slice(0, 8)}...${merchantId.slice(-8)}` 
-                      : (merchantId || t("mpay.merchantPimpay"))}
+                    {merchantDisplayName
+                      ? merchantDisplayName
+                      : merchantId && merchantId.length > 20
+                        ? `${merchantId.slice(0, 8)}...${merchantId.slice(-8)}`
+                        : (merchantId || t("mpay.merchantPimpay"))}
                   </span>
                 </div>
 

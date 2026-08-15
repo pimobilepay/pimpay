@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ArrowDownLeft, Check, Copy, Clock, Loader2, Plus,
   Share2, ShieldCheck, Trash2, HandCoins, Hourglass, ChevronRight,
-  Radio, CheckCircle2,
+  Radio, CheckCircle2, User,
 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePaymentRequestWatch, type WatchedRequest } from "@/hooks/usePaymentRequestWatch";
@@ -39,6 +39,10 @@ export default function PaymentRequestPage() {
   const router = useRouter();
   const { t, locale } = useLanguage();
   const dateLocale = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
+
+  // Profil de l'utilisateur (avatar affiche dans l'en-tete)
+  const [userAvatar, setUserAvatar] = useState("");
+  const [userName, setUserName] = useState("");
 
   // Formulaire
   const [amount, setAmount] = useState("");
@@ -83,6 +87,19 @@ export default function PaymentRequestPage() {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  // Charge l'avatar de l'utilisateur pour l'en-tete
+  useEffect(() => {
+    fetch("/api/user/profile", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.user) {
+          setUserAvatar(data.user.avatar || "");
+          setUserName(data.user.name || data.user.username || "");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   /* ─── ECOUTE TEMPS REEL DES DEMANDES EN ATTENTE ─────────────────────────
      On surveille uniquement les codes encore PENDING. Des qu'un payeur
@@ -248,7 +265,20 @@ export default function PaymentRequestPage() {
             {t("mpay.request.subtitle")}
           </p>
         </div>
-        <div className="w-11" />
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center border border-emerald-500/30 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 overflow-hidden"
+          title={userName || undefined}
+        >
+          {userAvatar ? (
+            <img src={userAvatar || "/placeholder.svg"} alt={userName || "avatar"} className="w-full h-full object-cover" />
+          ) : userName ? (
+            <span className="text-xs font-black text-emerald-400">
+              {userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+            </span>
+          ) : (
+            <User size={18} className="text-emerald-400" />
+          )}
+        </div>
       </header>
 
       <main className="px-6 pt-6 pb-24 space-y-8">
