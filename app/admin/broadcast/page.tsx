@@ -169,11 +169,6 @@ export default function AdminBroadcastPage() {
         }),
       });
       if (!res.ok) throw new Error();
-      toast.success(
-        banner.globalAnnouncement.trim()
-          ? "Bannière globale publiée"
-          : "Bannière globale retirée"
-      );
       await loadBanner();
     } catch {
       toast.error("Impossible d'enregistrer la bannière");
@@ -207,7 +202,6 @@ export default function AdminBroadcastPage() {
       const data = await res.json();
       if (res.ok && data.url) {
         setBanner((b) => ({ ...b, announcementImage: data.url }));
-        toast.success("Image ajoutée. Enregistrez pour publier.");
       } else {
         throw new Error(data.error || "Échec de l'upload");
       }
@@ -221,7 +215,6 @@ export default function AdminBroadcastPage() {
 
   const removeBannerImage = () => {
     setBanner((b) => ({ ...b, announcementImage: "" }));
-    toast.success("Image retirée. Enregistrez pour appliquer.");
   };
 
   // Prévisualise le nombre de destinataires pour le ciblage courant.
