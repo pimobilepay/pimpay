@@ -76,13 +76,14 @@ export default function LanguageOnboarding({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#020617]/95 backdrop-blur-xl p-4">
+      <div className="fixed inset-0 z-[180] overflow-y-auto overscroll-contain bg-[#020617]/95 backdrop-blur-xl">
+        <div className="flex min-h-full items-center justify-center p-4 py-8">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="w-full max-w-[440px] overflow-hidden"
+          className="w-full max-w-[440px] my-auto"
         >
           <div className="relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[32px] shadow-2xl overflow-hidden">
             {/* Specular reflections */}
@@ -172,6 +173,7 @@ export default function LanguageOnboarding({
             </div>
           </div>
         </motion.div>
+        </div>
       </div>
     </AnimatePresence>
   );
