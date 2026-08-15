@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { signSessionToken } from "@/lib/jwt";
 import { NextResponse } from "next/server";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 // Simple email format validation
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -191,11 +191,11 @@ export async function POST(req: Request) {
     // [FIX iOS] Aligné sur /api/auth/pi-login : SameSite=None + Partitioned (CHIPS)
     // en production, sinon Safari iOS rejette ce cookie dans l'iframe cross-origin
     // du Pi Browser. Ce cookie est lisible côté client (httpOnly: false).
-    response.cookies.set(
-      "pi_session_token",
-      result.token,
-      buildAuthCookieOptions({ path: "/", maxAge: 60 * 60 * 24 * 30, httpOnly: false })
-    );
+    setAuthCookie(response, "pi_session_token", result.token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+      httpOnly: false,
+    });
 
     return response;
 

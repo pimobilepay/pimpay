@@ -19,7 +19,7 @@ import { checkDistributedRateLimit, RATE_LIMITS } from "@/lib/distributedRateLim
 import { getClientIp } from "@/lib/rate-limit";
 import { logAuthEvent } from "@/lib/secureLogger";
 import { validateCsrfMiddleware } from "@/lib/csrf";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 export async function POST(req: Request) {
   try {
@@ -182,13 +182,13 @@ export async function POST(req: Request) {
     // en production, sinon Safari iOS rejette ces cookies dans l'iframe
     // cross-origin du Pi Browser et l'utilisateur n'est jamais réellement
     // connecté après son inscription.
-    response.cookies.set("token", token, buildAuthCookieOptions({ path: "/", maxAge: 900 }));
+    setAuthCookie(response, "token", token, { path: "/", maxAge: 900 });
+    setAuthCookie(response, "pimpay_token", token, { path: "/", maxAge: 900 });
 
-    response.cookies.set(
-      "refresh_token",
-      refreshToken,
-      buildAuthCookieOptions({ path: "/api/auth/refresh", maxAge: 604800 })
-    );
+    setAuthCookie(response, "refresh_token", refreshToken, {
+      path: "/api/auth/refresh",
+      maxAge: 604800,
+    });
 
     return response;
 

@@ -6,7 +6,7 @@ import { signSessionToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { z } from "zod";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 // Zod schema for 6-digit PIN validation
 const pinSchema = z.object({
@@ -172,11 +172,9 @@ export async function POST(req: NextRequest) {
       mustChangePassword: !!(user as any).mustChangePassword,
     });
 
-    // [FIX iOS] — Partitioned (CHIPS) pour l'iframe Pi Browser sur iPhone
-    const cookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 60 * 60 * 24 });
-
-    response.cookies.set("token", newToken, cookieOptions);
-    response.cookies.set("pimpay_token", newToken, cookieOptions);
+    // [FIX iOS] — Double pose (classique + Partitioned/CHIPS).
+    setAuthCookie(response, "token", newToken, { path: "/", maxAge: 60 * 60 * 24 });
+    setAuthCookie(response, "pimpay_token", newToken, { path: "/", maxAge: 60 * 60 * 24 });
 
     return response;
   } catch (error) {

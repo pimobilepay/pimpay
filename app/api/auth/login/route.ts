@@ -11,7 +11,7 @@ import { logSystemEvent } from "@/lib/systemLogger";
 import { guardRequest } from "@/lib/defenseGuard";
 import { detectProxy } from "@/lib/proxyDetection";
 import { blockIfMaintenance } from "@/lib/maintenance";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 export async function POST(req: Request) {
   try {
@@ -493,17 +493,16 @@ export async function POST(req: Request) {
     });
 
     // [FIX V15] — Access token : 15min (court, renouvelé via /api/auth/refresh)
-    // [FIX iOS] — Partitioned (CHIPS) appliqué via buildAuthCookieOptions
-    const accessCookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 60 * 15 });
-    response.cookies.set("token", token, accessCookieOptions);
-    response.cookies.set("pimpay_token", token, accessCookieOptions);
+    // [FIX iOS] — Double pose (classique + Partitioned/CHIPS) pour couvrir
+    // Android/desktop ET iPhone dans l'iframe Pi Browser.
+    setAuthCookie(response, "token", token, { path: "/", maxAge: 60 * 15 });
+    setAuthCookie(response, "pimpay_token", token, { path: "/", maxAge: 60 * 15 });
 
     // [FIX V15] — Refresh token : 7j, stocké en DB (révocable)
-    response.cookies.set(
-      "refresh_token",
-      refreshToken,
-      buildAuthCookieOptions({ path: "/api/auth/refresh", maxAge: 60 * 60 * 24 * 7 })
-    );
+    setAuthCookie(response, "refresh_token", refreshToken, {
+      path: "/api/auth/refresh",
+      maxAge: 60 * 60 * 24 * 7,
+    });
 
     return response;
 

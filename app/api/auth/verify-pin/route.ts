@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { UAParser } from "ua-parser-js";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { blockIfMaintenance } from "@/lib/maintenance";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 export async function POST(req: NextRequest) {
   try {
@@ -197,11 +197,9 @@ export async function POST(req: NextRequest) {
       mustChangePassword: !!(user as any).mustChangePassword,
     });
 
-    // [FIX iOS] — Partitioned (CHIPS) pour l'iframe Pi Browser sur iPhone
-    const cookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 60 * 60 * 24 });
-
-    response.cookies.set("token", newToken, cookieOptions);
-    response.cookies.set("pimpay_token", newToken, cookieOptions);
+    // [FIX iOS] — Double pose (classique + Partitioned/CHIPS).
+    setAuthCookie(response, "token", newToken, { path: "/", maxAge: 60 * 60 * 24 });
+    setAuthCookie(response, "pimpay_token", newToken, { path: "/", maxAge: 60 * 60 * 24 });
 
     return response;
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { SignJWT } from "jose";
 import { guardRequest } from "@/lib/defenseGuard";
 import { blockIfMaintenance } from "@/lib/maintenance";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 /**
  * POST /api/auth/google-login
@@ -351,11 +351,9 @@ export async function POST(request: Request) {
       },
     });
 
-    // [FIX iOS] — Partitioned (CHIPS) pour l'iframe Pi Browser sur iPhone
-    const cookieOptions = buildAuthCookieOptions({ path: "/", maxAge: 60 * 60 * 24 * 30 });
-
-    response.cookies.set("pimpay_token", token, cookieOptions);
-    response.cookies.set("token", token, cookieOptions);
+    // [FIX iOS] — Double pose (classique + Partitioned/CHIPS).
+    setAuthCookie(response, "pimpay_token", token, { path: "/", maxAge: 60 * 60 * 24 * 30 });
+    setAuthCookie(response, "token", token, { path: "/", maxAge: 60 * 60 * 24 * 30 });
 
     return response;
   } catch (error: any) {

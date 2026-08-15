@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyRefreshToken, signAccessToken } from "@/lib/jwt";
-import { buildAuthCookieOptions } from "@/lib/auth-cookies";
+import { setAuthCookie } from "@/lib/auth-cookies";
 
 /**
  * POST /api/auth/refresh
@@ -89,11 +89,9 @@ export async function POST(req: NextRequest) {
     // les attributs sur ceux de la pose initiale, avec l'attribut Partitioned
     // (CHIPS) indispensable pour iOS/WebKit en iframe cross-origin.
     const response = NextResponse.json({ success: true });
-    response.cookies.set(
-      "token",
-      newAccessToken,
-      buildAuthCookieOptions({ path: "/", maxAge: 60 * 15 })
-    );
+    // [FIX iOS] — Double pose (classique + Partitioned/CHIPS).
+    setAuthCookie(response, "token", newAccessToken, { path: "/", maxAge: 60 * 15 });
+    setAuthCookie(response, "pimpay_token", newAccessToken, { path: "/", maxAge: 60 * 15 });
 
     return response;
   } catch {
