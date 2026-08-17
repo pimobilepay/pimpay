@@ -33,6 +33,7 @@ import {
   type SavingsAccountView,
   type VaultView,
 } from "@/components/savings/savings-shared";
+import { useLanguage } from "@/context/LanguageContext";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url, { cache: "no-store" });
