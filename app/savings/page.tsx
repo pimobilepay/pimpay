@@ -52,6 +52,7 @@ type ActiveSheet =
 
 export default function SavingsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [tab, setTab] = useState<"savings" | "vaults">("savings");
   const [creating, setCreating] = useState<"savings" | "vault" | null>(null);
@@ -86,7 +87,7 @@ export default function SavingsPage() {
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 pt-4">
           <button
             onClick={() => router.push("/dashboard")}
-            aria-label="Retour au tableau de bord"
+            aria-label={t("savings.backAria")}
             className="rounded-2xl bg-white/5 p-2.5 text-white transition-transform active:scale-95"
           >
             <ArrowLeft size={18} />
@@ -94,12 +95,12 @@ export default function SavingsPage() {
           <div className="text-center">
             <p className="text-[9px] font-black uppercase tracking-[4px] text-blue-500">PIMPAY</p>
             <h1 className="text-sm font-black uppercase tracking-wider text-white">
-              Épargne &amp; Coffres
+              {t("savings.title")}
             </h1>
           </div>
           <button
             onClick={refresh}
-            aria-label="Rafraîchir"
+            aria-label={t("savings.refreshAria")}
             className="rounded-2xl bg-white/5 p-2.5 text-white transition-transform active:scale-95"
           >
             <RefreshCw size={18} className={isValidating ? "animate-spin" : ""} />
@@ -110,21 +111,21 @@ export default function SavingsPage() {
       <main className="mx-auto max-w-2xl px-4 pt-4">
         {/* Totaux par devise */}
         {totals.length > 0 && (
-          <section aria-label="Total épargné" className="mb-5 space-y-2">
-            {totals.map(([currency, t]) => (
+          <section aria-label={t("savings.totalSaved")} className="mb-5 space-y-2">
+            {totals.map(([currency, tot]) => (
               <div
                 key={currency}
                 className="rounded-3xl border border-blue-500/15 bg-gradient-to-br from-blue-600/10 to-transparent px-5 py-4"
               >
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
-                  Total épargné · {currency}
+                  {t("savings.totalSaved")} · {currency}
                 </p>
                 <p className="mt-1 text-3xl font-black tabular-nums text-white">
-                  {money(t.saved, currency)}
+                  {money(tot.saved, currency)}
                 </p>
                 <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
                   <TrendingUp size={11} />
-                  {money(t.interest, currency)} d&apos;intérêts perçus
+                  {money(tot.interest, currency)} {t("savings.interestEarned")}
                 </p>
               </div>
             ))}
@@ -134,19 +135,19 @@ export default function SavingsPage() {
         {/* Onglets */}
         <div className="mb-5 flex gap-2 rounded-2xl border border-white/5 bg-slate-900/60 p-1">
           {[
-            { id: "savings" as const, label: "Comptes épargne", icon: <PiggyBank size={14} />, count: accounts.length },
-            { id: "vaults" as const, label: "Coffres-forts", icon: <Lock size={14} />, count: vaults.length },
-          ].map((t) => (
+            { id: "savings" as const, label: t("savings.tabSavings"), icon: <PiggyBank size={14} />, count: accounts.length },
+            { id: "vaults" as const, label: t("savings.tabVaults"), icon: <Lock size={14} />, count: vaults.length },
+          ].map((item) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={item.id}
+              onClick={() => setTab(item.id)}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider transition-all ${
-                tab === t.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-white"
+                tab === item.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-white"
               }`}
             >
-              {t.icon}
-              {t.label}
-              {t.count > 0 && <span className="tabular-nums opacity-70">({t.count})</span>}
+              {item.icon}
+              {item.label}
+              {item.count > 0 && <span className="tabular-nums opacity-70">({item.count})</span>}
             </button>
           ))}
         </div>
@@ -157,7 +158,7 @@ export default function SavingsPage() {
           className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 py-3.5 text-[10px] font-black uppercase tracking-widest text-blue-400 transition-colors hover:bg-white/5"
         >
           <Plus size={14} />
-          {tab === "savings" ? "Ouvrir un compte épargne" : "Créer un coffre-fort"}
+          {tab === "savings" ? t("savings.openAccountCta") : t("savings.createVaultCta")}
         </button>
 
         {/* Contenu */}
@@ -167,14 +168,14 @@ export default function SavingsPage() {
           </div>
         ) : error ? (
           <EmptyState
-            label="Chargement impossible"
-            hint="Vérifiez votre connexion puis rafraîchissez la page."
+            label={t("savings.loadError")}
+            hint={t("savings.loadErrorHint")}
           />
         ) : tab === "savings" ? (
           accounts.length === 0 ? (
             <EmptyState
-              label="Aucun compte épargne"
-              hint="Ouvrez un compte pour mettre de l'argent de côté et percevoir des intérêts chaque jour."
+              label={t("savings.emptyAccounts")}
+              hint={t("savings.emptyAccountsHint")}
             />
           ) : (
             <div className="space-y-4">
@@ -191,8 +192,8 @@ export default function SavingsPage() {
           )
         ) : vaults.length === 0 ? (
           <EmptyState
-            label="Aucun coffre-fort"
-            hint="Un coffre bloque vos fonds jusqu'à une date choisie, au meilleur taux."
+            label={t("savings.emptyVaults")}
+            hint={t("savings.emptyVaultsHint")}
           />
         ) : (
           <div className="space-y-4">
@@ -228,11 +229,11 @@ export default function SavingsPage() {
           onClose={() => setSheet(null)}
           onDone={refresh}
           endpoint={`/api/savings/${sheet.account.id}/deposit`}
-          title="Déposer sur l'épargne"
+          title={t("savings.depositSheetTitle")}
           subtitle={sheet.account.name}
           currency={sheet.account.currency}
           walletBalance={walletBalance(sheet.account.currency)}
-          actionLabel="Confirmer le dépôt"
+          actionLabel={t("savings.depositSheetConfirm")}
         />
       )}
 
@@ -242,12 +243,12 @@ export default function SavingsPage() {
           onClose={() => setSheet(null)}
           onDone={refresh}
           endpoint={`/api/savings/${sheet.account.id}/withdraw`}
-          title="Retirer de l'épargne"
+          title={t("savings.withdrawSheetTitle")}
           subtitle={sheet.account.name}
           currency={sheet.account.currency}
           maxAmount={sheet.account.balance}
           mode="partial"
-          actionLabel="Confirmer le retrait"
+          actionLabel={t("savings.withdrawSheetConfirm")}
         />
       )}
 
@@ -258,12 +259,12 @@ export default function SavingsPage() {
           onDone={refresh}
           endpoint={`/api/savings/${sheet.account.id}/close`}
           quoteEndpoint={`/api/savings/${sheet.account.id}/close`}
-          title="Clôturer le compte"
+          title={t("savings.closeSheetTitle")}
           subtitle={sheet.account.name}
           currency={sheet.account.currency}
           maxAmount={sheet.account.balance}
           mode="full"
-          actionLabel="Clôturer définitivement"
+          actionLabel={t("savings.closeSheetConfirm")}
           danger
         />
       )}
@@ -274,11 +275,11 @@ export default function SavingsPage() {
           onClose={() => setSheet(null)}
           onDone={refresh}
           endpoint={`/api/vaults/${sheet.vault.id}/lock`}
-          title="Alimenter le coffre"
+          title={t("savings.lockSheetTitle")}
           subtitle={sheet.vault.name}
           currency={sheet.vault.currency}
           walletBalance={walletBalance(sheet.vault.currency)}
-          actionLabel="Verrouiller les fonds"
+          actionLabel={t("savings.lockSheetConfirm")}
         />
       )}
 
@@ -289,12 +290,12 @@ export default function SavingsPage() {
           onDone={refresh}
           endpoint={`/api/vaults/${sheet.vault.id}/unlock`}
           quoteEndpoint={`/api/vaults/${sheet.vault.id}/unlock`}
-          title="Débloquer le coffre"
+          title={t("savings.unlockSheetTitle")}
           subtitle={sheet.vault.name}
           currency={sheet.vault.currency}
           maxAmount={sheet.vault.amount}
           mode="partial"
-          actionLabel="Confirmer le déblocage"
+          actionLabel={t("savings.unlockSheetConfirm")}
           danger={sheet.vault.isLocked}
         />
       )}

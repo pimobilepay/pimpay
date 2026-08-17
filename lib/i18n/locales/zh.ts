@@ -1366,7 +1366,7 @@ export const zh: TranslationKeys = {
     revokeSession: "Revoke session",
     revokeAll: "Revoke all sessions",
     pinSecurity: "PIN 安全",
-    changePin: "修改 PIN 码",
+    changePin: "修�� PIN 码",
     // --- 安全中心（安全页面）---
     headerTitle: "安全中心",
     headerSubtitle: "PIMOBIPAY 协议 v4.0",
@@ -1607,7 +1607,7 @@ export const zh: TranslationKeys = {
       salary: "工资",
       business: "企业 / 商业",
       investments: "投资",
-      savings: "���人储蓄",
+      savings: "个人储蓄",
       other: "其他",
     },
     // Step 3 - Address
