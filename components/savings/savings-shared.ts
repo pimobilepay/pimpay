@@ -78,40 +78,53 @@ export const CURRENCIES = ["XAF", "EUR", "USD", "GBP"] as const;
 /** Durées possibles d'un dépôt à terme, en mois (miroir de FIXED_TERMS_MONTHS). */
 export const TERM_MONTHS = [3, 6, 12, 24, 36] as const;
 
+/**
+ * Métadonnées de type de produit. Le libellé et la description sont désormais
+ * des clés i18n (`labelKey`/`descKey`) résolues via `t()` au rendu ; seul
+ * l'accent visuel reste figé ici.
+ */
 export const SAVINGS_TYPE_META: Record<
   SavingsTypeKey,
-  { label: string; description: string; accent: string }
+  { labelKey: string; descKey: string; accent: string }
 > = {
   REGULAR: {
-    label: "Épargne libre",
-    description: "Versements et retraits à tout moment.",
+    labelKey: "savings.typeRegularLabel",
+    descKey: "savings.typeRegularDesc",
     accent: "text-blue-400",
   },
   FIXED_DEPOSIT: {
-    label: "Dépôt à terme",
-    description: "Fonds bloqués jusqu'à l'échéance, taux le plus élevé.",
+    labelKey: "savings.typeFixedLabel",
+    descKey: "savings.typeFixedDesc",
     accent: "text-amber-400",
   },
   RECURRING: {
-    label: "Épargne programmée",
-    description: "Un versement automatique chaque mois.",
+    labelKey: "savings.typeRecurringLabel",
+    descKey: "savings.typeRecurringDesc",
     accent: "text-emerald-400",
   },
   GOAL_BASED: {
-    label: "Épargne projet",
-    description: "Un objectif chiffré et sa barre de progression.",
+    labelKey: "savings.typeGoalLabel",
+    descKey: "savings.typeGoalDesc",
     accent: "text-cyan-400",
   },
 };
 
-export const SAVINGS_STATUS_META: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: "Actif", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-  MATURED: { label: "Échu", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  FROZEN: { label: "Gelé", className: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
-  CLOSED: { label: "Clôturé", className: "bg-slate-500/10 text-slate-400 border-slate-500/20" },
-  LOCKED: { label: "Verrouillé", className: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
-  UNLOCKED: { label: "Déverrouillé", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+/** Statuts : `labelKey` est une clé i18n résolue via `t()`. */
+export const SAVINGS_STATUS_META: Record<string, { labelKey: string; className: string }> = {
+  ACTIVE: { labelKey: "savings.statusActive", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  MATURED: { labelKey: "savings.statusMatured", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+  FROZEN: { labelKey: "savings.statusFrozen", className: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
+  CLOSED: { labelKey: "savings.statusClosed", className: "bg-slate-500/10 text-slate-400 border-slate-500/20" },
+  LOCKED: { labelKey: "savings.statusLocked", className: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  UNLOCKED: { labelKey: "savings.statusUnlocked", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
 };
+
+/** Convertit un code de langue applicatif en étiquette BCP-47 pour Intl. */
+export function localeTag(locale: string): string {
+  if (locale === "en") return "en-US";
+  if (locale === "zh") return "zh-CN";
+  return "fr-FR";
+}
 
 /**
  * Montant formaté. XAF n'a pas de sous-unité : on masque les décimales pour
@@ -125,9 +138,9 @@ export function money(amount: number, currency: string): string {
   })} ${currency}`;
 }
 
-export function formatDate(iso: string | null | undefined): string {
+export function formatDate(iso: string | null | undefined, locale = "fr-FR"): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("fr-FR", {
+  return new Date(iso).toLocaleDateString(locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",

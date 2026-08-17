@@ -20,11 +20,13 @@ import {
 import {
   money,
   formatDate,
+  localeTag,
   SAVINGS_TYPE_META,
   type SavingsAccountView,
   type VaultView,
 } from "./savings-shared";
 import { StatusBadge, Progress } from "./savings-ui";
+import { useLanguage } from "@/context/LanguageContext";
 
 /* ------------------------------------------------------------------ */
 /*  Compte épargne                                                     */
@@ -41,6 +43,8 @@ export function SavingsCard({
   onWithdraw: () => void;
   onClose: () => void;
 }) {
+  const { t, locale } = useLanguage();
+  const bcp = localeTag(locale);
   const meta = SAVINGS_TYPE_META[account.type];
   const frozen = account.status === "FROZEN";
 
@@ -60,7 +64,7 @@ export function SavingsCard({
           <div className="min-w-0">
             <h3 className="truncate text-sm font-black text-white">{account.name}</h3>
             <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-slate-500">
-              {meta.label}
+              {t(meta.labelKey)}
             </p>
             <p className="mt-1 font-mono text-[9px] text-slate-600">{account.accountNumber}</p>
           </div>
@@ -69,7 +73,7 @@ export function SavingsCard({
       </header>
 
       <div className="mb-4">
-        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Solde</p>
+        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">{t("savings.balance")}</p>
         <p className="mt-1 text-2xl font-black tabular-nums text-white">
           {money(account.balance, account.currency)}
         </p>
@@ -80,7 +84,7 @@ export function SavingsCard({
         <div className="mb-4">
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-              Objectif {money(account.targetAmount, account.currency)}
+              {t("savings.goal")} {money(account.targetAmount, account.currency)}
             </span>
             <span className="text-[10px] font-black tabular-nums text-cyan-400">
               {account.progress}%
@@ -93,7 +97,7 @@ export function SavingsCard({
       <dl className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-white/[0.02] px-3 py-2.5">
           <dt className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-widest text-slate-500">
-            <TrendingUp size={10} /> Taux annuel
+            <TrendingUp size={10} /> {t("savings.annualRate")}
           </dt>
           <dd className="mt-1 text-xs font-black tabular-nums text-emerald-400">
             {account.interestRate}%
@@ -101,7 +105,7 @@ export function SavingsCard({
         </div>
         <div className="rounded-2xl bg-white/[0.02] px-3 py-2.5">
           <dt className="text-[8px] font-bold uppercase tracking-widest text-slate-500">
-            Intérêts cumulés
+            {t("savings.accruedInterest")}
           </dt>
           <dd className="mt-1 text-xs font-black tabular-nums text-emerald-400">
             {money(account.totalInterest, account.currency)}
@@ -112,29 +116,29 @@ export function SavingsCard({
       {maturity && (
         <p className="mb-4 flex items-center gap-1.5 text-[10px] text-slate-500">
           <CalendarClock size={11} />
-          {stillLocked ? "Bloqué jusqu'au" : "Échéance atteinte le"} {formatDate(account.maturityDate)}
+          {stillLocked ? t("savings.lockedUntil") : t("savings.maturityReached")} {formatDate(account.maturityDate, bcp)}
         </p>
       )}
 
       {account.autoDebitAmount && account.autoDebitDay && (
         <p className="mb-4 flex items-center gap-1.5 text-[10px] text-slate-500">
           <Repeat size={11} />
-          {money(account.autoDebitAmount, account.currency)} le {account.autoDebitDay} de chaque mois
+          {money(account.autoDebitAmount, account.currency)} {t("savings.monthlyOn")} {account.autoDebitDay} {t("savings.monthlyEach")}
         </p>
       )}
 
       {frozen ? (
         <p className="flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-3 py-2.5 text-[10px] leading-relaxed text-rose-300">
           <AlertTriangle size={12} className="mt-px shrink-0" />
-          Compte gelé par l&apos;administration. Les mouvements sont suspendus, contactez le support.
+          {t("savings.frozenNotice")}
         </p>
       ) : (
         <div className="flex gap-2">
-          <CardAction icon={<Plus size={13} />} label="Déposer" onClick={onDeposit} tone="primary" />
+          <CardAction icon={<Plus size={13} />} label={t("savings.deposit")} onClick={onDeposit} tone="primary" />
           {!stillLocked && (
-            <CardAction icon={<ArrowUpRight size={13} />} label="Retirer" onClick={onWithdraw} />
+            <CardAction icon={<ArrowUpRight size={13} />} label={t("savings.withdraw")} onClick={onWithdraw} />
           )}
-          <CardAction icon={<XCircle size={13} />} label="Clôturer" onClick={onClose} tone="danger" />
+          <CardAction icon={<XCircle size={13} />} label={t("savings.close")} onClick={onClose} tone="danger" />
         </div>
       )}
     </article>
@@ -154,6 +158,8 @@ export function VaultCard({
   onLock: () => void;
   onUnlock: () => void;
 }) {
+  const { t, locale } = useLanguage();
+  const bcp = localeTag(locale);
   return (
     <article className="rounded-3xl border border-white/5 bg-slate-900/40 p-5">
       <header className="mb-4 flex items-start justify-between gap-3">
@@ -170,7 +176,7 @@ export function VaultCard({
           <div className="min-w-0">
             <h3 className="truncate text-sm font-black text-white">{vault.name}</h3>
             <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-slate-500">
-              Coffre-fort
+              {t("savings.vault")}
             </p>
           </div>
         </div>
@@ -179,7 +185,7 @@ export function VaultCard({
 
       <div className="mb-4">
         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
-          Montant immobilisé
+          {t("savings.immobilizedAmount")}
         </p>
         <p className="mt-1 text-2xl font-black tabular-nums text-white">
           {money(vault.amount, vault.currency)}
@@ -190,7 +196,7 @@ export function VaultCard({
         <div className="mb-4">
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-              Objectif {money(vault.targetAmount, vault.currency)}
+              {t("savings.goal")} {money(vault.targetAmount, vault.currency)}
             </span>
             <span className="text-[10px] font-black tabular-nums text-amber-400">
               {vault.progress}%
@@ -203,7 +209,7 @@ export function VaultCard({
       <dl className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-white/[0.02] px-3 py-2.5">
           <dt className="text-[8px] font-bold uppercase tracking-widest text-slate-500">
-            Taux annuel
+            {t("savings.annualRate")}
           </dt>
           <dd className="mt-1 text-xs font-black tabular-nums text-emerald-400">
             {vault.interestRate}%
@@ -211,7 +217,7 @@ export function VaultCard({
         </div>
         <div className="rounded-2xl bg-white/[0.02] px-3 py-2.5">
           <dt className="text-[8px] font-bold uppercase tracking-widest text-slate-500">
-            Intérêts cumulés
+            {t("savings.accruedInterest")}
           </dt>
           <dd className="mt-1 text-xs font-black tabular-nums text-emerald-400">
             {money(vault.totalInterest, vault.currency)}
@@ -224,28 +230,31 @@ export function VaultCard({
         <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
           <p className="flex items-center gap-1.5 text-[10px] font-bold text-amber-300">
             <Lock size={11} />
-            Verrouillé encore {vault.daysRemaining} jour{vault.daysRemaining > 1 ? "s" : ""} — jusqu&apos;au{" "}
-            {formatDate(vault.lockUntil)}
+            {t("savings.lockedRemaining")
+              .replace("{days}", String(vault.daysRemaining))
+              .replace("{unit}", vault.daysRemaining > 1 ? t("savings.daysUnit") : t("savings.dayUnit"))
+              .replace("{date}", formatDate(vault.lockUntil, bcp))}
           </p>
           {vault.amount > 0 && (
             <p className="mt-1 text-[10px] text-amber-400/70">
-              Déblocage immédiat : pénalité de {vault.penaltyRate}% soit{" "}
-              {money(vault.earlyPenaltyNow, vault.currency)}
+              {t("savings.immediateUnlock")
+                .replace("{rate}", String(vault.penaltyRate))
+                .replace("{amount}", money(vault.earlyPenaltyNow, vault.currency))}
             </p>
           )}
         </div>
       ) : (
         <p className="mb-4 flex items-center gap-1.5 text-[10px] text-emerald-400">
-          <Unlock size={11} /> Fonds disponibles sans pénalité
+          <Unlock size={11} /> {t("savings.fundsAvailable")}
         </p>
       )}
 
       <div className="flex gap-2">
-        <CardAction icon={<Plus size={13} />} label="Alimenter" onClick={onLock} tone="primary" />
+        <CardAction icon={<Plus size={13} />} label={t("savings.feed")} onClick={onLock} tone="primary" />
         {vault.amount > 0 && (
           <CardAction
             icon={<Unlock size={13} />}
-            label="Débloquer"
+            label={t("savings.unlock")}
             onClick={onUnlock}
             tone={vault.isLocked ? "danger" : "default"}
           />

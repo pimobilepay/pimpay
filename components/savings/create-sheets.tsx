@@ -16,20 +16,22 @@ import {
   SAVINGS_TYPE_META,
   money,
   readError,
+  localeTag,
   type SavingsTypeKey,
   type WalletView,
 } from "./savings-shared";
 import { Sheet, Field, TextInput, AmountInput, Select, SubmitButton } from "./savings-ui";
+import { useLanguage } from "@/context/LanguageContext";
 
 const TYPE_ORDER: SavingsTypeKey[] = ["REGULAR", "GOAL_BASED", "FIXED_DEPOSIT", "RECURRING"];
 
 /** Bornes du verrou d'un coffre, miroir de MIN/MAX_LOCK_DAYS côté API. */
 const LOCK_PRESETS = [
-  { days: 30, label: "1 mois" },
-  { days: 90, label: "3 mois" },
-  { days: 180, label: "6 mois" },
-  { days: 365, label: "1 an" },
-  { days: 730, label: "2 ans" },
+  { days: 30, labelKey: "savings.lock1m" },
+  { days: 90, labelKey: "savings.lock3m" },
+  { days: 180, labelKey: "savings.lock6m" },
+  { days: 365, labelKey: "savings.lock1y" },
+  { days: 730, labelKey: "savings.lock2y" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +49,7 @@ export function CreateSavingsSheet({
   onCreated: () => void;
   wallets: WalletView[];
 }) {
+  const { t } = useLanguage();
   const [type, setType] = useState<SavingsTypeKey>("REGULAR");
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("XAF");
@@ -85,8 +88,8 @@ export function CreateSavingsSheet({
           autoDebitDay: type === "RECURRING" && autoAmount ? Number(autoDay) : undefined,
         }),
       });
-      if (!res.ok) throw new Error(await readError(res, "Ouverture impossible."));
-      toast.success("Compte épargne ouvert");
+      if (!res.ok) throw new Error(await readError(res, t("savings.openErrorFallback")));
+      toast.success(t("savings.savingsOpenedToast"));
       reset();
       onClose();
       onCreated();
@@ -98,8 +101,8 @@ export function CreateSavingsSheet({
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Ouvrir un compte épargne" subtitle="Nouveau produit">
-      <Field label="Type de produit">
+    <Sheet open={open} onClose={onClose} title={t("savings.createSavingsTitle")} subtitle={t("savings.createSavingsSubtitle")}>
+      <Field label={t("savings.productType")}>
         <div className="grid gap-2">
           {TYPE_ORDER.map((key) => {
             const meta = SAVINGS_TYPE_META[key];
@@ -115,30 +118,32 @@ export function CreateSavingsSheet({
                 }`}
               >
                 <p className={`text-[11px] font-black uppercase tracking-wider ${active ? meta.accent : "text-slate-300"}`}>
-                  {meta.label}
+                  {t(meta.labelKey)}
                 </p>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{meta.description}</p>
+                <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{t(meta.descKey)}</p>
               </button>
             );
           })}
         </div>
       </Field>
 
-      <Field label="Nom du compte" hint="Optionnel. Par défaut « Compte épargne ».">
+      <Field label={t("savings.accountName")} hint={t("savings.accountNameHint")}>
         <TextInput
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
-          placeholder="Ex. Fonds d'urgence"
+          placeholder={t("savings.accountNamePlaceholder")}
         />
       </Field>
 
       <Field
-        label="Devise"
+        label={t("savings.currency")}
         hint={
           wallet
-            ? `Portefeuille ${currency} disponible : ${money(wallet.balance, currency)}`
-            : `Vous n'avez pas encore de portefeuille ${currency}. Il sera nécessaire pour alimenter ce compte.`
+            ? t("savings.currencyHintAvailable")
+                .replace("{currency}", currency)
+                .replace("{balance}", money(wallet.balance, currency))
+            : t("savings.currencyHintMissing").replace("{currency}", currency)
         }
       >
         <Select
@@ -149,15 +154,15 @@ export function CreateSavingsSheet({
       </Field>
 
       {type === "GOAL_BASED" && (
-        <Field label="Montant de l'objectif" hint="Sert à calculer votre progression.">
+        <Field label={t("savings.goalAmount")} hint={t("savings.goalAmountHint")}>
           <AmountInput value={target} onChange={setTarget} currency={currency} />
         </Field>
       )}
 
       {type === "FIXED_DEPOSIT" && (
         <Field
-          label="Durée du blocage"
-          hint="Les fonds restent immobilisés jusqu'à l'échéance. Une clôture anticipée entraîne une pénalité de 5%."
+          label={t("savings.lockDurationLabel")}
+          hint={t("savings.lockDurationHint")}
         >
           <div className="flex flex-wrap gap-2">
             {TERM_MONTHS.map((m) => (
@@ -170,7 +175,7 @@ export function CreateSavingsSheet({
                     : "border-white/10 bg-slate-900/40 text-slate-400 hover:bg-white/5"
                 }`}
               >
-                {m} mois
+                {m} {t("savings.monthsSuffix")}
               </button>
             ))}
           </div>
@@ -179,17 +184,17 @@ export function CreateSavingsSheet({
 
       {type === "RECURRING" && (
         <>
-          <Field label="Versement mensuel" hint="Optionnel.">
+          <Field label={t("savings.monthlyDeposit")} hint={t("savings.optional")}>
             <AmountInput value={autoAmount} onChange={setAutoAmount} currency={currency} />
           </Field>
           {autoAmount && (
-            <Field label="Jour du prélèvement" hint="Entre 1 et 28, pour couvrir tous les mois.">
+            <Field label={t("savings.debitDay")} hint={t("savings.debitDayHint")}>
               <Select
                 value={autoDay}
                 onChange={setAutoDay}
                 options={Array.from({ length: 28 }, (_, i) => ({
                   value: String(i + 1),
-                  label: `Le ${i + 1}`,
+                  label: t("savings.debitDayOption").replace("{n}", String(i + 1)),
                 }))}
               />
             </Field>
@@ -198,12 +203,11 @@ export function CreateSavingsSheet({
       )}
 
       <p className="mb-4 rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3 text-[10px] leading-relaxed text-slate-500">
-        Le compte est ouvert avec un solde nul. Vous l&apos;alimenterez ensuite depuis votre
-        portefeuille {currency}.
+        {t("savings.zeroBalanceNotice").replace("{currency}", currency)}
       </p>
 
       <SubmitButton onClick={submit} loading={saving}>
-        Ouvrir le compte
+        {t("savings.openAccountBtn")}
       </SubmitButton>
     </Sheet>
   );
@@ -222,6 +226,7 @@ export function CreateVaultSheet({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t, locale } = useLanguage();
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("XAF");
   const [target, setTarget] = useState("");
@@ -241,8 +246,8 @@ export function CreateVaultSheet({
           lockDays,
         }),
       });
-      if (!res.ok) throw new Error(await readError(res, "Création impossible."));
-      toast.success("Coffre-fort créé");
+      if (!res.ok) throw new Error(await readError(res, t("savings.createErrorFallback")));
+      toast.success(t("savings.vaultCreatedToast"));
       setName("");
       setTarget("");
       onClose();
@@ -255,19 +260,24 @@ export function CreateVaultSheet({
   }
 
   const unlockDate = new Date(Date.now() + lockDays * 86_400_000);
+  const unlockDateLabel = unlockDate.toLocaleDateString(localeTag(locale), {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
-    <Sheet open={open} onClose={onClose} title="Créer un coffre-fort" subtitle="Épargne bloquée">
-      <Field label="Nom du coffre" hint="Optionnel. Par défaut « Coffre-fort ».">
+    <Sheet open={open} onClose={onClose} title={t("savings.createVaultTitle")} subtitle={t("savings.createVaultSubtitle")}>
+      <Field label={t("savings.vaultName")} hint={t("savings.vaultNameHint")}>
         <TextInput
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
-          placeholder="Ex. Apport immobilier"
+          placeholder={t("savings.vaultNamePlaceholder")}
         />
       </Field>
 
-      <Field label="Devise">
+      <Field label={t("savings.currency")}>
         <Select
           value={currency}
           onChange={setCurrency}
@@ -275,17 +285,13 @@ export function CreateVaultSheet({
         />
       </Field>
 
-      <Field label="Objectif" hint="Optionnel, pour suivre votre progression.">
+      <Field label={t("savings.vaultGoal")} hint={t("savings.vaultGoalHint")}>
         <AmountInput value={target} onChange={setTarget} currency={currency} />
       </Field>
 
       <Field
-        label="Durée du verrou"
-        hint={`Déverrouillage automatique le ${unlockDate.toLocaleDateString("fr-FR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        })}.`}
+        label={t("savings.lockPeriodLabel")}
+        hint={t("savings.lockPeriodHint").replace("{date}", unlockDateLabel)}
       >
         <div className="flex flex-wrap gap-2">
           {LOCK_PRESETS.map((p) => (
@@ -298,19 +304,18 @@ export function CreateVaultSheet({
                   : "border-white/10 bg-slate-900/40 text-slate-400 hover:bg-white/5"
               }`}
             >
-              {p.label}
+              {t(p.labelKey)}
             </button>
           ))}
         </div>
       </Field>
 
       <p className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-[10px] leading-relaxed text-amber-300">
-        Un retrait avant l&apos;échéance reste possible, mais une pénalité de 5% du montant retiré
-        sera retenue. Le coffre est rémunéré au barème du dépôt à terme.
+        {t("savings.vaultNotice")}
       </p>
 
       <SubmitButton onClick={submit} loading={saving}>
-        Créer le coffre-fort
+        {t("savings.createVaultBtn")}
       </SubmitButton>
     </Sheet>
   );

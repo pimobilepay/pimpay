@@ -20,6 +20,7 @@ import {
   formatDate,
   newIdempotencyKey,
   readError,
+  localeTag,
   type ExitQuote,
 } from "./savings-shared";
 import {
@@ -30,6 +31,7 @@ import {
   SubmitButton,
   SummaryRow,
 } from "./savings-ui";
+import { useLanguage } from "@/context/LanguageContext";
 
 /* ------------------------------------------------------------------ */
 /*  Mouvement entrant                                                  */
@@ -56,6 +58,7 @@ export function DepositSheet({
   walletBalance: number;
   actionLabel: string;
 }) {
+  const { t } = useLanguage();
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -75,8 +78,8 @@ export function DepositSheet({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: value, idempotencyKey: newIdempotencyKey() }),
       });
-      if (!res.ok) throw new Error(await readError(res, "Opération refusée."));
-      toast.success(`${money(value, currency)} transféré`);
+      if (!res.ok) throw new Error(await readError(res, t("savings.operationRefused")));
+      toast.success(t("savings.transferredToast").replace("{amount}", money(value, currency)));
       onClose();
       onDone();
     } catch (e: any) {
@@ -89,8 +92,10 @@ export function DepositSheet({
   return (
     <Sheet open={open} onClose={onClose} title={title} subtitle={subtitle}>
       <Field
-        label="Montant"
-        hint={`Disponible sur votre portefeuille ${currency} : ${money(walletBalance, currency)}`}
+        label={t("savings.amount")}
+        hint={t("savings.depositHint")
+          .replace("{currency}", currency)
+          .replace("{balance}", money(walletBalance, currency))}
       >
         <AmountInput value={amount} onChange={setAmount} currency={currency} autoFocus />
       </Field>
@@ -104,7 +109,7 @@ export function DepositSheet({
               onClick={() => setAmount(String(Math.floor(walletBalance * ratio * 100) / 100))}
               className="flex-1 rounded-xl border border-white/10 bg-slate-900/40 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
             >
-              {ratio === 1 ? "Tout" : `${ratio * 100}%`}
+              {ratio === 1 ? t("savings.quickAll") : `${ratio * 100}%`}
             </button>
           ))}
         </div>
@@ -113,7 +118,7 @@ export function DepositSheet({
       {exceedsWallet && (
         <p className="mb-4 flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-3 py-2.5 text-[10px] leading-relaxed text-rose-300">
           <AlertTriangle size={12} className="mt-px shrink-0" />
-          Ce montant dépasse le solde de votre portefeuille {currency}.
+          {t("savings.exceedsWallet").replace("{currency}", currency)}
         </p>
       )}
 
@@ -162,6 +167,8 @@ export function ExitSheet({
   actionLabel: string;
   danger?: boolean;
 }) {
+  const { t, locale } = useLanguage();
+  const bcp = localeTag(locale);
   const [amount, setAmount] = useState("");
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -180,7 +187,7 @@ export function ExitSheet({
     setLoadingQuote(true);
     fetch(quoteEndpoint, { cache: "no-store" })
       .then(async (res) => {
-        if (!res.ok) throw new Error(await readError(res, "Simulation indisponible."));
+        if (!res.ok) throw new Error(await readError(res, t("savings.simUnavailable")));
         return res.json();
       })
       .then((data) => {
@@ -228,12 +235,14 @@ export function ExitSheet({
           idempotencyKey: newIdempotencyKey(),
         }),
       });
-      if (!res.ok) throw new Error(await readError(res, "Opération refusée."));
+      if (!res.ok) throw new Error(await readError(res, t("savings.operationRefused")));
       const data = await res.json();
       toast.success(
         data.penalty > 0
-          ? `${money(data.netAmount, currency)} crédité, ${money(data.penalty, currency)} de pénalité retenue`
-          : `${money(data.netAmount ?? value, currency)} crédité sur votre portefeuille`
+          ? t("savings.creditedPenaltyToast")
+              .replace("{net}", money(data.netAmount, currency))
+              .replace("{penalty}", money(data.penalty, currency))
+          : t("savings.creditedToast").replace("{amount}", money(data.netAmount ?? value, currency))
       );
       onClose();
       onDone();
@@ -256,7 +265,7 @@ export function ExitSheet({
         <>
           {mode === "partial" ? (
             <>
-              <Field label="Montant" hint={`Disponible : ${money(maxAmount, currency)}`}>
+              <Field label={t("savings.amount")} hint={t("savings.availableHint").replace("{amount}", money(maxAmount, currency))}>
                 <AmountInput value={amount} onChange={setAmount} currency={currency} autoFocus />
               </Field>
               {maxAmount > 0 && (
@@ -267,7 +276,7 @@ export function ExitSheet({
                       onClick={() => setAmount(String(Math.floor(maxAmount * ratio * 100) / 100))}
                       className="flex-1 rounded-xl border border-white/10 bg-slate-900/40 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
                     >
-                      {ratio === 1 ? "Tout retirer" : "Moitié"}
+                      {ratio === 1 ? t("savings.withdrawAll") : t("savings.half")}
                     </button>
                   ))}
                 </div>
@@ -276,7 +285,7 @@ export function ExitSheet({
           ) : (
             <div className="mb-4 rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3">
               <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
-                Solde à rapatrier
+                {t("savings.balanceToRepatriate")}
               </p>
               <p className="mt-1 text-2xl font-black tabular-nums text-white">
                 {money(maxAmount, currency)}
@@ -287,7 +296,7 @@ export function ExitSheet({
           {exceeds && (
             <p className="mb-4 flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-3 py-2.5 text-[10px] leading-relaxed text-rose-300">
               <AlertTriangle size={12} className="mt-px shrink-0" />
-              Le montant demandé dépasse le solde disponible.
+              {t("savings.exceedsBalance")}
             </p>
           )}
 
@@ -295,37 +304,37 @@ export function ExitSheet({
           {hasPenalty && (
             <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
               <p className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-400">
-                <AlertTriangle size={12} /> Sortie anticipée
+                <AlertTriangle size={12} /> {t("savings.earlyExit")}
               </p>
               <p className="text-[10px] leading-relaxed text-rose-300">
                 {quote?.maturityDate
-                  ? `Échéance prévue le ${formatDate(quote.maturityDate)}.`
+                  ? t("savings.maturityPlanned").replace("{date}", formatDate(quote.maturityDate, bcp))
                   : quote?.lockUntil
-                    ? `Verrou actif jusqu'au ${formatDate(quote.lockUntil)}.`
+                    ? t("savings.lockActiveUntil").replace("{date}", formatDate(quote.lockUntil, bcp))
                     : null}{" "}
-                Une pénalité de {penaltyRate}% sera retenue.
+                {t("savings.penaltyWillApply").replace("{rate}", String(penaltyRate))}
               </p>
               <div className="mt-2 border-t border-rose-500/15 pt-1">
-                <SummaryRow label="Montant" value={money(value, currency)} />
-                <SummaryRow label="Pénalité" value={`- ${money(penalty, currency)}`} emphasis="danger" />
-                <SummaryRow label="Net crédité" value={money(net, currency)} emphasis="success" />
+                <SummaryRow label={t("savings.amount")} value={money(value, currency)} />
+                <SummaryRow label={t("savings.penaltyLabel")} value={`- ${money(penalty, currency)}`} emphasis="danger" />
+                <SummaryRow label={t("savings.netCredited")} value={money(net, currency)} emphasis="success" />
               </div>
             </div>
           )}
 
           {!hasPenalty && amountValid && value > 0 && (
             <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2">
-              <SummaryRow label="Net crédité" value={money(net, currency)} emphasis="success" />
+              <SummaryRow label={t("savings.netCredited")} value={money(net, currency)} emphasis="success" />
             </div>
           )}
 
-          <Field label="Code PIN" hint="Exigé pour toute sortie de fonds.">
+          <Field label={t("savings.pinLabel")} hint={t("savings.pinHint")}>
             <PinInput value={pin} onChange={setPin} />
           </Field>
 
           <p className="mb-4 flex items-start gap-2 text-[10px] leading-relaxed text-slate-500">
             <ShieldCheck size={12} className="mt-px shrink-0 text-slate-600" />
-            Les fonds sont crédités sur votre portefeuille {currency}.
+            {t("savings.fundsCreditedTo").replace("{currency}", currency)}
           </p>
 
           <SubmitButton

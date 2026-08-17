@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
 import { SAVINGS_STATUS_META } from "./savings-shared";
+import { useLanguage } from "@/context/LanguageContext";
 
 /* ------------------------------------------------------------------ */
 /*  Feuille modale                                                     */
@@ -28,6 +29,7 @@ export function Sheet({
   subtitle?: string;
   children: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   // Fermeture au clavier et blocage du défilement de l'arrière-plan.
   useEffect(() => {
     if (!open) return;
@@ -79,7 +81,7 @@ export function Sheet({
               </div>
               <button
                 onClick={onClose}
-                aria-label="Fermer"
+                aria-label={t("savings.closeAria")}
                 className="shrink-0 rounded-xl bg-white/5 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <X size={16} />
@@ -221,15 +223,15 @@ export function PinInput({
 /* ------------------------------------------------------------------ */
 
 export function StatusBadge({ status }: { status: string }) {
-  const meta = SAVINGS_STATUS_META[status] ?? {
-    label: status,
-    className: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-  };
+  const { t } = useLanguage();
+  const meta = SAVINGS_STATUS_META[status];
+  const label = meta ? t(meta.labelKey) : status;
+  const className = meta?.className ?? "bg-slate-500/10 text-slate-400 border-slate-500/20";
   return (
     <span
-      className={`rounded-lg border px-2 py-1 text-[8px] font-black uppercase tracking-widest ${meta.className}`}
+      className={`rounded-lg border px-2 py-1 text-[8px] font-black uppercase tracking-widest ${className}`}
     >
-      {meta.label}
+      {label}
     </span>
   );
 }
