@@ -167,14 +167,9 @@ export async function proxy(req: NextRequest) {
       const { payload } = await jose.jwtVerify(token, secret);
       userPayload = payload;
     } catch {
-      // Token invalide ou expire - ne pas rediriger ici, laisser continuer
-      // La redirection se fera plus bas si la route est protegee
-      if (!piToken) {
-        // Supprimer le token invalide
-        const res = NextResponse.next();
-        res.cookies.delete("token");
-        res.cookies.delete("pimpay_token");
-      }
+      // Token invalide ou expire - ne pas rediriger ici, laisser continuer.
+      // La redirection (et le nettoyage des cookies perimes) se fait plus bas
+      // si la route est protegee.
     }
   }
 
@@ -274,6 +269,11 @@ export async function proxy(req: NextRequest) {
     loginUrl.searchParams.set("redirect", pathname + req.nextUrl.search);
     // Utiliser redirect 302 pour eviter les problemes de cache
     const response = NextResponse.redirect(loginUrl, 302);
+    // Nettoyer les cookies de session perimes/invalides pour eviter que le
+    // cycle "token expire -> redirection" ne se repete a chaque navigation.
+    response.cookies.delete("token");
+    response.cookies.delete("pimpay_token");
+    response.cookies.delete("pi_session_token");
     applyNoStore(response);
     applySecurityHeaders(response);
     return response;

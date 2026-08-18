@@ -68,8 +68,9 @@ export default function SessionGuard({ children }: SessionGuardProps) {
     document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
     clearSessionKeepLanguage();
 
-    // Afficher un message approprié selon la raison et l'origine, traduit
-    // dans la langue actuelle de l'utilisateur (fr / en / zh).
+    // Session expirée / token invalide → l'utilisateur n'est simplement plus
+    // connecté : on ne montre AUCUN message alarmant, on redirige directement
+    // vers la page de connexion.
     if (reason === "session_revoked") {
       if (selfRevokedRef.current) {
         // L'utilisateur a lui-même révoqué sa propre session depuis settings
@@ -77,23 +78,19 @@ export default function SessionGuard({ children }: SessionGuardProps) {
         // → pas de toast d'erreur alarmant, juste une info neutre
         toast.info(t("sessionGuard.revokedBySelf"), { duration: 3000 });
       } else {
-        // Révocation par l'admin ou depuis un autre appareil
+        // Révocation par l'admin ou depuis un autre appareil : on garde une
+        // information car ce cas est involontaire et doit être signalé.
         toast.error(t("sessionGuard.revokedByAdmin"), {
           duration: 6000,
         });
       }
-    } else if (reason === "session_expired") {
-      toast.error(t("sessionGuard.expired"), {
-        duration: 4000,
-      });
-    } else {
-      toast.error(t("sessionGuard.terminated"), { duration: 3000 });
     }
+    // Pour "session_expired" et "invalid_token" : pas de toast → redirection directe.
 
     selfRevokedRef.current = false;
 
     // Rediriger vers la page de connexion
-    router.push("/auth/login");
+    router.replace("/auth/login");
     router.refresh();
   }, [router, t]);
 
