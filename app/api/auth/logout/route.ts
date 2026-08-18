@@ -11,42 +11,52 @@ import { clearAuthCookie } from "@/lib/auth-cookies";
 
 export async function POST(req: Request) {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-    }
+    // [FIX] La déconnexion NE DOIT JAMAIS échouer à cause de l'authentification.
+    // Auparavant, si `getAuthUserId()` renvoyait null (token expiré, JTI révoqué,
+    // token Pi qui ne se valide plus, table sessions purgée...), la route
+    // renvoyait 401 et sortait AVANT d'effacer les cookies httpOnly. Résultat :
+    // le clic sur "Déconnexion" laissait les cookies `token`/`pimpay_token` en
+    // place côté serveur et l'utilisateur restait connecté ("le bouton de
+    // déconnexion ne marche pas"). On récupère donc l'userId de façon best-effort
+    // mais on efface TOUJOURS les cookies, que l'utilisateur soit identifiable
+    // ou non.
+    const userId = await getAuthUserId().catch(() => null);
 
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value || cookieStore.get("pimpay_token")?.value;
     const refreshToken = cookieStore.get("refresh_token")?.value;
 
-    // [FIX V23] Revoke both tokens in Redis blacklist
+    // [FIX V23] Revoke both tokens in Redis blacklist (best-effort)
     if (token) {
-      await revokeTokenJWT(token, 900); // 15 min TTL
+      await revokeTokenJWT(token, 900).catch(() => {}); // 15 min TTL
     }
     if (refreshToken) {
-      await revokeTokenJWT(refreshToken, 604800); // 7 days TTL
+      await revokeTokenJWT(refreshToken, 604800).catch(() => {}); // 7 days TTL
     }
 
-    // [FIX V23] Invalidate session in DB
-    await prisma.session.updateMany({
-      where: { userId, isActive: true },
-      data: { isActive: false }
-    }).catch(() => {});
+    // [FIX V23] Invalidate session in DB — uniquement si on a pu identifier
+    // l'utilisateur (sinon on n'a rien à révoquer, mais on efface quand même
+    // les cookies plus bas).
+    if (userId) {
+      await prisma.session.updateMany({
+        where: { userId, isActive: true },
+        data: { isActive: false }
+      }).catch(() => {});
 
-    // Log security event
-    try {
-      await prisma.auditLog.create({
-        data: {
-          adminId: userId,
-          action: "LOGOUT",
-          targetId: userId,
-          category: "security",
-          status: "SUCCESS"
-        }
-      });
-    } catch (e) {
-      console.error("Audit log error:", e);
+      // Log security event
+      try {
+        await prisma.auditLog.create({
+          data: {
+            adminId: userId,
+            action: "LOGOUT",
+            targetId: userId,
+            category: "security",
+            status: "SUCCESS"
+          }
+        });
+      } catch (e) {
+        console.error("Audit log error:", e);
+      }
     }
 
     const response = NextResponse.json({ success: true, message: "Déconnecté" });
@@ -77,6 +87,14 @@ export async function POST(req: Request) {
     return response;
   } catch (error: any) {
     console.error("LOGOUT_ERROR:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    // [FIX] Même en cas d'erreur serveur inattendue, la déconnexion doit
+    // aboutir : on efface les cookies de session et on renvoie un succès pour
+    // que le client termine bien la déconnexion et redirige vers le login.
+    const response = NextResponse.json({ success: true, message: "Déconnecté" });
+    for (const name of ["token", "pimpay_token", "refresh_token", "pi_session_token"]) {
+      clearAuthCookie(response, name, { path: "/" });
+    }
+    clearAuthCookie(response, "refresh_token", { path: "/api/auth/refresh" });
+    return response;
   }
 }
