@@ -52,6 +52,8 @@ model User {
   mustChangePassword   Boolean          @default(false)
   lastLoginAt          DateTime?
   lastLoginIp          String?
+  termsAcceptedAt      DateTime?
+  termsVersion         String?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   walletAddress        String?          @unique
