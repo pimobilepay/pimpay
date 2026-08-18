@@ -1,18 +1,48 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   ArrowLeft, Camera, User, Mail, Phone, Lock,
   Check, Loader2, Home, Wallet, ArrowDownToLine,
   Smartphone, ArrowUpFromLine, Send, Menu, Globe, MapPin,
   Calendar, Fingerprint, Landmark, Briefcase, CreditCard,
-  Shield, BadgeCheck, ChevronDown, CircleDot
+  Shield, BadgeCheck, ChevronDown, CircleDot, Search
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
+import worldCountries from "world-countries";
+
+type Country = { code: string; name: string; dialCode: string };
+
+// Build country list from world-countries with dial codes (same as signup)
+const COUNTRIES: Country[] = worldCountries
+  .map((country) => ({
+    code: country.cca2,
+    name: country.translations?.fra?.common || country.name.common,
+    dialCode: country.idd?.root
+      ? `${country.idd.root}${country.idd.suffixes?.[0] || ""}`
+      : "",
+  }))
+  .filter((c) => c.dialCode)
+  .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+
+// Priority countries to show at top (African French-speaking countries first)
+const PRIORITY_CODES = [
+  "CG", "CD", "CM", "GA", "SN", "CI", "ML", "BF", "NE", "TG", "BJ", "GN",
+  "MG", "TN", "MA", "DZ", "NG", "GH", "FR", "BE", "CH", "CA", "US", "GB",
+  "IN", "ID",
+];
+
+function getSortedCountries(countries: Country[]): Country[] {
+  const priorityCountries = PRIORITY_CODES
+    .map((code) => countries.find((c) => c.code === code))
+    .filter(Boolean) as Country[];
+  const otherCountries = countries.filter((c) => !PRIORITY_CODES.includes(c.code));
+  return [...priorityCountries, ...otherCountries];
+}
 
 // --- BOTTOM NAV ---
 function BottomNav() {
@@ -74,6 +104,143 @@ function SelectField({
           ))}
         </select>
         <ChevronDown size={14} className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+      </div>
+    </div>
+  );
+}
+
+// --- COUNTRY SELECT FIELD (avec drapeaux, comme la page d'inscription) ---
+function CountrySelectField({
+  label,
+  icon: Icon,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  icon: React.ElementType;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  const sortedCountries = useMemo(() => getSortedCountries(COUNTRIES), []);
+
+  // Le champ peut contenir un code ISO ("CG") ou un nom de pays hérité
+  const selectedCountry = useMemo(() => {
+    if (!value) return null;
+    const byCode = sortedCountries.find(
+      (c) => c.code.toLowerCase() === value.toLowerCase()
+    );
+    if (byCode) return byCode;
+    return sortedCountries.find(
+      (c) => c.name.toLowerCase() === value.toLowerCase()
+    ) || null;
+  }, [value, sortedCountries]);
+
+  const filteredCountries = useMemo(
+    () =>
+      sortedCountries.filter(
+        (c) =>
+          c.name.toLowerCase().includes(search.toLowerCase()) ||
+          c.dialCode.includes(search) ||
+          c.code.toLowerCase().includes(search.toLowerCase())
+      ),
+    [sortedCountries, search]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl focus-within:border-blue-500/50 transition-all relative">
+      <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2">
+        <Icon size={12} /> {label}
+      </label>
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen((prev) => !prev);
+            setSearch("");
+          }}
+          className="w-full flex items-center gap-3 outline-none"
+        >
+          {selectedCountry ? (
+            <>
+              <span className={`fi fi-${selectedCountry.code.toLowerCase()} text-sm`} />
+              <span className="flex-1 text-left font-bold text-sm text-white">
+                {selectedCountry.name}
+              </span>
+              <span className="text-xs text-slate-500 font-mono">
+                {selectedCountry.dialCode}
+              </span>
+            </>
+          ) : (
+            <span className="flex-1 text-left font-bold text-sm text-slate-400">
+              {placeholder || "Sélectionner un pays"}
+            </span>
+          )}
+          <ChevronDown
+            size={14}
+            className={`text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {open && (
+          <div className="absolute z-50 top-[calc(100%+10px)] left-0 right-0 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-2 border-b border-white/5">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un pays..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 bg-slate-950/50 border border-white/5 text-white text-xs rounded-xl outline-none focus:border-blue-500/40 transition-all placeholder:text-slate-600"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <ul className="max-h-52 overflow-y-auto py-1">
+              {filteredCountries.length === 0 ? (
+                <li className="px-4 py-3 text-xs text-slate-500 text-center">Aucun resultat</li>
+              ) : (
+                filteredCountries.map((country) => (
+                  <li key={country.code}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange(country.code);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors ${
+                        selectedCountry?.code === country.code ? "bg-blue-500/10 text-blue-400" : "text-white"
+                      }`}
+                    >
+                      <span className={`fi fi-${country.code.toLowerCase()} text-sm`} />
+                      <span className="flex-1 text-left text-xs font-medium">{country.name}</span>
+                      <span className="text-[10px] font-mono text-slate-500">{country.dialCode}</span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -351,7 +518,7 @@ export default function EditProfilePage() {
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
-              <InputField label={t("profile.country")} value={formData.country} onChange={updateField("country")} placeholder={t("profile.placeholderCountry")} />
+              <CountrySelectField label={t("profile.country")} icon={Globe} value={formData.country} onChange={updateField("country")} placeholder={t("profile.placeholderCountry")} />
               <InputField label={t("profile.city")} value={formData.city} onChange={updateField("city")} placeholder={t("profile.placeholderCity")} />
             </div>
             <InputField label={t("profile.residenceAddress")} icon={MapPin} value={formData.address} onChange={updateField("address")} placeholder={t("profile.placeholderAddress")} colSpan />
