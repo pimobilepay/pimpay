@@ -16,8 +16,8 @@ import LogoutOverlay from "@/components/LogoutOverlay";
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
 import { QrCode } from "lucide-react";
-import { AgentProfileCard } from "@/components/hub/AgentProfileCard";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
+import { AdminAccountStatusControl } from "@/components/profile/AdminAccountStatusControl";
 
 const swrFetcher = (url: string) => fetch(url, { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
 
@@ -449,49 +449,7 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* Carte de profil : design Agent (bleu) pour les agents/admins,
-          carte utilisateur pour les comptes standards. */}
-      <div className="px-4 pt-6 pb-4">
-        {user && isAgentAccount && (
-          <AgentProfileCard
-            name={user.name}
-            agentId={user.agentId || undefined}
-            code={referralCode}
-            role={user.agentRole || user.role}
-            avatar={user.avatar}
-            qrValue={referralLink}
-            referralLink={referralLink}
-            country={user.country || undefined}
-            phone={user.phone}
-            email={user.email}
-            joinDate={cardJoinDate}
-            wallet={walletShort}
-            level={tier.level}
-            levelSubtitle={tier.levelSubtitle}
-            nextLevel={tier.nextLevel}
-            progress={tier.progress}
-            stats={cardStats}
-            achievements={referralData?.achievements}
-            showActions={false}
-          />
-        )}
-
-        {user && !isAgentAccount && (
-          <UserProfileCard
-            name={user.name}
-            username={user.username}
-            email={user.email}
-            phone={user.phone}
-            country={user.country || undefined}
-            city={user.city}
-            wallet={walletShort}
-            joinDate={cardJoinDate}
-            avatar={user.avatar}
-            isVerified={user.isVerified}
-            kycStatus={user.kycStatus}
-          />
-        )}
-      </div>
+      {/* La carte haute et le pied Support ont été retirés de ce profil : la vue commence par les statuts du compte. */}
 
       {/* Statistiques rapides */}
       <div className="grid grid-cols-4 gap-2 px-6 mb-8">
@@ -522,6 +480,9 @@ export default function ProfilePage() {
           </span>
         </button>
       </div>
+      {user?.role === "ADMIN" && user && (
+        <AdminAccountStatusControl currentUserId={user.id} />
+      )}
 
       {/* QR de paiement - cash-in / cash-out via agent */}
       <div className="px-6 mb-8">
