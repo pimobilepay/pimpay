@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import AgentCashOutSuccessModal from '@/components/hub/AgentCashOutSuccessModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -632,7 +633,33 @@ function PendingConfirmations({
 
   const [relancing, setRelancing] = React.useState<string | null>(null)
   const [relanced, setRelanced] = React.useState<Record<string, boolean>>({})
+  const [successTransaction, setSuccessTransaction] = React.useState<PendingItem | null>(null)
+  const previousItems = React.useRef<Record<string, PendingItem>>({})
+  const initialized = React.useRef(false)
   const items = data?.items || []
+
+  React.useEffect(() => {
+    if (!data) return
+    const currentIds = new Set(items.map((item) => item.id))
+    const previous = previousItems.current
+    if (initialized.current) {
+      Object.values(previous).forEach((item) => {
+        if (!currentIds.has(item.id)) {
+          fetch(`/api/agent/transaction-status?id=${encodeURIComponent(item.id)}`)
+            .then((response) => response.json())
+            .then((status) => {
+              if (status.status === 'COMPLETED' || status.status === 'SUCCESS' || status.status === 'CONFIRMED') {
+                setSuccessTransaction(item)
+                toast.success('Cash-out confirmé', { description: `${formatCurrency(item.amount, item.currency)} confirmé par le client.` })
+              }
+            })
+            .catch(() => undefined)
+        }
+      })
+    }
+    previousItems.current = Object.fromEntries(items.map((item) => [item.id, item]))
+    initialized.current = true
+  }, [data, items, formatCurrency])
 
   const relance = async (id: string) => {
     setRelancing(id)
@@ -653,6 +680,7 @@ function PendingConfirmations({
   }
 
   return (
+    <>
     <Card className="p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -735,6 +763,14 @@ function PendingConfirmations({
         </div>
       )}
     </Card>
+    {successTransaction && (
+      <AgentCashOutSuccessModal
+        transaction={successTransaction}
+        formatCurrency={formatCurrency}
+        onClose={() => setSuccessTransaction(null)}
+      />
+    )}
+  </>
   )
 }
 
