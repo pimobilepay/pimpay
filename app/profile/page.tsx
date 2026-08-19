@@ -127,6 +127,7 @@ export default function ProfilePage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
+  const [piNetwork, setPiNetwork] = useState<"testnet" | "mainnet">("testnet");
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
@@ -288,6 +289,25 @@ export default function ProfilePage() {
     fetchProfile();
   }, []);
 
+  // Reseau Pi actif (testnet/mainnet) — pilote par l'admin depuis
+  // Admin > Reglages et expose via /api/pi-network. Jamais code en dur ici :
+  // si l'admin bascule le reseau, cet appel refletera la nouvelle valeur au
+  // prochain chargement de la page.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/pi-network", { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && (data?.network === "mainnet" || data?.network === "testnet")) {
+          setPiNetwork(data.network);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const profileSections: ProfileSection[] = [
     {
       title: t("profile.personalIdentity"),
@@ -395,32 +415,34 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-3 gap-3 px-6 mb-8">
-        <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.kycStatus")}</p>
-          <p className={`text-sm font-bold ${user?.isVerified ? "text-emerald-400" : "text-amber-400"}`}>
+      {/* Statistiques rapides — KYC, reseau, compte, parrainage sur une seule ligne */}
+      <div className="grid grid-cols-4 gap-2 px-6 mb-8">
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-center min-w-0">
+          <p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-1 truncate">{t("profile.kycStatus")}</p>
+          <p className={`text-[11px] font-bold truncate ${user?.isVerified ? "text-emerald-400" : "text-amber-400"}`}>
             {user?.isVerified ? t("profile.verified") : user?.kycStatus || t("profile.notVerified")}
           </p>
         </div>
-        <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.network")}</p>
-          <p className="text-sm font-bold text-white">Pi Mainnet</p>
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-center min-w-0">
+          <p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-1 truncate">{t("profile.network")}</p>
+          <p className="text-[11px] font-bold text-white truncate">
+            Pi {piNetwork === "mainnet" ? "Mainnet" : "Testnet"}
+          </p>
         </div>
-        <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.account")}</p>
-          <p className="text-sm font-bold text-blue-400">
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-center min-w-0">
+          <p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-1 truncate">{t("profile.account")}</p>
+          <p className="text-[11px] font-bold text-blue-400 truncate">
             {user?.role === "ADMIN" ? t("profile.admin") : t("profile.standard")}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowReferral(true)}
-          className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all active:scale-95"
+          className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-center hover:bg-white/10 transition-all active:scale-95 min-w-0"
         >
-          <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.referral")}</p>
-          <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-400">
-            <Gift size={14} />
+          <p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-1 truncate">{t("profile.referral")}</p>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+            <Gift size={13} />
           </span>
         </button>
       </div>
