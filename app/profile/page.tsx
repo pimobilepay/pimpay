@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import useSWR from "swr";
 import {
   User, Shield, Bell, ChevronRight, LogOut, CheckCircle2,
   Wallet, Fingerprint, Globe, CreditCard, Calendar, MapPin, UserPen, Loader2,
@@ -16,39 +15,7 @@ import LogoutOverlay from "@/components/LogoutOverlay";
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
 import { QrCode } from "lucide-react";
-import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { AdminAccountStatusControl } from "@/components/profile/AdminAccountStatusControl";
-
-const swrFetcher = (url: string) => fetch(url, { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
-
-/** Paliers basés sur le nombre de filleuls (identique à la carte agent). */
-const PROFILE_TIERS = [
-  { name: "BRONZE AGENT", min: 0, target: 10 as number | null, next: "SILVER AGENT" as string | null },
-  { name: "SILVER AGENT", min: 10, target: 25 as number | null, next: "GOLD AGENT" as string | null },
-  { name: "GOLD AGENT", min: 25, target: 50 as number | null, next: "PLATINUM AGENT" as string | null },
-  { name: "PLATINUM AGENT", min: 50, target: 100 as number | null, next: "ELITE AGENT" as string | null },
-  { name: "ELITE AGENT", min: 100, target: null as number | null, next: null as string | null },
-];
-
-function getProfileTier(count: number) {
-  let current = PROFILE_TIERS[0];
-  for (const tier of PROFILE_TIERS) if (count >= tier.min) current = tier;
-  if (current.target === null) {
-    return { level: current.name, levelSubtitle: "Niveau le plus élevé", nextLevel: current.name, progress: 100 };
-  }
-  const span = current.target - current.min;
-  const progress = Math.min(100, Math.max(0, Math.round(((count - current.min) / span) * 100)));
-  return {
-    level: current.name,
-    levelSubtitle: `${count} filleul${count > 1 ? "s" : ""} recruté${count > 1 ? "s" : ""}`,
-    nextLevel: current.next || current.name,
-    progress,
-  };
-}
-
-function fmtInt(n: number) {
-  return new Intl.NumberFormat("fr-FR").format(n || 0);
-}
 
 interface UserData {
   id: string;
@@ -163,14 +130,6 @@ export default function ProfilePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const currencySelectorRef = useRef<HTMLDivElement>(null);
-
-  // Données de parrainage/statistiques réelles (agents & admins).
-  // Renvoie null pour les utilisateurs standards (accès réservé) : la carte
-  // se rabat alors sur les données de profil ci-dessous.
-  const { data: referralData } = useSWR(
-    user && (user.role === "AGENT" || user.role === "ADMIN") ? "/api/agent/referral" : null,
-    swrFetcher
-  );
 
   // Options pour les champs select
   const genderOptions = [
@@ -393,36 +352,6 @@ export default function ProfilePage() {
     );
   }
 
-  // ── Données de la carte de profil (design "Agent Officiel") ──────────────
-  // Détermine si le compte est un agent/admin (affiche la carte agent) ou un
-  // utilisateur standard (affiche la carte utilisateur).
-  const isAgentAccount =
-    user?.role === "AGENT" || user?.role === "ADMIN" || Boolean(user?.agentId);
-  const agentInfo = referralData?.agent;
-  const agentStats = referralData?.stats;
-  const referralCode =
-    agentInfo?.referralCode || user?.referralCode || user?.username || user?.id || "";
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const referralLink =
-    referralData?.referralLink ||
-    (referralCode ? `${origin}/auth/signup?ref=${encodeURIComponent(referralCode)}` : origin);
-  const referencesCount = agentStats?.totalReferred ?? user?.referralCount ?? 0;
-  const tier = getProfileTier(referencesCount);
-  const walletShort = user?.walletAddress
-    ? `${user.walletAddress.substring(0, 4)}...${user.walletAddress.slice(-6)}`
-    : "—";
-  const cardJoinDate = user?.createdAt
-    ? new Date(user.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
-    : user?.joinedAt || "—";
-  const cardStats = {
-    references: fmtInt(referencesCount),
-    transactions: fmtInt(agentStats?.transactions ?? 0),
-    volume: `${fmtInt(agentStats?.volumeTotal ?? 0)} ${agentStats?.currency || "XAF"}`,
-    merchants: fmtInt(agentStats?.merchants ?? 0),
-    countries: fmtInt(agentStats?.countriesServed ?? 0),
-    successRate: `${agentStats?.successRate ?? 0}%`,
-  };
-
   return (
     <div className="min-h-screen bg-[#020617] text-white pb-32 font-sans">
       {/* Ecran de deconnexion (localise) */}
@@ -526,7 +455,7 @@ export default function ProfilePage() {
             <div className="bg-white/5 rounded-[28px] border border-white/10 overflow-hidden">
               {section.items.map((item, iIdx) => {
                 const isEditing = editingField === item.fieldKey;
-                const rawValue = item.fieldKey ? (user as Record<string, string | undefined>)?.[item.fieldKey] || "" : "";
+                const rawValue = item.fieldKey ? (user as unknown as Record<string, string | undefined>)?.[item.fieldKey] || "" : "";
                 
                 return (
                   <div
