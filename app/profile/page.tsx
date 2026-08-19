@@ -15,7 +15,7 @@ import LogoutOverlay from "@/components/LogoutOverlay";
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
 import { QrCode } from "lucide-react";
-import { AdminAccountStatusControl } from "@/components/profile/AdminAccountStatusControl";
+import { DeleteAccountControl } from "@/components/profile/DeleteAccountControl";
 
 interface UserData {
   id: string;
@@ -378,10 +378,25 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* La carte haute et le pied Support ont été retirés de ce profil : la vue commence par les statuts du compte. */}
+      {/* En-tête du profil — version historique */}
+      <div className="relative bg-gradient-to-b from-blue-600/20 to-transparent px-6 pb-8 pt-12">
+        <div className="flex flex-col items-center">
+          <div className="relative">
+            <div className="h-24 w-24 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 p-1 shadow-2xl">
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-[#020617] text-3xl font-black italic">
+                {user?.avatar ? <img src={user.avatar} alt="Photo de profil" className="h-full w-full object-cover" /> : user?.name?.[0]?.toUpperCase() || "P"}
+              </div>
+            </div>
+            <Link href="/profile/edit" aria-label={t("profile.editMyInfo")} className="absolute -bottom-1 -right-1 rounded-full border-4 border-[#020617] bg-blue-600 p-2 shadow-lg transition-transform active:scale-90"><UserPen size={14} className="text-white" /></Link>
+          </div>
+          <h1 className="mt-4 flex items-center gap-2 text-center text-lg font-bold text-balance">{user?.name}{user?.isVerified && <CheckCircle2 size={16} fill="#60a5fa" className="shrink-0 rounded-full border-none bg-white text-[#020617]" />}</h1>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{user?.role === "ADMIN" ? t("profile.administrator") : `${t("profile.pioneerSince")} ${user?.joinedAt}`}</p>
+          <Link href="/profile/edit" className="mt-4 flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-2 text-xs font-bold transition-all hover:bg-white/10 active:scale-95"><UserPen size={14} className="text-blue-400" />{t("profile.editMyInfo")}</Link>
+        </div>
+      </div>
 
       {/* Statistiques rapides */}
-      <div className="grid grid-cols-4 gap-2 px-6 mb-8">
+      <div className="grid grid-cols-3 gap-3 px-6 mb-8">
         <div className="p-3 rounded-3xl bg-white/5 border border-white/10 text-center">
           <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">{t("profile.kycStatus")}</p>
           <p className={`text-sm font-bold ${user?.isVerified ? "text-emerald-400" : "text-amber-400"}`}>
@@ -409,10 +424,6 @@ export default function ProfilePage() {
           </span>
         </button>
       </div>
-      {user?.role === "ADMIN" && user && (
-        <AdminAccountStatusControl currentUserId={user.id} />
-      )}
-
       {/* QR de paiement - cash-in / cash-out via agent */}
       <div className="px-6 mb-8">
         <button
@@ -638,6 +649,8 @@ export default function ProfilePage() {
           <LogOut size={20} />
           {t("profile.secureLogout")}
         </button>
+
+        <DeleteAccountControl />
 
         <div className="flex items-center justify-center gap-2 text-sm font-bold text-blue-400 mb-6">
           <Link href="/legal/terms" className="hover:text-blue-300 transition-colors">
