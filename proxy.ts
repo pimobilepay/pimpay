@@ -110,6 +110,8 @@ function getDestinationByRole(role: string): string {
       return "/bank";
     case "BUSINESS_ADMIN":
       return "/business";
+    case "MERCHANT":
+      return "/merchant";
     case "AGENT":
       return "/hub";
     case "SUPERVISEUR_PRINCIPAL":
@@ -250,7 +252,8 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/dashboard") || 
     pathname.startsWith("/admin") || 
     pathname.startsWith("/bank") || 
-    pathname.startsWith("/business") || 
+    pathname.startsWith("/business") ||
+    pathname.startsWith("/merchant") ||
     pathname.startsWith("/hub") ||
     pathname.startsWith("/supervisor") || 
     pathname.startsWith("/transfer") || 
@@ -309,6 +312,11 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
+  // Protection route /merchant - uniquement pour MERCHANT et ADMIN
+  if (pathname.startsWith("/merchant") && userRole !== "MERCHANT" && !isAdmin) {
+    return NextResponse.redirect(new URL(getDestinationByRole(userRole), req.url));
+  }
+
   // Protection route /hub - uniquement pour AGENT et ADMIN
   if (pathname.startsWith("/hub") && !isAgent && !isAdmin) {
     const dest = getDestinationByRole(userRole);
@@ -334,6 +342,7 @@ export const config = {
     "/admin/:path*",
     "/bank/:path*",
     "/business/:path*",
+    "/merchant/:path*",
     "/hub/:path*",
     "/supervisor/:path*",
     "/profile/:path*",
