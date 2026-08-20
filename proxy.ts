@@ -112,6 +112,8 @@ function getDestinationByRole(role: string): string {
       return "/business";
     case "AGENT":
       return "/hub";
+    case "SUPERVISEUR_PRINCIPAL":
+      return "/supervisor/agents-hub";
     default:
       return "/dashboard";
   }
@@ -199,6 +201,7 @@ export async function proxy(req: NextRequest) {
   const isBankAdmin = userRole === "BANK_ADMIN";
   const isBusinessAdmin = userRole === "BUSINESS_ADMIN";
   const isAgent = userRole === "AGENT";
+  const isPrincipalSupervisor = userRole === "SUPERVISEUR_PRINCIPAL";
 
   // 5.bis MAINTENANCE : on coupe l'accès aux pages applicatives pour tous les
   // rôles non autorisés, y compris les sessions DÉJÀ ouvertes (c'est ce qui
@@ -248,7 +251,8 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/admin") || 
     pathname.startsWith("/bank") || 
     pathname.startsWith("/business") || 
-    pathname.startsWith("/hub") || 
+    pathname.startsWith("/hub") ||
+    pathname.startsWith("/supervisor") || 
     pathname.startsWith("/transfer") || 
     pathname.startsWith("/deposit") || 
     pathname.startsWith("/withdraw") || 
@@ -311,6 +315,11 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
+  // Protection du Hub des Agents : rôle métier dédié uniquement.
+  if (pathname.startsWith("/supervisor") && !isPrincipalSupervisor) {
+    return NextResponse.redirect(new URL(getDestinationByRole(userRole), req.url));
+  }
+
   // Réponse finale : en-têtes de sécurité + no-store sur les pages authentifiées
   const response = applySecurityHeaders(NextResponse.next());
   if (isProtectedPath) {
@@ -326,6 +335,7 @@ export const config = {
     "/bank/:path*",
     "/business/:path*",
     "/hub/:path*",
+    "/supervisor/:path*",
     "/profile/:path*",
     "/transfer/:path*",
     "/deposit/:path*",

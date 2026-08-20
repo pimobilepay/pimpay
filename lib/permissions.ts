@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   // Catégories fonctionnelles fines
   USERS_VIEW: "users.view",
   USERS_MANAGE: "users.manage",
+  USERS_CHANGE_AGENT_SUPERVISOR_ROLE: "users.change_agent_supervisor_role",
   TRANSACTIONS_VIEW: "transactions.view",
   TRANSACTIONS_MANAGE: "transactions.manage",
   KYC_REVIEW: "kyc.review",
@@ -53,6 +54,7 @@ export const ALL_PERMISSIONS: PermissionKey[] = Object.values(PERMISSIONS);
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   "users.view": "Voir les utilisateurs",
   "users.manage": "Gérer les utilisateurs",
+  "users.change_agent_supervisor_role": "Modifier les rôles agent / superviseur",
   "transactions.view": "Voir les transactions",
   "transactions.manage": "Gérer les transactions",
   "kyc.review": "Vérifier les KYC",
