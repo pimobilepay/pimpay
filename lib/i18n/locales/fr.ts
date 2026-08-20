@@ -2282,4 +2282,12 @@ export const fr = {
   },
 } as const;
 
-export type TranslationKeys = typeof fr;
+type WidenTranslation<T> = T extends string
+  ? string
+  : T extends readonly unknown[]
+    ? T
+    : T extends object
+      ? { [K in keyof T]: WidenTranslation<T[K]> }
+      : T;
+
+export type TranslationKeys = WidenTranslation<typeof fr>;

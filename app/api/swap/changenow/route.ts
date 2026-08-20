@@ -109,7 +109,7 @@ function toCNTicker(symbol: string): string {
  * Vérifie si une paire doit être routée vers ChangeNow.
  * Retourne false si l'une des deux devises est TRON/interne.
  */
-export function isChangeNowSwap(from: string, to: string): boolean {
+function isChangeNowSwap(from: string, to: string): boolean {
   const f = from.toUpperCase();
   const t = to.toUpperCase();
   if (SUNIO_TOKENS.has(f) && SUNIO_TOKENS.has(t)) return false; // Géré par Sun.io

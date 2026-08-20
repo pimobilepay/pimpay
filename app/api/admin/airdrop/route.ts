@@ -7,7 +7,7 @@ import { logAdminAction } from "@/lib/adminAudit";
 
 const PROGRAM_ID = "GLOBAL_REFERRAL";
 
-export const ROLES = [
+const ROLES = [
   "USER",
   "AGENT",
   "MERCHANT",

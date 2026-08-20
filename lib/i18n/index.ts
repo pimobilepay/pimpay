@@ -1,5 +1,6 @@
 export { fr } from "./locales/fr";
 export type { TranslationKeys } from "./locales/fr";
+import type { TranslationKeys } from "./locales/fr";
 export { en } from "./locales/en";
 export { zh } from "./locales/zh";
 export { id } from "./locales/id";

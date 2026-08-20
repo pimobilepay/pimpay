@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeftIcon,
@@ -179,8 +179,12 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AccountDetailPage({ params }: { params: { id: string } }) {
+export default function AccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const [accountId, setAccountId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
+  useEffect(() => {
+    void params.then(({ id }) => setAccountId(id));
+  }, [params]);
   const [dateTo, setDateTo] = useState('');
   const [generatingStatement, setGeneratingStatement] = useState(false);
   const [statementGenerated, setStatementGenerated] = useState(false);
@@ -370,7 +374,7 @@ export default function AccountDetailPage({ params }: { params: { id: string } }
               <p className="text-xs text-zinc-500 mt-0.5">20 dernières opérations</p>
             </div>
             <Link
-              href={`/bank/accounts/${params.id}/transactions`}
+              href={`/bank/accounts/${accountId}/transactions`}
               className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 font-medium transition-colors"
             >
               Voir tout

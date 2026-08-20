@@ -1944,7 +1944,7 @@ export default function TreasuryPage() {
             Impossible de charger les donnees de tresorerie. Veuillez reessayer.
           </p>
           <button
-            onClick={fetchTreasury}
+            onClick={() => void fetchTreasury()}
             className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
           >
             <RefreshCw size={14} />
@@ -1981,7 +1981,7 @@ export default function TreasuryPage() {
               <Shield size={18} />
             </button>
             <button
-              onClick={fetchTreasury}
+              onClick={() => void fetchTreasury()}
               className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform"
             >
               <RefreshCw size={18} />
@@ -2112,7 +2112,7 @@ export default function TreasuryPage() {
                         : "Vide"}
                     </div>
                     <button
-                      onClick={fetchSdaOperator}
+                      onClick={() => void fetchSdaOperator()}
                       className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
                       title="Actualiser"
                     >
@@ -2354,7 +2354,7 @@ export default function TreasuryPage() {
                   {sdaOperatorFetchError}
                 </p>
                 <button
-                  onClick={fetchSdaOperator}
+                  onClick={() => void fetchSdaOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
@@ -2368,7 +2368,7 @@ export default function TreasuryPage() {
                   Données non disponibles
                 </p>
                 <button
-                  onClick={fetchSdaOperator}
+                  onClick={() => void fetchSdaOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
@@ -2427,7 +2427,7 @@ export default function TreasuryPage() {
                         : "Vide"}
                     </div>
                     <button
-                      onClick={fetchPiOperator}
+                      onClick={() => void fetchPiOperator()}
                       className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
                       title="Actualiser"
                     >
@@ -2568,7 +2568,7 @@ export default function TreasuryPage() {
                   {piOperatorFetchError}
                 </p>
                 <button
-                  onClick={fetchPiOperator}
+                  onClick={() => void fetchPiOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
@@ -2582,7 +2582,7 @@ export default function TreasuryPage() {
                   Données non disponibles
                 </p>
                 <button
-                  onClick={fetchPiOperator}
+                  onClick={() => void fetchPiOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
@@ -2671,7 +2671,7 @@ export default function TreasuryPage() {
                       {tronOperator.onChainError ? "Erreur réseau" : (tronTab === "TRX" ? tronOperator.trxBalance : tronOperator.usdtBalance) > 0 ? "Actif" : "Vide"}
                     </div>
                     <button
-                      onClick={fetchTronOperator}
+                      onClick={() => void fetchTronOperator()}
                       className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
                       title="Actualiser"
                     >
@@ -2812,7 +2812,7 @@ export default function TreasuryPage() {
                 </p>
                 <p className="text-[9px] text-slate-500 text-center max-w-xs">{tronOperatorFetchError}</p>
                 <button
-                  onClick={fetchTronOperator}
+                  onClick={() => void fetchTronOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />
@@ -2826,7 +2826,7 @@ export default function TreasuryPage() {
                   Données non disponibles
                 </p>
                 <button
-                  onClick={fetchTronOperator}
+                  onClick={() => void fetchTronOperator()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:bg-white/10 transition-colors uppercase tracking-widest"
                 >
                   <RefreshCw size={11} />

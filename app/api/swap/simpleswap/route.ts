@@ -112,7 +112,7 @@ function toSSTicker(symbol: string): { ticker: string; network: string } {
  * Vérifie si une paire doit être routée vers SimpleSwap.
  * Retourne false si l'une des deux devises est TRON interne/interne.
  */
-export function isSimpleSwapSupported(from: string, to: string): boolean {
+function isSimpleSwapSupported(from: string, to: string): boolean {
   const f = from.toUpperCase();
   const t = to.toUpperCase();
   // Sun.io gère les paires TRX internes
