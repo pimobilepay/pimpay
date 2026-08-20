@@ -52,20 +52,16 @@ export default async function RootLayout({
       <head>
         <meta name="google" content="notranslate" />
         {/* [FIX #9] nonce injecté — le navigateur n'exécute que les scripts portant ce nonce */}
-        <script
-          id="theme-strategy"
-          nonce={nonce}
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                try {
-                  const theme = localStorage.getItem("pimpay-theme") || 'dark';
-                  document.documentElement.classList.toggle("dark", theme === "dark");
-                } catch (_) {}
-              })();
-            `,
-          }}
-        />
+        <Script id="theme-strategy" strategy="beforeInteractive" nonce={nonce}>
+          {`
+            (function () {
+              try {
+                const theme = localStorage.getItem("pimpay-theme") || "dark";
+                document.documentElement.classList.toggle("dark", theme === "dark");
+              } catch (_) {}
+            })();
+          `}
+        </Script>
       </head>
 
       <body className="antialiased overflow-x-hidden notranslate bg-[#02040a] text-white selection:bg-blue-500/30">
