@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import * as jose from "jose"
 import { cookies } from 'next/headers'
@@ -276,11 +275,12 @@ export async function getAuthPayload(): Promise<{ id: string; role?: string; use
 /**
  * Verify auth for middleware
  */
-export async function verifyAuth(req: NextRequest) {
+export async function verifyAuth(req: Request) {
   try {
     const authHeader = req.headers.get('authorization');
-    const cookieToken = req.cookies.get('token')?.value;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
+  const cookieHeader = req.headers.get('cookie') || '';
+  const cookieToken = cookieHeader.split(';').map((part) => part.trim().split('=')).find(([key]) => key === 'token')?.[1];
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
 
     if (!token) return null;
 

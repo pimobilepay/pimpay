@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyJWT } from "@/lib/auth";
 
@@ -27,14 +26,21 @@ export interface TokenPayload {
  * Correction complète : valider le token via l'API Pi Network (POST /v2/me)
  * avant de l'accepter dans getAuthUserId() — voir commentaire dans lib/auth.ts.
  */
-export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null> {
+export async function verifyAuth(req: Request): Promise<TokenPayload | null> {
   try {
     // 1. Authorization header (Bearer token)
     let token = req.headers.get("authorization")?.split(" ")[1];
 
     // 2. Cookies JWT classiques signés
     if (!token) {
-      token = req.cookies.get("token")?.value || req.cookies.get("pimpay_token")?.value;
+      const cookies = Object.fromEntries(
+        (req.headers.get("cookie") || "")
+          .split(";")
+          .map((part) => part.trim().split("="))
+          .filter(([key]) => key)
+          .map(([key, ...value]) => [key, value.join("=")])
+      ) as Record<string, string>;
+      token = cookies.token || cookies.pimpay_token;
     }
 
     // NOTE: pi_session_token délibérément ignoré ici.
@@ -78,7 +84,7 @@ export async function verifyAuth(req: NextRequest): Promise<TokenPayload | null>
  * adminAuth - Vérifie spécifiquement le rôle ADMIN
  * @returns TokenPayload si valide, null sinon.
  */
-export async function adminAuth(req: NextRequest): Promise<TokenPayload | null> {
+export async function adminAuth(req: Request): Promise<TokenPayload | null> {
   const payload = await verifyAuth(req);
 
   // Vérification stricte du rôle

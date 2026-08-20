@@ -1,6 +1,6 @@
 import type { TranslationKeys } from "./fr";
 
-export const en: TranslationKeys = {
+export const en = {
   common: {
     loading: "Loading...",
     error: "Error",
@@ -295,7 +295,6 @@ export const en: TranslationKeys = {
     includingFees: "(Including 0.01 fees)",
     availableBalance: "available",
     syncing: "Syncing...",
-    insufficientFunds: "Insufficient funds",
     authorizeTransfer: "Authorize Transfer",
     pinValidation: "PIN Validation",
     signatureAccepted: "Signature accepted by Mainnet",

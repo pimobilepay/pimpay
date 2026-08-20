@@ -4,7 +4,7 @@ import type { TranslationKeys } from "./fr";
 // NOTE: Ce fichier contient pour l'instant les chaines en anglais comme base.
 // Remplacez les valeurs par leur traduction chinoise. La structure des cles
 // doit rester strictement identique a fr.ts / en.ts.
-export const zh: TranslationKeys = {
+export const zh = {
   common: {
     loading: "加载中...",
     error: "Error",
@@ -266,7 +266,7 @@ export const zh: TranslationKeys = {
     recentRecipients: "最近的收款人",
     newTransfer: "新转账",
     secureProtocol: "PIMOBIPAY 安全协议",
-    fundSource: "资金�����源",
+    fundSource: "资金�������源",
     loadingWallets: "加载中...",
     availableSuffix: "可用",
     noWallet: "无钱包",
@@ -1055,7 +1055,7 @@ export const zh: TranslationKeys = {
       amountSent: "已发送金额",
       recipient: "收款人",
       date: "日期",
-      status: "状态",
+      status: "���态",
       statusProcessing: "处理中",
       statusBlockchainConfirmed: "区块链已确认",
       statusConfirmed: "已确认",
@@ -2049,7 +2049,7 @@ export const zh: TranslationKeys = {
     invalidImage: "请选择有效的图片",
     imageTooLarge: "图片过大（最大 10 MB）",
     addCaption: "请添加文字说明后再发送图片",
-    removeImage: "移除图片",
+    removeImage: "移��图片",
     faq: {
       deposit: "如何充值？",
       withdraw: "如何提现？",

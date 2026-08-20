@@ -1,6 +1,6 @@
+import type { TranslationKeys } from "./locales/fr";
 export { fr } from "./locales/fr";
 export type { TranslationKeys } from "./locales/fr";
-import type { TranslationKeys } from "./locales/fr";
 export { en } from "./locales/en";
 export { zh } from "./locales/zh";
 export { id } from "./locales/id";
@@ -14,8 +14,8 @@ export type Locale = "fr" | "en" | "zh" | "id" | "es" | "pt" | "ar" | "hi" | "ja
 
 export const locales: Record<Locale, () => Promise<TranslationKeys>> = {
   fr: async () => (await import("./locales/fr")).fr,
-  en: async () => (await import("./locales/en")).en,
-  zh: async () => (await import("./locales/zh")).zh,
+  en: async () => (await import("./locales/en")).en as TranslationKeys,
+  zh: async () => (await import("./locales/zh")).zh as TranslationKeys,
   id: async () => (await import("./locales/id")).id,
   es: async () => (await import("./locales/es")).es,
   pt: async () => (await import("./locales/pt")).pt,
