@@ -7,6 +7,6 @@ export default defineConfig({
   },
   // Supprime ou commente 'engine: classic' pour laisser Prisma utiliser le mode moderne/optimisé
   datasource: {
-    url: process.env.DATABASE_URL,
+    url: process.env.DATABASE_URL ?? "postgresql://localhost:5432/pimpay",
   },
 });

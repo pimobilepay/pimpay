@@ -23,6 +23,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import AgentCashOutSuccessModal from '@/components/hub/AgentCashOutSuccessModal'
 import { Button } from '@/components/ui/button'

@@ -1210,6 +1210,7 @@ enum TransactionType {
   DEPOSIT
   PAYMENT
   EXCHANGE
+  SWAP
   STAKING_REWARD
   AIRDROP
   CARD_PURCHASE
@@ -1230,8 +1231,10 @@ enum TransactionType {
 enum TransactionStatus {
   PENDING
   SUCCESS
+  COMPLETED
   FAILED
   CANCELLED
+  REFUNDED
   PENDING_CONFIRMATION
   EXPIRED
   REJECTED
@@ -1241,6 +1244,7 @@ enum SupportStatus {
   OPEN
   IN_PROGRESS
   CLOSED
+  RESOLVED
 }
 
 enum LogLevel {

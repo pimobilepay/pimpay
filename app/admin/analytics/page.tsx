@@ -1513,13 +1513,13 @@ export default function AdminAnalyticsPage() {
                 <ZoomableGroup
                   center={mapPosition.coordinates}
                   zoom={mapPosition.zoom}
-                  onMoveEnd={({ coordinates, zoom }) => setMapPosition({ coordinates: coordinates as [number, number], zoom })}
+                  onMoveEnd={({ coordinates, zoom }: { coordinates: [number, number]; zoom: number }) => setMapPosition({ coordinates, zoom })}
                   minZoom={0.5}
                   maxZoom={10}
                 >
                   <Geographies geography={geoUrl}>
-                    {({ geographies }) =>
-                      geographies.map((geo) => (
+                    {({ geographies }: { geographies: Array<{ rsmKey: string }> }) =>
+                      geographies.map((geo: { rsmKey: string }) => (
                         <Geography
                           key={geo.rsmKey}
                           geography={geo}
