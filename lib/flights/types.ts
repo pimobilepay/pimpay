@@ -42,8 +42,10 @@ export interface FlightOffer {
 export interface FlightProvider {
   searchAirports(query: string): Promise<Airport[]>;
   searchFlights(request: FlightSearchRequest): Promise<FlightOffer[]>;
-  getPrice(offerId: string): Promise<FlightOffer | null>;
-  createBooking(input: unknown): Promise<{ bookingId: string; status: string }>;
+  priceFlight(offerId: string): Promise<FlightOffer | null>;
+  createBooking(input: unknown): Promise<{ bookingId: string; status: string; bookingReference?: string }>;
+  getBooking(bookingId: string): Promise<unknown>;
+  cancelBooking(bookingId: string): Promise<unknown>;
 }
 
 export class FlightProviderError extends Error {
