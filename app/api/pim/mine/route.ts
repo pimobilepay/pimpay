@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
-import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
+import { Prisma, TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 
 // Recompense de minage fixe par session
 const MINE_REWARD = 5;
@@ -78,30 +78,31 @@ export async function POST() {
       return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
     }
 
-    // Verification anti-triche cote serveur : le cooldown est calcule a
-    // partir de la derniere session de minage enregistree en base.
-    const lastMine = await getLastMine(userId);
-    if (lastMine) {
-      const nextMineTime = lastMine.createdAt.getTime() + COOLDOWN_MS;
-      if (Date.now() < nextMineTime) {
-        const wallet = await prisma.wallet.findUnique({
-          where: { userId_currency: { userId, currency: "PIM" } },
-        });
-        return NextResponse.json(
-          {
-            error: "Minage indisponible. Revenez plus tard.",
-            ...buildStatus(lastMine.createdAt, wallet?.balance ?? 0),
-          },
-          { status: 429 }
-        );
-      }
-    }
-
     const now = new Date();
     const reference = `MINE-${userId.slice(-6).toUpperCase()}-${now.getTime()}`;
     const externalId = `MINE-${userId}-${now.getTime()}`;
 
+    // Verrou applicatif par utilisateur : deux clics/requêtes simultanés ne
+    // peuvent plus passer le cooldown avant d'incrémenter le même wallet.
     const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`pim-mine:${userId}`}))`);
+
+      const lastMine = await tx.transaction.findFirst({
+        where: {
+          toUserId: userId,
+          currency: "PIM",
+          externalId: { startsWith: "MINE-" },
+          status: TransactionStatus.SUCCESS,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (lastMine && Date.now() < lastMine.createdAt.getTime() + COOLDOWN_MS) {
+        const wallet = await tx.wallet.findUnique({
+          where: { userId_currency: { userId, currency: "PIM" } },
+        });
+        return { cooldown: true, lastMine, pimWallet: wallet, transaction: null };
+      }
+
       const pimWallet = await tx.wallet.upsert({
         where: { userId_currency: { userId, currency: "PIM" } },
         update: { balance: { increment: MINE_REWARD } },
@@ -135,6 +136,16 @@ export async function POST() {
       return { pimWallet, transaction };
     });
 
+    if (result.cooldown && result.lastMine) {
+      return NextResponse.json(
+        {
+          error: "Minage indisponible. Revenez plus tard.",
+          ...buildStatus(result.lastMine.createdAt, result.pimWallet?.balance ?? 0),
+        },
+        { status: 429 }
+      );
+    }
+
     try {
       await prisma.notification.create({
         data: {
@@ -151,7 +162,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      ...buildStatus(now, result.pimWallet.balance),
+      ...buildStatus(now, result.pimWallet?.balance ?? 0),
     });
   } catch (error: any) {
     console.error("[PIM_MINE_CLAIM_ERROR]:", error.message);

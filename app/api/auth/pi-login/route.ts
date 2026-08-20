@@ -35,32 +35,44 @@ export async function POST(request: Request) {
 
     const { accessToken, piUserId, username, phone } = await request.json();
 
-    if (!piUserId || !accessToken) {
+    if (
+      typeof piUserId !== "string" ||
+      !piUserId.trim() ||
+      typeof accessToken !== "string" ||
+      !accessToken.trim()
+    ) {
       return NextResponse.json(
         { error: "UID et accessToken requis" },
         { status: 400 }
       );
     }
 
-    // Verification du token aupres de Pi Platform API
-    let verifiedUser: any = null;
+    // Le token Pi doit être validé par Pi Platform avant toute création ou mise à jour.
+    // Ne jamais faire confiance à piUserId/username fournis par le navigateur si Pi est indisponible.
+    let verifiedUser: { uid?: string; username?: string; credentials?: { phone_number?: string } };
     try {
       const piRes = await fetch("https://api.minepi.com/v2/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
       });
 
-      if (piRes.ok) {
-        verifiedUser = await piRes.json();
+      if (!piRes.ok) {
+        return NextResponse.json({ error: "Authentification Pi invalide" }, { status: 401 });
       }
+
+      verifiedUser = await piRes.json();
     } catch (err) {
-      console.warn("[PIMOBIPAY] Verification Pi API echouee, fallback local:", err);
+      console.error("[PIMOBIPAY] Verification Pi API echouee:", err);
+      return NextResponse.json({ error: "Service Pi temporairement indisponible" }, { status: 503 });
     }
 
-    // On utilise les donnees verifiees si disponibles, sinon celles envoyees par le client
-    const finalPiUserId = verifiedUser?.uid || piUserId;
-    const finalUsername = verifiedUser?.username || username;
-    // Pi Network peut retourner le phone dans credentials ou dans user
-    const finalPhone = verifiedUser?.credentials?.phone_number || phone || null;
+    if (!verifiedUser.uid || verifiedUser.uid !== piUserId) {
+      return NextResponse.json({ error: "Identité Pi invalide" }, { status: 401 });
+    }
+
+    const finalPiUserId = verifiedUser.uid;
+    const finalUsername = verifiedUser.username || username || `pi_${finalPiUserId.slice(0, 8)}`;
+    const finalPhone = verifiedUser.credentials?.phone_number || phone || null;
 
     // Champs selectionnes apres chaque lecture/ecriture du User
     const userSelect = {
@@ -221,6 +233,7 @@ export async function POST(request: Request) {
       });
     } catch (e) {
       console.error("[PIMOBIPAY] Session creation error:", e);
+      return NextResponse.json({ error: "Impossible de créer la session" }, { status: 503 });
     }
 
     prisma.notification.create({
