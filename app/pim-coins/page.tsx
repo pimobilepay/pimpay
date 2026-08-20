@@ -22,7 +22,9 @@ export default function PimCoinsPage() {
       }
       if (res.ok) {
         const data = await res.json();
-        setPimBalance(data.balance || 0);
+        if (typeof data.balance === "number" && Number.isFinite(data.balance)) {
+          setPimBalance(data.balance);
+        }
       }
     } catch (error) {
       console.error("Error fetching PIM balance:", error);

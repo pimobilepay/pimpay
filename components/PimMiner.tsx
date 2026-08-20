@@ -40,6 +40,9 @@ export function PimMiner({ onBalanceChange }: PimMinerProps) {
       const res = await fetch("/api/pim/mine", { cache: "no-store" });
       if (res.ok) {
         const data: MineStatus = await res.json();
+        if (typeof data.balance !== "number" || !Number.isFinite(data.balance)) {
+          throw new Error("Solde PIM invalide");
+        }
         setStatus(data);
         setRemaining(data.remainingMs);
         onBalanceChange?.(data.balance);
