@@ -6,9 +6,10 @@ import { verifyAuth } from "@/lib/auth"; // Utilisation du helper standard pour 
 
 export async function GET(
   req: NextRequest, 
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // 1. Correction : Ajout du await pour résoudre la promesse
     const payload = await verifyAuth(req) as any;
     
@@ -18,7 +19,7 @@ export async function GET(
 
     // 2. Récupération de la transaction avec les relations correctes
     const tx = await prisma.transaction.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         // CORRECTION : Utilisation de 'avatar' à la place de 'image'
         fromUser: { 

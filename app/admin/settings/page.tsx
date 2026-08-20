@@ -135,6 +135,8 @@ export default function SystemSettings() {
   const [searchAudit, setSearchAudit] = useState('');
   const [showAllAudit, setShowAllAudit] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const announcementFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingAnnouncementImage, setUploadingAnnouncementImage] = useState(false);
   
   // New feature states
   const [apiKeys, setApiKeys] = useState<{ id: string; name: string; key: string; lastUsed: string; active: boolean }[]>([

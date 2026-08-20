@@ -41,6 +41,12 @@ const languages: LanguageOption[] = [
     flag: "ZH",
     region: "China, Asie",
   },
+  { code: "id", label: "Indonésien", nativeLabel: "Bahasa Indonesia", flag: "ID", region: "Indonésie, Asie" },
+  { code: "es", label: "Espagnol", nativeLabel: "Español", flag: "ES", region: "Espagne, Amérique latine" },
+  { code: "pt", label: "Portugais", nativeLabel: "Português", flag: "PT", region: "Portugal, Brésil" },
+  { code: "ar", label: "Arabe", nativeLabel: "العربية", flag: "AR", region: "Moyen-Orient, Afrique" },
+  { code: "hi", label: "Hindi", nativeLabel: "हिन्दी", flag: "HI", region: "Inde, Asie" },
+  { code: "ja", label: "Japonais", nativeLabel: "日本語", flag: "JA", region: "Japon, Asie" },
 ];
 
 export default function LanguagePage() {
@@ -51,8 +57,9 @@ export default function LanguagePage() {
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (saved === "en" || saved === "fr" || saved === "zh") {
-      setCurrentLocale(saved);
+    const supportedLocales: Locale[] = ["fr", "en", "zh", "id", "es", "pt", "ar", "hi", "ja"];
+    if (supportedLocales.includes(saved as Locale)) {
+      setCurrentLocale(saved as Locale);
     }
   }, []);
 
@@ -62,13 +69,11 @@ export default function LanguagePage() {
     setCurrentLocale(code);
     localStorage.setItem(LOCALE_STORAGE_KEY, code);
 
-    toast.success(
-      code === "fr"
-        ? "Langue changee en Francais"
-        : code === "zh"
-          ? "语言已切换为中文"
-          : "Language changed to English"
-    );
+    const languageNames: Record<Locale, string> = {
+      fr: "Français", en: "English", zh: "中文", id: "Bahasa Indonesia",
+      es: "Español", pt: "Português", ar: "العربية", hi: "हिन्दी", ja: "日本語",
+    };
+    toast.success(`Langue changée : ${languageNames[code]}`);
 
     // Refresh the page so all components pick up the new locale
     setTimeout(() => {

@@ -4,18 +4,24 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { fr as frDict } from "@/lib/i18n/locales/fr";
 import { en as enDict } from "@/lib/i18n/locales/en";
 import { zh as zhDict } from "@/lib/i18n/locales/zh";
+import { id as idDict } from "@/lib/i18n/locales/id";
+import { es as esDict } from "@/lib/i18n/locales/es";
+import { pt as ptDict } from "@/lib/i18n/locales/pt";
+import { ar as arDict } from "@/lib/i18n/locales/ar";
+import { hi as hiDict } from "@/lib/i18n/locales/hi";
+import { ja as jaDict } from "@/lib/i18n/locales/ja";
 import type { Locale } from "@/lib/i18n";
 import { LOCALE_STORAGE_KEY, detectBrowserLocale } from "@/lib/i18n";
 
-const dictionaries = { fr: frDict, en: enDict, zh: zhDict } as const;
+const dictionaries = { fr: frDict, en: enDict, zh: zhDict, id: idDict, es: esDict, pt: ptDict, ar: arDict, hi: hiDict, ja: jaDict } as const;
 
 // Utility: deep get by dot-notation key, e.g. "auth.login.title"
-function getNestedValue(obj: any, path: string): string {
+function getNestedValue(obj: unknown, path: string): string {
   const keys = path.split(".");
-  let current = obj;
+  let current: unknown = obj;
   for (const key of keys) {
     if (current == null || typeof current !== "object") return path;
-    current = current[key];
+    current = (current as Record<string, unknown>)[key];
   }
   return typeof current === "string" ? current : path;
 }
@@ -33,7 +39,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(LOCALE_STORAGE_KEY) as Locale | null;
-    if (saved && (saved === "fr" || saved === "en" || saved === "zh")) {
+    const supportedLocales: Locale[] = ["fr", "en", "zh", "id", "es", "pt", "ar", "hi", "ja"];
+    if (saved && supportedLocales.includes(saved)) {
       setLocaleState(saved);
     } else {
       const detected = detectBrowserLocale();
@@ -47,6 +54,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
     // Update the html lang attribute
     document.documentElement.lang = newLocale;
+    document.documentElement.dir = newLocale === "ar" ? "rtl" : "ltr";
   }, []);
 
   const t = useCallback(
