@@ -1,11 +1,34 @@
-import type { Metadata } from "next";
-import { FlightSearch } from "@/components/mpay/flight-search";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Flight Tickets | PIMOBIPAY",
-  description: "Search flights worldwide from PiMobiPay.",
-};
+import { useState } from "react";
+import { ArrowLeft, CalendarDays, Clock3, Plane, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+type Flight = { flight?: { iata?: string; number?: string; date?: string; status?: string }; airline?: { name?: string; iata?: string }; departure?: { airport?: string; iata?: string; scheduled?: string; estimated?: string; terminal?: string; gate?: string }; arrival?: { airport?: string; iata?: string; scheduled?: string; estimated?: string; terminal?: string; gate?: string } };
+
+const formatTime = (value?: string) => value ? new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
+const formatDate = (value?: string) => value ? new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)) : "—";
 
 export default function FlightsPage() {
-  return <FlightSearch />;
+  const router = useRouter();
+  const [flightNumber, setFlightNumber] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [results, setResults] = useState<Flight[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function search(event: React.FormEvent) {
+    event.preventDefault(); setLoading(true); setError("");
+    try { const response = await fetch(`/api/flights/search?flight=${encodeURIComponent(flightNumber)}&date=${date}`); const data = await response.json(); if (!response.ok) throw new Error(data.error); setResults(data.flights ?? []); }
+    catch (caught) { setResults([]); setError(caught instanceof Error ? caught.message : "Recherche indisponible"); }
+    finally { setLoading(false); }
+  }
+
+  return <main className="min-h-screen bg-background text-foreground"><div className="mx-auto max-w-6xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
+    <header className="flex items-center justify-between"><button type="button" onClick={() => router.back()} aria-label="Retour" className="flex size-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:bg-muted"><ArrowLeft className="size-5" /></button><div className="flex items-center gap-2 text-sm font-black tracking-tight"><span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Plane className="size-4" /></span> MPay Flight</div><div className="hidden items-center gap-2 text-xs font-semibold text-muted-foreground sm:flex"><ShieldCheck className="size-4 text-primary" /> Données sécurisées</div></header>
+    <section className="mt-12 max-w-3xl"><p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-primary"><Sparkles className="size-4" /> Flight intelligence</p><h1 className="mt-4 text-balance text-4xl font-black tracking-tight sm:text-6xl">Voyagez avec une longueur d&apos;avance.</h1><p className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground">Suivez le statut de votre vol et consultez les horaires en temps réel, dans une expérience MPay claire et fiable.</p></section>
+    <form onSubmit={search} className="mt-10 rounded-3xl border bg-card p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-center gap-2 text-sm font-bold"><Search className="size-4 text-primary" /> Rechercher un vol</div><div className="grid gap-4 md:grid-cols-[1fr_190px_auto]"><label className="flex flex-col gap-2 text-xs font-bold text-muted-foreground">Numéro de vol<input required minLength={3} value={flightNumber} onChange={e => setFlightNumber(e.target.value.toUpperCase())} placeholder="Ex. AF123" className="h-12 rounded-xl border bg-background px-4 text-sm font-bold text-foreground outline-none ring-primary transition focus:ring-2" /></label><label className="flex flex-col gap-2 text-xs font-bold text-muted-foreground">Date<input type="date" required value={date} onChange={e => setDate(e.target.value)} className="h-12 rounded-xl border bg-background px-4 text-sm font-bold text-foreground outline-none ring-primary transition focus:ring-2" /></label><button disabled={loading} className="mt-auto h-12 rounded-xl bg-primary px-6 text-sm font-black text-primary-foreground transition hover:opacity-90 disabled:opacity-60">{loading ? "Recherche…" : "Suivre le vol"}</button></div></form>
+    {error && <div role="alert" className="mt-5 rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-semibold text-destructive">{error}</div>}
+    <section className="mt-8 grid gap-5">{results.map((item, index) => <article key={`${item.flight?.iata}-${index}`} className="rounded-3xl border bg-card p-5 shadow-sm sm:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-widest text-muted-foreground">{item.airline?.name ?? "Compagnie aérienne"}</p><h2 className="mt-1 text-2xl font-black">{item.flight?.iata ?? item.flight?.number ?? flightNumber}</h2><p className="mt-1 text-sm text-muted-foreground">{formatDate(item.flight?.date)}</p></div><span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-black uppercase text-primary">{item.flight?.status ?? "programmé"}</span></div><div className="mt-8 grid gap-6 sm:grid-cols-[1fr_auto_1fr] sm:items-center"><div><p className="text-3xl font-black">{formatTime(item.departure?.estimated ?? item.departure?.scheduled)}</p><p className="mt-1 font-black">{item.departure?.iata ?? "—"}</p><p className="mt-1 text-xs text-muted-foreground">{item.departure?.airport ?? "Aéroport de départ"}</p><p className="mt-3 text-xs font-semibold text-muted-foreground">Terminal {item.departure?.terminal ?? "—"} · Porte {item.departure?.gate ?? "—"}</p></div><div className="hidden items-center gap-2 text-muted-foreground sm:flex"><div className="h-px w-16 bg-border" /><Clock3 className="size-4 text-primary" /><div className="h-px w-16 bg-border" /></div><div className="sm:text-right"><p className="text-3xl font-black">{formatTime(item.arrival?.estimated ?? item.arrival?.scheduled)}</p><p className="mt-1 font-black">{item.arrival?.iata ?? "—"}</p><p className="mt-1 text-xs text-muted-foreground">{item.arrival?.airport ?? "Aéroport d’arrivée"}</p><p className="mt-3 text-xs font-semibold text-muted-foreground">Terminal {item.arrival?.terminal ?? "—"} · Porte {item.arrival?.gate ?? "—"}</p></div></div></article>)}{!loading && !error && results.length === 0 && <div className="rounded-3xl border border-dashed bg-card/60 px-6 py-14 text-center"><CalendarDays className="mx-auto size-8 text-primary" /><p className="mt-4 font-black">Votre suivi de vol commence ici</p><p className="mt-2 text-sm text-muted-foreground">Saisissez un numéro de vol pour afficher son statut et ses horaires.</p></div>}</section>
+  </div></main>;
 }
