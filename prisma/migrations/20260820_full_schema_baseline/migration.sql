@@ -2,10 +2,18 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "FlightBookingStatus" AS ENUM ('PENDING', 'PROCESSING', 'CONFIRMED', 'FAILED', 'CANCELLED', 'REFUNDED');
-
 -- CreateEnum
-CREATE TYPE "PaymentRequestStatus" AS ENUM ('PENDING', 'PAID', 'CANCELLED', 'EXPIRED');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'FlightBookingStatus') THEN
+        CREATE TYPE "FlightBookingStatus" AS ENUM ('PENDING', 'PROCESSING', 'CONFIRMED', 'CANCELLED');
+    END IF;
+END $$;
+--  CreateEnum
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PaymentRequestStatus') THEN
+        CREATE TYPE "PaymentRequestStatus" AS ENUM ('PENDING', 'PAID', 'CANCELLED', 'EXPIRED');
+    END IF;
+END $$;
 
 -- CreateEnum
 CREATE TYPE "CardType" AS ENUM ('CLASSIC', 'GOLD', 'BUSINESS', 'ULTRA');
