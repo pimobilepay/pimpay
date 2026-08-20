@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { clearSessionKeepLanguage } from "@/lib/clear-session";
+import { performClientLogout } from "@/lib/client-logout";
 
 /**
  * Hook partagé — déconnexion forcée immédiate.
@@ -13,36 +12,9 @@ import { clearSessionKeepLanguage } from "@/lib/clear-session";
  *  4. Redirect vers /auth/login
  */
 export function useForceLogout() {
-  const router = useRouter();
-
   const forceLogout = useCallback(async () => {
-    // 1. Supprimer la session côté serveur
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch {
-      // Continuer même si l'API échoue
-    }
-
-    // 2. Purger tous les cookies de session
-    const cookiesToClear = [
-      "pimpay_token",
-      "token",
-      "pi_session_token",
-      "next-auth.session-token",
-      "next-auth.csrf-token",
-    ];
-    cookiesToClear.forEach((name) => {
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    });
-
-    // 3. Vider le storage local (en conservant le choix de langue)
-    clearSessionKeepLanguage();
-
-    // 4. Rediriger et invalider le cache Next.js
-    router.push("/auth/login");
-    router.refresh();
-  }, [router]);
+    await performClientLogout();
+  }, []);
 
   return { forceLogout };
 }

@@ -16,6 +16,7 @@ import { ReferralProgram } from "@/components/ReferralProgram";
 import { PaymentQRModal } from "@/components/profile/PaymentQRModal";
 import { QrCode } from "lucide-react";
 import { DeleteAccountControl } from "@/components/profile/DeleteAccountControl";
+import { performClientLogout } from "@/lib/client-logout";
 
 interface UserData {
   id: string;
@@ -648,22 +649,10 @@ export default function ProfilePage() {
 
         {/* Bouton deconnexion */}
         <button
-          onClick={async () => {
+          onClick={() => {
             if (loggingOut) return;
             setLoggingOut(true);
-            // Signale au SessionGuard qu'il s'agit d'une déconnexion
-            // VOLONTAIRE pour éviter le faux toast "déconnecté par
-            // l'administrateur" pendant l'appel de déconnexion.
-            window.dispatchEvent(new Event("pimpay:logging-out"));
-            try {
-              await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-            } catch {
-              /* forcer la deconnexion meme en cas d'erreur reseau */
-            }
-            toast.success(t("settings.logoutSuccess"));
-            setTimeout(() => {
-              window.location.href = "/auth/login";
-            }, 700);
+            void performClientLogout();
           }}
           disabled={loggingOut}
           className="w-full flex items-center justify-center gap-3 p-5 rounded-[28px] bg-red-500/10 text-red-500 font-bold hover:bg-red-500/20 transition-all mb-8 active:scale-95 disabled:opacity-60"

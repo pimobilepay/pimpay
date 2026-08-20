@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { clearSessionKeepLanguage } from "@/lib/clear-session";
+import { performClientLogout } from "@/lib/client-logout";
 import { useLanguage } from "@/context/LanguageContext";
 
 const SESSION_CHECK_INTERVAL = 10000; // 10 seconds - for instant logout detection across devices
@@ -62,37 +62,17 @@ export default function SessionGuard({ children }: SessionGuardProps) {
   }, []);
 
   const forceLogout = useCallback(async (reason: string) => {
-    // Nettoyer les cookies et localStorage
-    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-    document.cookie = "pi_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-    document.cookie = "pimpay_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-    clearSessionKeepLanguage();
-
-    // Session expirée / token invalide → l'utilisateur n'est simplement plus
-    // connecté : on ne montre AUCUN message alarmant, on redirige directement
-    // vers la page de connexion.
+    // Afficher l'information avant la navigation dure, puis utiliser le même
+    // nettoyage que la déconnexion volontaire.
     if (reason === "session_revoked") {
-      if (selfRevokedRef.current) {
-        // L'utilisateur a lui-même révoqué sa propre session depuis settings
-        // (ex: "Déconnecter les autres appareils" ou révocation d'une session active)
-        // → pas de toast d'erreur alarmant, juste une info neutre
-        toast.info(t("sessionGuard.revokedBySelf"), { duration: 3000 });
-      } else {
-        // Révocation par l'admin ou depuis un autre appareil : on garde une
-        // information car ce cas est involontaire et doit être signalé.
-        toast.error(t("sessionGuard.revokedByAdmin"), {
-          duration: 6000,
-        });
-      }
+      toast[selfRevokedRef.current ? "info" : "error"](
+        t(selfRevokedRef.current ? "sessionGuard.revokedBySelf" : "sessionGuard.revokedByAdmin"),
+        { duration: selfRevokedRef.current ? 3000 : 6000 },
+      );
     }
-    // Pour "session_expired" et "invalid_token" : pas de toast → redirection directe.
-
     selfRevokedRef.current = false;
-
-    // Rediriger vers la page de connexion
-    router.replace("/auth/login");
-    router.refresh();
-  }, [router, t]);
+    await performClientLogout();
+  }, [t]);
 
   const checkSession = useCallback(async () => {
     // Éviter les vérifications en parallèle

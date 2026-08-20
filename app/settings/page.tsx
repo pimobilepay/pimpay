@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BottomNav } from "@/components/bottom-nav";
 import { useLanguage } from "@/context/LanguageContext";
-import { clearSessionKeepLanguage } from "@/lib/clear-session";
+import { performClientLogout } from "@/lib/client-logout";
 
 interface SettingItem {
   icon: React.ReactNode;
@@ -90,52 +90,9 @@ export default function SettingsPage() {
   const userId = user?.id?.substring(0, 8).toUpperCase() || "ID-WAIT";
 
   const handleLogout = async () => {
-    // Signale au SessionGuard qu'il s'agit d'une déconnexion VOLONTAIRE, pour
-    // éviter que sa vérification périodique ne détecte la session en cours
-    // d'invalidation et affiche par erreur le toast "déconnecté par
-    // l'administrateur" pendant les quelques centaines de ms de l'appel API.
-    window.dispatchEvent(new Event("pimpay:logging-out"));
-    try {
-      const loadingToast = toast.loading(t("settings.closingSession"));
-
-      // 1. Terminer la session côté serveur
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }).catch(() => { /* continuer même si l'API échoue */ });
-
-      // 2. Purger TOUS les cookies de session (même logique que l'admin)
-      const cookiesToClear = [
-        "pimpay_token",
-        "token",
-        "pi_session_token",
-        "next-auth.session-token",
-        "next-auth.csrf-token",
-      ];
-      cookiesToClear.forEach((name) => {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-      });
-
-      // 3. Vider le storage local (en conservant le choix de langue)
-      clearSessionKeepLanguage();
-
-      toast.dismiss(loadingToast);
-      toast.success(t("settings.logoutSuccess"));
-
-      // 4. Rediriger et invalider le cache Next.js
-      router.push("/auth/login");
-      router.refresh();
-    } catch (error) {
-      console.error("[v0] Logout error:", error);
-      // Déconnexion locale de secours
-      ["pimpay_token", "token", "pi_session_token"].forEach((name) => {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      });
-      clearSessionKeepLanguage();
-      toast.success(t("settings.logoutSuccess"));
-      router.push("/auth/login");
-    }
+    const loadingToast = toast.loading(t("settings.closingSession"));
+    toast.dismiss(loadingToast);
+    await performClientLogout();
   };
 
   const toggleTheme = () => {

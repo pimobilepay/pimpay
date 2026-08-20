@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, LayoutDashboard, Wallet, Settings, Shield, LogOut, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { performClientLogout } from '@/lib/client-logout';
 
 // Utilise "export const" pour que { Sidebar } fonctionne
 export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
@@ -67,7 +68,11 @@ export const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           ))}
         </nav>
 
-        <button className="flex items-center gap-4 px-4 py-4 text-rose-500 font-bold uppercase text-xs tracking-widest mt-auto border-t border-white/5">
+        <button
+          type="button"
+          onClick={() => void performClientLogout()}
+          className="flex items-center gap-4 px-4 py-4 text-rose-500 font-bold uppercase text-xs tracking-widest mt-auto border-t border-white/5"
+        >
           <LogOut size={20} />
           Déconnexion
         </button>
