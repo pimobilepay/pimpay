@@ -115,6 +115,7 @@ model User {
   virtualCards         VirtualCard[]
   wallets              Wallet[]
   agentFloats          AgentFloat[]     @relation("user_agent_floats")
+  flightBookings       FlightBooking[]
 }
 
 /// CAISSE (FLOAT) D'UN AGENT — strictement separee du wallet personnel.
@@ -431,11 +432,46 @@ model Transaction {
   qrPayment       QRPayment?        @relation(fields: [qrPaymentId], references: [id])
   toUser          User?             @relation("tx_to_user", fields: [toUserId], references: [id])
   toWallet        Wallet?           @relation("tx_to_wallet", fields: [toWalletId], references: [id])
-
+  flightBooking   FlightBooking?
+  
   @@index([fromUserId])
   @@index([toUserId])
   @@index([reference])
   @@index([externalId])
+}
+
+enum FlightBookingStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+model FlightBooking {
+  id                  String             @id @default(cuid())
+  userId              String
+  provider            String             @default("DUFFEL")
+  providerBookingId   String?
+  bookingReference    String?
+  status              FlightBookingStatus @default(PENDING)
+  tripType            String
+  currency            String
+  baseFare            Float
+  taxes               Float
+  serviceFee          Float
+  totalAmount         Float
+  itinerary           Json
+  passengers          Json
+  paymentTransactionId String?           @unique
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentTransaction  Transaction?      @relation(fields: [paymentTransactionId], references: [id])
+
+  @@index([userId, status])
+  @@index([providerBookingId])
 }
 
 model Merchant {
@@ -1183,7 +1219,8 @@ enum TransactionType {
   FEE_COLLECTION
   // Conversion interne d'un frais deja encaisse (ex: vers Pi).
   FEE_CONVERSION
-}
+  FLIGHT_BOOKING
+  }
 
 enum TransactionStatus {
   PENDING
