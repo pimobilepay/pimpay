@@ -164,7 +164,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
     const clearClientSession = () => {
       localStorage.removeItem("pimpay_user");
-      const cookieNames = ["token", "pimpay_token", "session", "pi_session_token"];
+      const cookieNames = ["token", "pimpay_token", "session", "refresh_token", "pi_session_token"];
       for (const name of cookieNames) {
         document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
         document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure`;
@@ -186,10 +186,9 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
     // s'afficher à cause d'une vérification de session concurrente.
     toast.success(t("settings.logoutSuccess"));
 
-    // 3. Laisser l'écran de chargement visible un court instant puis rediriger
-    setTimeout(() => {
-      window.location.href = "/auth/login";
-    }, 700);
+    // 3. Remplacer l'historique courant : le bouton retour ne doit pas
+    // permettre de réafficher une page protégée après la déconnexion.
+    window.location.replace("/auth/login");
   };
 
   return (

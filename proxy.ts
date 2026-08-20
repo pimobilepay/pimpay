@@ -260,7 +260,15 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/about") || 
     pathname.startsWith("/contact") || 
     pathname.startsWith("/settings") || 
-    pathname.startsWith("/profile");
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/cards") ||
+    pathname.startsWith("/chat") ||
+    pathname.startsWith("/notifications") ||
+    pathname.startsWith("/pim-coins") ||
+    pathname.startsWith("/recharge-pi") ||
+    pathname.startsWith("/savings") ||
+    pathname.startsWith("/support") ||
+    pathname.startsWith("/contacts");
     
   if (!userPayload && isProtectedPath) {
     // On memorise la page demandee pour y revenir apres la connexion : c'est
@@ -331,6 +339,13 @@ export const config = {
     "/about/:path*",
     "/contact/:path*",
     "/contacts/:path*",
+    "/cards/:path*",
+    "/chat/:path*",
+    "/notifications/:path*",
+    "/pim-coins/:path*",
+    "/recharge-pi/:path*",
+    "/savings/:path*",
+    "/support/:path*",
     "/login",
     "/",
     "/auth/login",
