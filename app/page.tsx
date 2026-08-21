@@ -7,9 +7,15 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    // La session d'authentification est portée par les cookies. Ne jamais
+    // utiliser un ancien token du localStorage pour décider d'ouvrir le dashboard
+    // après une déconnexion.
+    const hasSessionCookie = document.cookie.split(";").some((cookie) => {
+      const name = cookie.trim().split("=")[0];
+      return name === "token" || name === "pimpay_token" || name === "pi_session_token";
+    });
 
-    if (!token) {
+    if (!hasSessionCookie) {
       router.replace("/auth/login");
     } else {
       // 🚀 LOGIQUE PIMOBIPAY : Préparer les wallets avant la redirection
@@ -20,7 +26,6 @@ export default function HomePage() {
           await fetch("/api/wallet/generate/adresses", {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${token}`, // Si ton API utilise le Bearer
               "Content-Type": "application/json",
             },
           });
