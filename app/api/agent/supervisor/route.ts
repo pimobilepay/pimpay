@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
+import { floatToUsd } from '@/lib/agent-float-account';
 
 /**
  * GET /api/agent/supervisor
@@ -75,6 +76,7 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         lastLoginAt: true,
         wallets: { select: { currency: true, balance: true } },
+        agentFloats: { select: { currency: true, balance: true, reserved: true } },
         _count: { select: { transactionsFrom: true, transactionsTo: true } },
       },
     });
@@ -85,8 +87,11 @@ export async function GET(req: NextRequest) {
 
     const team = await Promise.all(
       teamAgents.map(async (a) => {
-        const xafWallet = a.wallets.find((w) => w.currency === 'XAF');
-        const floatBalance = xafWallet?.balance || 0;
+        const floatBalanceUsd = a.agentFloats.reduce(
+          (sum, f) => sum + floatToUsd(Math.max(0, f.balance - f.reserved), f.currency),
+          0
+        );
+        const floatBalance = Math.round(floatBalanceUsd * 100) / 100;
         const txCount = (a._count?.transactionsFrom || 0) + (a._count?.transactionsTo || 0);
 
         const todayAgg = await prisma.transaction.aggregate({
@@ -162,7 +167,7 @@ export async function GET(req: NextRequest) {
         networkDailyTransactions,
         pendingKycInTeam,
         pendingKycCount,
-        currency: 'XAF',
+        currency: 'USD',
       },
       team,
     });

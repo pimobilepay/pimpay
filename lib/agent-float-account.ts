@@ -14,6 +14,22 @@
  */
 
 import { DEFAULT_FLOAT_CURRENCY, FLOAT_CURRENCIES, type FloatCurrency } from "./agent-float";
+import { toUsd, fromUsd, getRate } from "./exchange";
+
+/** Convertit un montant de float en USD, devise de référence de la trésorerie. */
+export function floatToUsd(amount: number, currency: string): number {
+  return Math.round(toUsd(currency, amount) * 100) / 100;
+}
+
+/** Convertit un montant USD vers la devise du float demandée. */
+export function usdToFloat(amountUsd: number, currency: string): number {
+  return Math.round(fromUsd(currency, amountUsd) * 100) / 100;
+}
+
+/** Taux public : nombre d'unités de devise pour 1 USD. */
+export function floatExchangeRate(currency: string): number {
+  return getRate(currency);
+}
 
 /** Client Prisma ou client de transaction interactive. */
 type Db = any;
