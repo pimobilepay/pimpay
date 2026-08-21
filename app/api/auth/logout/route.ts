@@ -7,7 +7,17 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { revokeTokenJWT } from "@/lib/jwt";
 import { cookies } from "next/headers";
-import { clearAuthCookie } from "@/lib/auth-cookies";
+import { clearAuthCookie, setAuthCookie } from "@/lib/auth-cookies";
+
+// [FIX DECONNEXION] Marqueur de déconnexion volontaire.
+// Le proxy (middleware) authentifie uniquement sur la signature JWT : un cookie
+// de token encore cryptographiquement valide qui aurait survécu à l'effacement
+// (iframe Pi Browser / iOS où la suppression de cookie cross-site peut être
+// ignorée) suffit à faire rebondir l'utilisateur vers /dashboard depuis la page
+// de login. On pose donc un marqueur court, LISIBLE par le proxy, qui lui dit :
+// "cette personne vient de se déconnecter, purge les cookies et laisse voir le
+// login au lieu de rediriger vers le dashboard".
+const LOGOUT_MARKER = "pimpay_loggedout";
 
 export async function POST(req: Request) {
   try {
@@ -84,6 +94,11 @@ export async function POST(req: Request) {
     // avec ce path pour qu'il soit réellement effacé.
     clearAuthCookie(response, "refresh_token", { path: "/api/auth/refresh" });
 
+    // Marqueur de déconnexion (non httpOnly pour rester lisible partout, durée
+    // courte). Le proxy le consomme sur la page de login pour éviter le rebond
+    // vers /dashboard, puis le supprime.
+    setAuthCookie(response, LOGOUT_MARKER, "1", { path: "/", maxAge: 60, httpOnly: false });
+
     return response;
   } catch (error: any) {
     console.error("LOGOUT_ERROR:", error);
@@ -95,6 +110,7 @@ export async function POST(req: Request) {
       clearAuthCookie(response, name, { path: "/" });
     }
     clearAuthCookie(response, "refresh_token", { path: "/api/auth/refresh" });
+    setAuthCookie(response, LOGOUT_MARKER, "1", { path: "/", maxAge: 60, httpOnly: false });
     return response;
   }
 }

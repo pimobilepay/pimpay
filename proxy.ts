@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import * as jose from "jose";
+import { clearAuthCookie } from "@/lib/auth-cookies";
 
 // Applique des en-têtes de sécurité standards sur toutes les réponses
 function applySecurityHeaders(res: NextResponse): NextResponse {
@@ -143,6 +144,14 @@ export async function proxy(req: NextRequest) {
   const token = req.cookies.get("token")?.value || req.cookies.get("pimpay_token")?.value;
   const piToken = req.cookies.get("pi_session_token")?.value;
 
+  // [FIX DECONNEXION] Marqueur posé par /api/auth/logout. Le proxy authentifie
+  // uniquement sur la signature JWT et ne connaît pas l'état de révocation
+  // côté serveur : un cookie de token encore valide ayant survécu à
+  // l'effacement (iframe Pi Browser / iOS) suffisait à renvoyer l'utilisateur
+  // fraîchement déconnecté vers /dashboard depuis la page de login. En présence
+  // de ce marqueur, on force l'affichage du login et on purge les cookies.
+  const justLoggedOut = Boolean(req.cookies.get("pimpay_loggedout")?.value);
+
   // 2. EXCLUSIONS (On laisse passer les fichiers statiques et l'auth)
   const isPublicAsset = pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|css|js)$/);
   const isAuthApi = pathname.startsWith("/api/auth");
@@ -230,6 +239,26 @@ export async function proxy(req: NextRequest) {
       applySecurityHeaders(response);
       return response;
     }
+  }
+
+  // [FIX DECONNEXION] Si l'utilisateur vient de se déconnecter et atterrit sur
+  // une page de login, on NE le renvoie PAS vers le dashboard même si un cookie
+  // de token a survécu : on purge tous les cookies de session + le marqueur et
+  // on laisse la page de login s'afficher.
+  if (justLoggedOut && isLoginPage) {
+    const response = NextResponse.next();
+    // Suppression cross-site : clearAuthCookie ré-émet la variante classique ET
+    // Partitioned avec les mêmes attributs que la pose, seul moyen fiable
+    // d'effacer un cookie httpOnly SameSite=None dans l'iframe Pi Browser.
+    for (const name of ["token", "pimpay_token", "pi_session_token"]) {
+      clearAuthCookie(response, name, { path: "/" });
+    }
+    clearAuthCookie(response, "refresh_token", { path: "/" });
+    clearAuthCookie(response, "refresh_token", { path: "/api/auth/refresh" });
+    clearAuthCookie(response, "pimpay_loggedout", { path: "/", httpOnly: false });
+    applyNoStore(response);
+    applySecurityHeaders(response);
+    return response;
   }
 
   // Redirection depuis la page de login si deja connecte

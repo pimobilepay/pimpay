@@ -7,11 +7,25 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
+    const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
+
+    // [FIX DECONNEXION] La route /api/auth/logout pose un marqueur lisible
+    // `pimpay_loggedout`. En contexte cross-site (iframe Pi Browser / iOS), un
+    // cookie de token peut survivre à l'effacement et faire rebondir vers le
+    // dashboard. Si ce marqueur est présent, l'utilisateur vient de se
+    // déconnecter : on le consomme et on force l'affichage du login.
+    const justLoggedOut = cookies.some((cookie) => cookie.split("=")[0] === "pimpay_loggedout");
+    if (justLoggedOut) {
+      document.cookie = "pimpay_loggedout=; Path=/; Max-Age=0";
+      router.replace("/auth/login");
+      return;
+    }
+
     // La session d'authentification est portée par les cookies. Ne jamais
     // utiliser un ancien token du localStorage pour décider d'ouvrir le dashboard
     // après une déconnexion.
-    const hasSessionCookie = document.cookie.split(";").some((cookie) => {
-      const name = cookie.trim().split("=")[0];
+    const hasSessionCookie = cookies.some((cookie) => {
+      const name = cookie.split("=")[0];
       return name === "token" || name === "pimpay_token" || name === "pi_session_token";
     });
 
