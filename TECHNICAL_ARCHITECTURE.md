@@ -1,4 +1,4 @@
-# 🏦 PimPay: Empowering Financial Freedom for All (v1.0)
+# 🏦 PiMobiPay: Empowering Financial Freedom for All (v1.0)
 
 ## 🌟 Vision du Projet
 PimPay est une solution de banque virtuelle conforme à la Charia. L'architecture repose sur Next.js et TypeScript pour garantir une sécurité maximale et une gestion rigoureuse des types de données financières.
