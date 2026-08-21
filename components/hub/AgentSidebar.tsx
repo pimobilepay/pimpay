@@ -118,7 +118,7 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Float Balance</p>
-                <p className="text-lg font-black text-white">1,250,000 XAF</p>
+                <p className="text-lg font-black text-white">{dashboard?.floatBalance?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"} {dashboard?.currency ?? "USD"}</p>
               </div>
               <Wallet className="h-5 w-5 text-emerald-500" />
             </div>
@@ -214,7 +214,7 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Float Balance</p>
-                <p className="text-lg font-black text-white">1,250,000 XAF</p>
+                <p className="text-lg font-black text-white">{dashboard?.floatBalance?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"} {dashboard?.currency ?? "USD"}</p>
               </div>
               <Wallet className="h-5 w-5 text-emerald-500" />
             </div>
