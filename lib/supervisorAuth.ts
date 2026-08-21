@@ -9,10 +9,10 @@ export async function requirePrincipalSupervisor(req: NextRequest) {
 
   const actor = await prisma.user.findUnique({
     where: { id: payload.id },
-    select: { id: true, name: true, username: true, role: true, status: true, adminProfile: { select: { active: true, permissions: true } } },
+    select: { id: true, name: true, username: true, role: true, agentType: true, status: true, adminProfile: { select: { active: true, permissions: true } } },
   });
   if (!actor || actor.status !== "ACTIVE") return NextResponse.json({ error: "Compte inactif" }, { status: 403 });
-  if (actor.role !== "SUPERVISEUR_PRINCIPAL") return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (actor.role !== "SUPERVISEUR_PRINCIPAL" || actor.agentType !== "ADMINISTRATIF") return NextResponse.json({ error: "Seul le superviseur principal administratif peut modifier les rôles." }, { status: 403 });
   if (!actor.adminProfile?.active || !actor.adminProfile.permissions.includes(PERMISSIONS.USERS_CHANGE_AGENT_SUPERVISOR_ROLE)) {
     return NextResponse.json({ error: "Permission insuffisante" }, { status: 403 });
   }
