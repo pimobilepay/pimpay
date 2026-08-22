@@ -437,8 +437,13 @@ export async function GET() {
       balancesMap[key] = Number.isFinite(numericBalance) ? numericBalance.toFixed(8) : "0.00000000";
     }
 
-    // SDA vient du RPC (plus fiable)
-    balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
+    // Le RPC SDA n'est disponible que lorsqu'une adresse Sidra valide existe.
+    // Sans adresse configurée, ne jamais remplacer le solde DB par zéro.
+    if (user.sidraAddress) {
+      balancesMap["SDA"] = sdaBalanceValue.toFixed(4);
+    } else if (!balancesMap["SDA"]) {
+      balancesMap["SDA"] = "0.0000";
+    }
 
     // Re-fetch des adresses fraîches
     const freshUser = await prisma.user.findUnique({
@@ -467,6 +472,13 @@ export async function GET() {
     const tronAddress = user.usdtAddress || usdtAddress;
     const solAddr = user.solAddress || "";
     const dogeAddr = user.dogeAddress || "";
+    // Les anciennes données peuvent avoir l'adresse uniquement dans Wallet.depositMemo.
+    // Utiliser cette valeur comme fallback évite d'afficher « Non configurée ».
+    const depositAddress = (currency: string, primary = "") =>
+      primary || freshWallets.find((wallet) => {
+        const walletCurrency = wallet.currency === "SIDRA" ? "SDA" : wallet.currency;
+        return walletCurrency === currency && Boolean(wallet.depositMemo);
+      })?.depositMemo || "";
 
     return NextResponse.json({
       success: true,
@@ -492,27 +504,25 @@ export async function GET() {
       XAF: balancesMap["XAF"] || "0.00",
       MATIC: balancesMap["MATIC"] || "0.00000000",
       addresses: {
-        PI: user.walletAddress || stellarAddress,
-        XLM: stellarAddress,
-        SDA: evmAddress,
-        ETH: evmAddress,
-        BNB: evmAddress,
-        MATIC: evmAddress,
-        USDC: evmAddress,
-        DAI: evmAddress,
-        BUSD: evmAddress,
-        EURC: evmAddress,
-        OUSD: evmAddress,
-        ADA: evmAddress,
-        // ✅ FIX : avant, DOGE renvoyait l'adresse EVM (0x...), un format
-        // invalide sur Dogecoin → les dépôts étaient irrécupérables.
-        DOGE: dogeAddr,
-        TON: evmAddress,
-        USDT: tronAddress,
-        TRX: tronAddress,
-        BTC: finalBtcWallet?.depositMemo || "",
-        XRP: user.xrpAddress || "",
-        SOL: solAddr,
+        PI: depositAddress("PI", user.walletAddress),
+        XLM: depositAddress("XLM", stellarAddress),
+        SDA: depositAddress("SDA", evmAddress),
+        ETH: depositAddress("ETH", evmAddress),
+        BNB: depositAddress("BNB", evmAddress),
+        MATIC: depositAddress("MATIC", evmAddress),
+        USDC: depositAddress("USDC", evmAddress),
+        DAI: depositAddress("DAI", evmAddress),
+        BUSD: depositAddress("BUSD", evmAddress),
+        EURC: depositAddress("EURC", evmAddress),
+        OUSD: depositAddress("OUSD", evmAddress),
+        ADA: depositAddress("ADA", evmAddress),
+        DOGE: depositAddress("DOGE", dogeAddr),
+        TON: depositAddress("TON", evmAddress),
+        USDT: depositAddress("USDT", tronAddress),
+        TRX: depositAddress("TRX", tronAddress),
+        BTC: depositAddress("BTC", finalBtcWallet?.depositMemo || ""),
+        XRP: depositAddress("XRP", user.xrpAddress || ""),
+        SOL: depositAddress("SOL", solAddr),
       },
       wallets: freshWallets.map((w) => ({
         currency: w.currency === "SIDRA" ? "SDA" : w.currency,
