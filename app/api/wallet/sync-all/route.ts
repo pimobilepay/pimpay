@@ -19,7 +19,6 @@ export const maxDuration = 60;
  *   - SOL   (solAddress)
  *   - XRP   (xrpAddress)
  *   - XLM   (xlmAddress)
- *   - DOGE  (dogeAddress)
  *
  * SDA est exclu : il a sa propre route dediee (/api/wallet/sidra/sync) avec une
  * logique de reconciliation specifique a la Sidra Chain.
@@ -43,7 +42,6 @@ import {
   getEvmTokenBalance,
   BSC_TOKENS,
 } from "@/lib/blockchain/balances";
-import { getDogeBalance } from "@/lib/blockchain/dogecoin";
 
 interface SyncResult {
   currency: string;
@@ -58,7 +56,7 @@ interface SyncResult {
 interface AssetSyncSpec {
   currency: string;
   /** Champ d'adresse Prisma requis pour lire le solde on-chain. */
-  addressField: "sidraAddress" | "usdtAddress" | "walletAddress" | "solAddress" | "xrpAddress" | "xlmAddress" | "dogeAddress";
+  addressField: "sidraAddress" | "usdtAddress" | "walletAddress" | "solAddress" | "xrpAddress" | "xlmAddress";
   network: string;
   source: string;
   decimals: number;
@@ -203,15 +201,6 @@ const ASSET_SPECS: AssetSyncSpec[] = [
     minDeposit: 0.0000001,
     read: getXlmBalance,
   },
-  {
-    currency: "DOGE",
-    addressField: "dogeAddress",
-    network: "Dogecoin",
-    source: "DOGE_MAINNET",
-    decimals: 6,
-    minDeposit: 0.01,
-    read: getDogeBalance,
-  },
 ];
 
 export async function POST() {
@@ -232,7 +221,6 @@ export async function POST() {
         solAddress: true,     // SOL
         xrpAddress: true,     // XRP
         xlmAddress: true,     // XLM
-        dogeAddress: true,    // DOGE
       },
     });
 

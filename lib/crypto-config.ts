@@ -145,19 +145,6 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
     explorerBase: "https://cardanoscan.io/transaction/",
     accentColor: "text-blue-300",
   },
-  DOGE: {
-    symbol: "DOGE",
-    name: "Dogecoin",
-    chain: "BTC", // même famille UTXO/P2PKH que Bitcoin
-    network: "Dogecoin",
-    logo: "/doge.png",
-    category: "CRYPTO",
-    addressField: "dogeAddress",
-    decimals: 6,
-    explorerBase: "https://dogechain.info/tx/",
-    accentColor: "text-yellow-500",
-    defaultPrice: 0.15,
-  },
   TON: {
     symbol: "TON",
     name: "Toncoin",
@@ -253,7 +240,7 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
 // --- Helpers de compatibilité ---
 
 export const WALLET_ASSET_ORDER = [
-  "PI", "SDA", "USDT", "BTC", "DOGE", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
+  "PI", "SDA", "USDT", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
   "USDC", "DAI", "BUSD", "EURC", "OUSD"
 ];
 
@@ -272,7 +259,6 @@ export const WALLET_ASSET_ORDER = [
 export const SYNC_ENDPOINTS: Record<string, string> = {
   SDA: "/api/wallet/sidra/sync",
   BTC: "/api/wallet/btc/sync",
-  DOGE: "/api/wallet/doge/sync",
   ETH: "/api/wallet/eth/sync",
   BNB: "/api/wallet/bnb/sync",
   SOL: "/api/wallet/sol/sync",
@@ -299,7 +285,6 @@ export const DEPOSIT_SUPPORTED = new Set<string>(["PI", ...Object.keys(SYNC_ENDP
  * - SDA / ETH / BNB : natif EVM (clé sidraPrivateKey)
  * - USDC / BUSD / DAI / EURC / OUSD : ERC20/BEP20 (clé sidraPrivateKey)
  * - TRX / USDT : TRON / TRC20 (clé usdtPrivateKey)
- * - DOGE : natif Dogecoin, P2PKH (clé dogePrivateKey)
  */
 export const WITHDRAW_ONCHAIN_SUPPORTED = new Set<string>([
   "PI",
@@ -313,7 +298,6 @@ export const WITHDRAW_ONCHAIN_SUPPORTED = new Set<string>([
   "OUSD",
   "TRX",
   "USDT",
-  "DOGE",
 ]);
 
 /**
