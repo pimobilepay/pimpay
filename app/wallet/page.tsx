@@ -344,9 +344,12 @@ export default function WalletPage() {
             ? balData.wallets.find((entry: any) => String(entry.currency).toUpperCase() === code || (code === "SDA" && entry.currency === "SIDRA"))
             : null;
           const fromWallet = Number(wallet?.balance);
-          if (Number.isFinite(fromWallet)) return fromWallet;
           const direct = Number.parseFloat(String(balData[code] ?? ""));
-          return Number.isFinite(direct) ? direct : 0;
+          // Un wallet historique peut rester à zéro alors que l'API renvoie
+          // encore la valeur correcte sous la clé normalisée de l'actif.
+          if (Number.isFinite(fromWallet) && fromWallet > 0) return fromWallet;
+          if (Number.isFinite(direct)) return direct;
+          return Number.isFinite(fromWallet) ? fromWallet : 0;
         };
         setPiBalance(numericBalance("PI").toFixed(8));
         setSdaBalance(numericBalance("SDA").toFixed(4));
