@@ -253,7 +253,7 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
 // --- Helpers de compatibilité ---
 
 export const WALLET_ASSET_ORDER = [
-  "PI", "SDA", "USDT", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
+  "PI", "SDA", "USDT", "BTC", "DOGE", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
   "USDC", "DAI", "BUSD", "EURC", "OUSD"
 ];
 

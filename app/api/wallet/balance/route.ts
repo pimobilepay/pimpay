@@ -439,10 +439,24 @@ export async function GET() {
     // ⚠️ On recharge les wallets APRES les sync pour avoir les valeurs à jour
     const freshWalletsForMap = await prisma.wallet.findMany({ where: { userId } });
     const balancesMap: Record<string, string> = {};
+    const currencyAliases: Record<string, string> = {
+      SIDRA: "SDA",
+      SIDRACHAIN: "SDA",
+      PI_NETWORK: "PI",
+      PINETWORK: "PI",
+      PIMAINNET: "PI",
+      DOGECOIN: "DOGE",
+    };
     for (const wallet of freshWalletsForMap) {
-      const key = wallet.currency === "SIDRA" ? "SDA" : wallet.currency;
+      const rawCurrency = String(wallet.currency || "").trim().toUpperCase();
+      const key = currencyAliases[rawCurrency] || rawCurrency;
+      if (!key) continue;
       const numericBalance = Number(wallet.balance);
-      balancesMap[key] = Number.isFinite(numericBalance) ? numericBalance.toFixed(8) : "0.00000000";
+      if (!Number.isFinite(numericBalance)) continue;
+      // Si d'anciens enregistrements utilisent un alias, conserver le plus
+      // grand solde au lieu de laisser un doublon à zéro masquer la valeur.
+      const current = Number.parseFloat(balancesMap[key] || "0");
+      balancesMap[key] = Math.max(current, numericBalance).toFixed(8);
     }
 
     // Le RPC SDA n'est disponible que lorsqu'une adresse Sidra valide existe.
