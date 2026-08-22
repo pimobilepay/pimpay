@@ -13,6 +13,8 @@ import * as ecc from "@noble/secp256k1";
 import bs58 from "bs58";
 import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
 import { creditTronDeposit } from "@/lib/blockchain/tron-credit";
+import { generateDogeWallet, getDogeBalance } from "@/lib/blockchain/dogecoin";
+import { creditOnchainDeposit } from "@/lib/blockchain/credit-deposit";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -91,6 +93,32 @@ async function syncTrxBalanceSafe(
 }
 
 // ---------------------------------------------------------------------------
+// ✅ FIX : Sync DOGE — avant cette fonction, DOGE n'avait ni adresse dédiée
+// ni lecture de solde on-chain : l'app affichait à tort l'adresse EVM comme
+// "adresse de dépôt DOGE" (format invalide sur Dogecoin), donc tout dépôt
+// réel était irrécupérable et jamais crédité. creditOnchainDeposit() applique
+// déjà la logique MAX(on-chain, DB) : les crédits internes P2P/swap ne sont
+// jamais écrasés.
+// ---------------------------------------------------------------------------
+async function syncDogeBalanceSafe(userId: string, dogeAddress: string): Promise<void> {
+  try {
+    const onChainBalance = await getDogeBalance(dogeAddress);
+    if (onChainBalance === null) return;
+    await creditOnchainDeposit({
+      userId,
+      currency: "DOGE",
+      blockchainBalance: onChainBalance,
+      network: "Dogecoin",
+      source: "DOGE_MAINNET",
+      decimals: 6,
+      minDeposit: 0.01,
+    });
+  } catch {
+    // Silencieux — on garde la valeur DB existante
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/wallet/balance
 // ---------------------------------------------------------------------------
 
@@ -113,6 +141,7 @@ export async function GET() {
         xlmAddress: true,
         solAddress: true,
         usdtAddress: true,
+        dogeAddress: true,
         wallets: true,
       },
     });
@@ -145,7 +174,8 @@ export async function GET() {
           where: { id: userId },
           select: {
             walletAddress: true, sidraAddress: true, xrpAddress: true,
-            xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true,
+            dogeAddress: true, wallets: true,
           },
         }) as typeof user;
       } catch (e) {
@@ -177,11 +207,52 @@ export async function GET() {
           where: { id: userId },
           select: {
             walletAddress: true, sidraAddress: true, xrpAddress: true,
-            xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true,
+            dogeAddress: true, wallets: true,
           },
         }) as typeof user;
       } catch (e) {
         console.error("[BALANCE_API] Failed to auto-generate SOL address:", e);
+      }
+    }
+
+    // --- Auto-générer l'adresse DOGE/Dogecoin ---
+    // ✅ FIX : avant, aucune adresse dédiée n'était générée pour DOGE — le
+    // champ n'existait même pas. Un vrai dépôt DOGE envoyé par un
+    // utilisateur ne pouvait donc jamais être détecté ni crédité.
+    if (!user.dogeAddress) {
+      try {
+        const dogeWallet = generateDogeWallet();
+        const encryptedDogeKey = encrypt(dogeWallet.privateKeyWIF);
+
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: userId },
+            data: { dogeAddress: dogeWallet.address, dogePrivateKey: encryptedDogeKey },
+          });
+          await tx.wallet.upsert({
+            where: { userId_currency: { userId, currency: "DOGE" } },
+            update: { depositMemo: dogeWallet.address, type: "CRYPTO" },
+            create: {
+              userId,
+              currency: "DOGE",
+              type: "CRYPTO",
+              balance: 0,
+              depositMemo: dogeWallet.address,
+            },
+          });
+        });
+
+        user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            walletAddress: true, sidraAddress: true, xrpAddress: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true,
+            dogeAddress: true, wallets: true,
+          },
+        }) as typeof user;
+      } catch (e) {
+        console.error("[BALANCE_API] Failed to auto-generate DOGE address:", e);
       }
     }
 
@@ -215,7 +286,8 @@ export async function GET() {
             where: { id: userId },
             select: {
               walletAddress: true, sidraAddress: true, xrpAddress: true,
-              xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+              xlmAddress: true, solAddress: true, usdtAddress: true,
+              dogeAddress: true, wallets: true,
             },
           }) as typeof user;
 
@@ -248,7 +320,8 @@ export async function GET() {
           where: { id: userId },
           select: {
             walletAddress: true, sidraAddress: true, xrpAddress: true,
-            xlmAddress: true, solAddress: true, usdtAddress: true, wallets: true,
+            xlmAddress: true, solAddress: true, usdtAddress: true,
+            dogeAddress: true, wallets: true,
           },
         }) as typeof user;
       } catch (e) {
@@ -349,6 +422,11 @@ export async function GET() {
       await syncTrxBalanceSafe(userId, usdtAddress);
     }
 
+    // ✅ FIX : Sync DOGE — l'adresse vient d'être générée/lue ci-dessus.
+    if (user.dogeAddress) {
+      await syncDogeBalanceSafe(userId, user.dogeAddress);
+    }
+
     // --- Construire la map des soldes ---
     // ⚠️ On recharge les wallets APRES les sync pour avoir les valeurs à jour
     const freshWalletsForMap = await prisma.wallet.findMany({ where: { userId } });
@@ -367,6 +445,7 @@ export async function GET() {
       select: {
         xrpAddress: true, xlmAddress: true, sidraAddress: true,
         usdtAddress: true, solAddress: true, walletAddress: true,
+        dogeAddress: true,
       },
     });
     if (freshUser) {
@@ -376,6 +455,7 @@ export async function GET() {
       user.usdtAddress = freshUser.usdtAddress;
       user.solAddress = freshUser.solAddress;
       user.walletAddress = freshUser.walletAddress;
+      user.dogeAddress = freshUser.dogeAddress;
     }
 
     const freshWallets = await prisma.wallet.findMany({ where: { userId } });
@@ -385,6 +465,7 @@ export async function GET() {
     const stellarAddress = user.xlmAddress || "";
     const tronAddress = user.usdtAddress || usdtAddress;
     const solAddr = user.solAddress || "";
+    const dogeAddr = user.dogeAddress || "";
 
     return NextResponse.json({
       success: true,
@@ -422,7 +503,9 @@ export async function GET() {
         EURC: evmAddress,
         OUSD: evmAddress,
         ADA: evmAddress,
-        DOGE: evmAddress,
+        // ✅ FIX : avant, DOGE renvoyait l'adresse EVM (0x...), un format
+        // invalide sur Dogecoin → les dépôts étaient irrécupérables.
+        DOGE: dogeAddr,
         TON: evmAddress,
         USDT: tronAddress,
         TRX: tronAddress,

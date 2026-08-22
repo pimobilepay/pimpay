@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus, TransactionType } from "@prisma/client";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { decrypt } from "@/lib/crypto";
+import { sendDoge } from "@/lib/blockchain/dogecoin";
 
 /**
  * Sécurise l'accès : le worker doit envoyer le header:
@@ -60,6 +62,11 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
     return await broadcastPiWithdraw(job, address);
   }
 
+  // Support pour Dogecoin
+  if (currency === "DOGE") {
+    return await broadcastDogeWithdraw(job, address);
+  }
+
   // TODO: Supporter d'autres blockchains:
   // - TRON (USDT TRC20): TronWeb + contrat USDT
   // - EVM (USDT-ERC20, ETH, BNB, etc.): ethers + RPC
@@ -68,6 +75,37 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
   // - BTC/LTC: lib bitcoin + node/third-party API
   
   throw new Error(`Broadcast non implémenté pour ${currency}`);
+}
+
+/**
+ * Broadcast Dogecoin — construit, signe et diffuse une transaction P2PKH
+ * réelle depuis le wallet DOGE de l'utilisateur (fromUserId), vers l'adresse
+ * externe demandée. Le montant du job est en DOGE "humain" ; il est converti
+ * en koinu (1 DOGE = 1e8 koinu) pour lib/blockchain/dogecoin.ts.
+ */
+async function broadcastDogeWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
+  if (!job.fromUserId) {
+    throw new Error("Retrait DOGE sans utilisateur source (fromUserId manquant)");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: job.fromUserId },
+    select: { dogeAddress: true, dogePrivateKey: true },
+  });
+
+  if (!user?.dogeAddress || !user?.dogePrivateKey) {
+    throw new Error("Aucun portefeuille DOGE configuré pour cet utilisateur");
+  }
+
+  const privateKeyWIF = decrypt(user.dogePrivateKey);
+  const { txid } = await sendDoge({
+    fromAddress: user.dogeAddress,
+    privateKeyWIF,
+    toAddress,
+    amountKoinu: Math.round(job.amount * 1e8),
+  });
+
+  return txid;
 }
 
 /**

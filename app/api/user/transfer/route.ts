@@ -15,6 +15,7 @@ import { parseAmount } from "@/lib/amount-guard";
 import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { enforcePiPolicy, WithdrawalPolicyError } from "@/lib/withdrawal-limits";
+import { sendDoge, isValidDogeAddress } from "@/lib/blockchain/dogecoin";
 // Matrice de capacites depot/retrait (source de verite unique).
 // Sans cet import, la garde ligne ~170 levait un ReferenceError qui remontait
 // dans le catch generique : tout transfert echouait avec une erreur 500 opaque.
@@ -289,6 +290,8 @@ export async function POST(req: NextRequest) {
             piUserId: true,
             usdtPrivateKey: true,
             usdtAddress: true,
+            dogePrivateKey: true,
+            dogeAddress: true,
           },
         });
 
@@ -745,6 +748,29 @@ export async function POST(req: NextRequest) {
             toAddress: recipientInput,
             amount: result.transaction.amount,
           });
+        }
+
+        // ── DOGE (Dogecoin natif, P2PKH legacy) ────────────────────────────
+        // ✅ FIX : ce bloc n'existait pas du tout. Avant, un retrait DOGE
+        // externe débitait le solde interne à l'étape 1 puis ne diffusait
+        // RIEN sur la blockchain (aucun cas ne correspondait), avant d'être
+        // remboursé plus bas faute de blockchainTxHash — le retrait DOGE
+        // échouait donc systématiquement.
+        if (currency === "DOGE" && senderUser?.dogePrivateKey && senderUser?.dogeAddress) {
+          let privateKeyWIF = senderUser.dogePrivateKey;
+          if (privateKeyWIF.includes(":")) privateKeyWIF = decrypt(privateKeyWIF);
+
+          if (!isValidDogeAddress(recipientInput)) {
+            throw new Error("Adresse Dogecoin de destination invalide");
+          }
+
+          const { txid } = await sendDoge({
+            fromAddress: senderUser.dogeAddress,
+            privateKeyWIF,
+            toAddress: recipientInput,
+            amountKoinu: Math.round(result.transaction.amount * 1e8),
+          });
+          blockchainTxHash = txid;
         }
       } catch (e: any) {
         broadcastError = e.message;

@@ -78,6 +78,8 @@ model User {
   usdtPrivateKey       String?
   solAddress           String?          @unique
   solPrivateKey        String?
+  dogeAddress          String?          @unique
+  dogePrivateKey       String?
   pinUpdatedAt         DateTime?
   pinVersion           Int              @default(1)
   statusReason         String?

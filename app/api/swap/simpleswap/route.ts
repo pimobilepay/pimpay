@@ -405,6 +405,7 @@ export async function POST(req: NextRequest) {
         xrpAddress: true,     // XRP
         xlmAddress: true,     // XLM/Stellar
         usdtAddress: true,    // TRON (TRX/USDT)
+        dogeAddress: true,    // DOGE
         // NOTE: aucun champ `tonAddress` n'existe dans le schema Prisma.
         // Le selectionner faisait echouer TOUTE la route avec une
         // PrismaClientValidationError avant meme le devis.
@@ -433,7 +434,11 @@ export async function POST(req: NextRequest) {
       TRX:   user.usdtAddress,
       USDT:  user.usdtAddress,
       ADA:   null,
-      DOGE:  user.walletAddress,
+      // ✅ FIX : DOGE utilisait auparavant `user.walletAddress` (une adresse
+      // EVM 0x...), un format invalide sur Dogecoin qui aurait rendu les
+      // fonds issus du swap irrécupérables. Utilise maintenant la vraie
+      // adresse Dogecoin dédiée (dogeAddress).
+      DOGE:  user.dogeAddress,
       // TON et ADA : aucune adresse dediee en base. On ne retombe PAS sur
       // l'adresse EVM (sidraAddress) : les fonds seraient irrecuperables.
       // L'utilisateur doit fournir explicitement body.toAddress.

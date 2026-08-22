@@ -121,6 +121,18 @@ export const CRYPTO_RULES: Record<string, CryptoRule> = {
     regex: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
     requiresMemo: false,
   },
+
+  // --- Dogecoin (D..., P2PKH base58) ---
+  // ⚠️ AVANT CORRECTION : DOGE n'avait aucune règle ici. Sans entrée dans
+  // CRYPTO_RULES, validateAddress() tombait dans le fallback générique qui
+  // laisse passer N'IMPORTE QUELLE chaîne comme adresse valide (y compris
+  // une adresse BTC ou EVM), avec un risque réel de perte de fonds au retrait.
+  DOGE: {
+    name: "Dogecoin",
+    prefix: "D",
+    regex: /^D[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}$/,
+    requiresMemo: false,
+  },
 };
 
 export function validateAddress(address: string, currency: string): { isValid: boolean; error?: string } {

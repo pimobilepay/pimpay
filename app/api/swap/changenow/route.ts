@@ -319,6 +319,7 @@ export async function POST(req: NextRequest) {
         xrpAddress: true,     // XRP
         xlmAddress: true,     // XLM/Stellar
         usdtAddress: true,    // TRON (remboursement éventuel)
+        dogeAddress: true,    // DOGE
       },
     });
 
@@ -344,7 +345,9 @@ export async function POST(req: NextRequest) {
       // adresse 0x, les fonds envoyes seraient definitivement perdus.
       // L'utilisateur doit fournir explicitement body.toAddress.
       ADA:  null,
-      DOGE: user.walletAddress,
+      // ✅ FIX : DOGE utilisait `user.walletAddress` (adresse EVM 0x...),
+      // un format invalide sur Dogecoin → fonds définitivement perdus.
+      DOGE: user.dogeAddress,
       TON:  null,
     };
 
