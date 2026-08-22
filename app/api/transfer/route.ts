@@ -6,9 +6,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
+import crypto from "node:crypto";
 import { getAuthUserId } from "@/lib/auth";
 import { checkDistributedRateLimit, RATE_LIMITS } from "@/lib/distributedRateLimit";
-import { transferSidraTokensAtomic } from "@/lib/blockchainTransaction";
 import { getClientIp } from "@/lib/rate-limit";
 import { logTransactionEvent } from "@/lib/secureLogger";
 import { validateCsrfMiddleware } from "@/lib/csrf";
@@ -83,45 +83,56 @@ export async function POST(req: Request) {
       );
     }
 
-    // [FIX V29] Atomic transfer with blockchain transaction
-    const result = await transferSidraTokensAtomic(
-      userId,
-      toUserId,
-      amount,
-      currency
-    );
-
-    if (!result.success) {
-      await logTransactionEvent(
-        'TRANSFER',
-        userId,
-        amount,
-        currency,
-        toUserId,
-        'FAILED'
-      );
-
-      return NextResponse.json(
-        { error: result.error || "Transfert échoué" },
-        { status: 400 }
-      );
+    const normalizedCurrency = String(currency).trim().toUpperCase();
+    const normalizedAmount = Number(amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0 || normalizedAmount > 1_000_000_000) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
+    if (userId === toUserId) {
+      return NextResponse.json({ error: "Vous ne pouvez pas vous transférer des fonds" }, { status: 400 });
     }
 
-    // Log successful transaction
-    await logTransactionEvent(
-      'TRANSFER',
-      userId,
-      amount,
-      currency,
-      toUserId,
-      'SUCCESS'
-    );
+    const reference = `TXN-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`.toUpperCase();
+    try {
+      await prisma.$transaction(async (tx) => {
+        const sender = await tx.wallet.findUnique({
+          where: { userId_currency: { userId, currency: normalizedCurrency } },
+          select: { id: true, balance: true },
+        });
+        if (!sender || sender.balance < normalizedAmount) {
+          throw new Error("Solde insuffisant");
+        }
 
-    return NextResponse.json({
-      success: true,
-      message: "Transfert réussi",
-      txHash: result.txHash,
-    });
+        await tx.wallet.update({
+          where: { id: sender.id },
+          data: { balance: { decrement: normalizedAmount } },
+        });
+        await tx.wallet.upsert({
+          where: { userId_currency: { userId: toUserId, currency: normalizedCurrency } },
+          update: { balance: { increment: normalizedAmount } },
+          create: { userId: toUserId, currency: normalizedCurrency, balance: normalizedAmount, type: "CRYPTO" },
+        });
+        await tx.transaction.create({
+          data: {
+            reference,
+            amount: normalizedAmount,
+            fromUserId: userId,
+            toUserId,
+            currency: normalizedCurrency,
+            type: "TRANSFER",
+            status: "SUCCESS",
+            description: `Transfert ${normalizedCurrency}`,
+          },
+        });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Transfert échoué";
+      await logTransactionEvent('TRANSFER', userId, normalizedAmount, normalizedCurrency, toUserId, 'FAILED');
+      return NextResponse.json({ error: message }, { status: message === "Solde insuffisant" ? 400 : 500 });
+    }
+
+    await logTransactionEvent('TRANSFER', userId, normalizedAmount, normalizedCurrency, toUserId, 'SUCCESS');
+    return NextResponse.json({ success: true, message: "Transfert réussi", txHash: reference });
 
   } catch (error: any) {
     console.error("TRANSFER_ERROR:", error);
