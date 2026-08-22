@@ -36,10 +36,10 @@ export default function FlightsPage() {
             <Sparkles className="size-3.5" /> Achat de billets d'avion
           </p>
           <h1 className="mt-4 text-balance text-4xl font-black tracking-tight sm:text-5xl">
-            Réservez votre prochain vol, sans quitter PimPay.
+            Réservez votre prochain vol, sans quitter PIMOBIPAY.
           </h1>
           <p className="mt-4 text-pretty text-sm leading-6 text-slate-400">
-            Comparez les vols disponibles pour votre itinéraire, choisissez votre tarif et payez directement avec votre solde PimPay — sécurisé de bout en bout.
+            Comparez les vols disponibles pour votre itinéraire, choisissez votre tarif et payez directement avec votre solde PIMOBIPAY — sécurisé de bout en bout.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-4 text-[11px] font-bold text-slate-500">
             <span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-sky-400" /> Paiement sécurisé</span>

@@ -453,7 +453,16 @@ export default function UserDashboard() {
         const balData = await balRes.json();
         const parsed: Record<string, number> = {};
         for (const key of Object.keys(MARKET_PRICE_INIT)) {
-          parsed[key] = parseFloat(balData[key] || "0") || 0;
+          const directValue = Number.parseFloat(String(balData[key] ?? ""));
+          parsed[key] = Number.isFinite(directValue) ? directValue : 0;
+        }
+        if (Array.isArray(balData.wallets)) {
+          for (const wallet of balData.wallets) {
+            const code = wallet.currency === "SIDRA" ? "SDA" : String(wallet.currency || "").toUpperCase();
+            if (!code || !(code in MARKET_PRICE_INIT)) continue;
+            const walletValue = Number(wallet.balance);
+            if (Number.isFinite(walletValue)) parsed[code] = walletValue;
+          }
         }
         setBalances(parsed);
         // [FIX] Le solde FIAT (USD/XOF/EUR/XAF) était totalement ignoré ici :

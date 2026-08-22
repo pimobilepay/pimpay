@@ -337,24 +337,33 @@ export default function WalletPage() {
       }
       if (balRes.ok) {
         const balData = await balRes.json();
-        setPiBalance(parseFloat(balData.PI || "0").toFixed(8));
-        setSdaBalance(parseFloat(balData.SDA || "0").toFixed(4));
-        setUsdtBalance(parseFloat(balData.USDT || "0").toFixed(4));
-        setBtcBalance(parseFloat(balData.BTC || "0").toFixed(8));
-        setUsdcBalance(parseFloat(balData.USDC || "0").toFixed(4));
-        setDaiBalance(parseFloat(balData.DAI || "0").toFixed(4));
-        setBusdBalance(parseFloat(balData.BUSD || "0").toFixed(4));
-        setEurcBalance(parseFloat(balData.EURC || "0").toFixed(4));
-        setOusdBalance(parseFloat(balData.OUSD || "0").toFixed(4));
-        setXrpBalance(parseFloat(balData.XRP || "0").toFixed(6));
-        setXlmBalance(parseFloat(balData.XLM || "0").toFixed(7));
-        setEthBalance(parseFloat(balData.ETH || "0").toFixed(8));
-        setBnbBalance(parseFloat(balData.BNB || "0").toFixed(8));
-        setSolBalance(parseFloat(balData.SOL || "0").toFixed(8));
-        setTrxBalance(parseFloat(balData.TRX || "0").toFixed(6));
-        setAdaBalance(parseFloat(balData.ADA || "0").toFixed(6));
-        setDogeBalance(parseFloat(balData.DOGE || "0").toFixed(6));
-        setTonBalance(parseFloat(balData.TON || "0").toFixed(6));
+        const numericBalance = (code: string) => {
+          const direct = Number.parseFloat(String(balData[code] ?? ""));
+          if (Number.isFinite(direct)) return direct;
+          const wallet = Array.isArray(balData.wallets)
+            ? balData.wallets.find((entry: any) => String(entry.currency).toUpperCase() === code || (code === "SDA" && entry.currency === "SIDRA"))
+            : null;
+          const fromWallet = Number(wallet?.balance);
+          return Number.isFinite(fromWallet) ? fromWallet : 0;
+        };
+        setPiBalance(numericBalance("PI").toFixed(8));
+        setSdaBalance(numericBalance("SDA").toFixed(4));
+        setUsdtBalance(numericBalance("USDT").toFixed(4));
+        setBtcBalance(numericBalance("BTC").toFixed(8));
+        setUsdcBalance(numericBalance("USDC").toFixed(4));
+        setDaiBalance(numericBalance("DAI").toFixed(4));
+        setBusdBalance(numericBalance("BUSD").toFixed(4));
+        setEurcBalance(numericBalance("EURC").toFixed(4));
+        setOusdBalance(numericBalance("OUSD").toFixed(4));
+        setXrpBalance(numericBalance("XRP").toFixed(6));
+        setXlmBalance(numericBalance("XLM").toFixed(7));
+        setEthBalance(numericBalance("ETH").toFixed(8));
+        setBnbBalance(numericBalance("BNB").toFixed(8));
+        setSolBalance(numericBalance("SOL").toFixed(8));
+        setTrxBalance(numericBalance("TRX").toFixed(6));
+        setAdaBalance(numericBalance("ADA").toFixed(6));
+        setDogeBalance(numericBalance("DOGE").toFixed(6));
+        setTonBalance(numericBalance("TON").toFixed(6));
         // [FIX] Extraire les wallets FIAT depuis la liste complète renvoyée
         // par /api/wallet/balance (déjà présente en base, simplement jamais
         // affichée côté client). Liste alignée sur les devises fiat de /swap.

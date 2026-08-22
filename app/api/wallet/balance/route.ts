@@ -433,7 +433,8 @@ export async function GET() {
     const balancesMap: Record<string, string> = {};
     for (const wallet of freshWalletsForMap) {
       const key = wallet.currency === "SIDRA" ? "SDA" : wallet.currency;
-      balancesMap[key] = wallet.balance.toFixed(8);
+      const numericBalance = Number(wallet.balance);
+      balancesMap[key] = Number.isFinite(numericBalance) ? numericBalance.toFixed(8) : "0.00000000";
     }
 
     // SDA vient du RPC (plus fiable)
