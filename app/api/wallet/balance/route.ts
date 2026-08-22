@@ -372,6 +372,12 @@ export async function GET() {
         ])) as bigint;
 
         sdaBalanceValue = parseFloat(ethers.formatEther(balanceRaw));
+        const existingSda = user.wallets.find(
+          (w) => w.currency === "SDA" || w.currency === "SIDRA"
+        );
+        // Les transferts internes et les crédits administratifs ne sont pas
+        // visibles sur la blockchain : ne jamais les écraser par un RPC à 0.
+        sdaBalanceValue = Math.max(sdaBalanceValue, Number(existingSda?.balance ?? 0));
 
         await prisma.wallet
           .upsert({
@@ -403,7 +409,9 @@ export async function GET() {
           new Promise((_, reject) => setTimeout(() => reject(new Error("BNB Timeout")), 5000)),
         ])) as bigint;
 
-        const bnbBalance = parseFloat(ethers.formatEther(bnbRaw));
+        const chainBnbBalance = parseFloat(ethers.formatEther(bnbRaw));
+        const existingBnb = user.wallets.find((w) => w.currency === "BNB");
+        const bnbBalance = Math.max(chainBnbBalance, Number(existingBnb?.balance ?? 0));
         await prisma.wallet
           .upsert({
             where: { userId_currency: { userId, currency: "BNB" } },

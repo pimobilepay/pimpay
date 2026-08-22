@@ -425,9 +425,19 @@ export default function AssetDetailPage() {
       }
       if (balanceRes.ok) {
         const balData = await balanceRes.json();
-        const rawBalance = balData[assetId] || "0";
+        const walletEntry = Array.isArray(balData.wallets)
+          ? balData.wallets.find((entry: any) => {
+              const currency = String(entry.currency || "").toUpperCase();
+              return currency === assetId || (assetId === "SDA" && currency === "SIDRA");
+            })
+          : null;
+        const persistedBalance = Number(walletEntry?.balance);
+        const directBalance = Number.parseFloat(String(balData[assetId] ?? ""));
+        const rawBalance = Number.isFinite(persistedBalance)
+          ? persistedBalance
+          : Number.isFinite(directBalance) ? directBalance : 0;
         const displayDecimals = Math.min(config.decimals, 8);
-        setBalance(parseFloat(rawBalance).toFixed(displayDecimals));
+        setBalance(rawBalance.toFixed(displayDecimals));
         if (balData.addresses) {
           setAddress(balData.addresses[assetId] || "");
         }

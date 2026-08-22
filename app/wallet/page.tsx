@@ -338,13 +338,15 @@ export default function WalletPage() {
       if (balRes.ok) {
         const balData = await balRes.json();
         const numericBalance = (code: string) => {
-          const direct = Number.parseFloat(String(balData[code] ?? ""));
-          if (Number.isFinite(direct)) return direct;
+          // La liste wallets est la source persistée. La valeur racine peut
+          // être un fallback RPC à zéro et ne doit jamais masquer le solde DB.
           const wallet = Array.isArray(balData.wallets)
             ? balData.wallets.find((entry: any) => String(entry.currency).toUpperCase() === code || (code === "SDA" && entry.currency === "SIDRA"))
             : null;
           const fromWallet = Number(wallet?.balance);
-          return Number.isFinite(fromWallet) ? fromWallet : 0;
+          if (Number.isFinite(fromWallet)) return fromWallet;
+          const direct = Number.parseFloat(String(balData[code] ?? ""));
+          return Number.isFinite(direct) ? direct : 0;
         };
         setPiBalance(numericBalance("PI").toFixed(8));
         setSdaBalance(numericBalance("SDA").toFixed(4));
