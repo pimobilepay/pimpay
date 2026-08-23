@@ -91,6 +91,17 @@ const ASSET_SPECS: AssetSyncSpec[] = [
     },
   },
 
+  {
+    currency: "DOGE",
+    addressField: "sidraAddress",
+    network: "BSC (BEP20)",
+    source: "BSC_MAINNET",
+    decimals: 8,
+    minDeposit: 0.01,
+    read: (a) => getEvmTokenBalance(a, "DOGE"),
+    extraMetadata: { contractAddress: BSC_TOKENS.DOGE.contract },
+  },
+
   // ── Stablecoins EVM (ERC20 / BEP20) ───────────────────────────────────────
   {
     currency: "USDC",

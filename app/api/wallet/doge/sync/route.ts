@@ -23,8 +23,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
-import { encrypt } from "@/lib/crypto";
-import { generateDogeWallet, getDogeBalance } from "@/lib/blockchain/dogecoin";
+import { getEvmTokenBalance, BSC_TOKENS } from "@/lib/blockchain/balances";
 import { creditOnchainDeposit } from "@/lib/blockchain/credit-deposit";
 
 export async function POST() {
@@ -34,50 +33,21 @@ export async function POST() {
       return NextResponse.json({ error: "Session invalide" }, { status: 401 });
     }
 
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { dogeAddress: true, dogePrivateKey: true },
+      select: { sidraAddress: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    // ── Génération paresseuse de l'adresse DOGE (une seule fois) ──────────────
-    if (!user.dogeAddress || !user.dogePrivateKey) {
-      try {
-        const wallet = generateDogeWallet();
-        const encryptedKey = encrypt(wallet.privateKeyWIF);
-
-        await prisma.$transaction(async (tx) => {
-          await tx.user.update({
-            where: { id: userId },
-            data: { dogeAddress: wallet.address, dogePrivateKey: encryptedKey },
-          });
-          await tx.wallet.upsert({
-            where: { userId_currency: { userId, currency: "DOGE" } },
-            update: { depositMemo: wallet.address, type: "CRYPTO" },
-            create: {
-              userId,
-              currency: "DOGE",
-              type: "CRYPTO",
-              balance: 0,
-              depositMemo: wallet.address,
-            },
-          });
-        });
-
-        user = { dogeAddress: wallet.address, dogePrivateKey: encryptedKey };
-      } catch (genErr) {
-        console.error("[DOGE_SYNC] Échec génération adresse:", genErr);
-        return NextResponse.json(
-          { error: "Impossible de générer une adresse DOGE" },
-          { status: 500 }
-        );
-      }
+    // DOGE BEP-20 utilise la même adresse EVM que BNB, jamais une adresse native Dogecoin.
+    if (!user.sidraAddress) {
+      return NextResponse.json({ error: "Adresse BSC utilisateur absente" }, { status: 422 });
     }
 
-    const blockchainBalance = await getDogeBalance(user.dogeAddress!);
+    const blockchainBalance = await getEvmTokenBalance(user.sidraAddress, "DOGE");
     if (blockchainBalance === null) {
       const existing = await prisma.wallet.findUnique({
         where: { userId_currency: { userId, currency: "DOGE" } },
@@ -94,10 +64,11 @@ export async function POST() {
       userId,
       currency: "DOGE",
       blockchainBalance,
-      network: "Dogecoin",
-      source: "DOGE_MAINNET",
-      decimals: 6,
+      network: "BSC (BEP20)",
+      source: "BSC_MAINNET",
+      decimals: 8,
       minDeposit: 0.01,
+      extraMetadata: { contractAddress: BSC_TOKENS.DOGE.contract },
     });
 
     return NextResponse.json({

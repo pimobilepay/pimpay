@@ -133,7 +133,7 @@ export async function getXlmBalance(address: string): Promise<number | null> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EVM TOKENS (USDC / BUSD / DAI) — BEP20 sur la Binance Smart Chain
+// EVM TOKENS (USDC / BUSD / DAI / DOGE) — BEP20 sur la Binance Smart Chain
 // On réutilise l'adresse EVM (sidraAddress), comme le fait BNB.
 // ─────────────────────────────────────────────────────────────────────────────
 const BSC_RPC_ENDPOINTS = [
@@ -191,6 +191,8 @@ export const BSC_TOKENS: Record<
   USDC: { contract: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18 },
   BUSD: { contract: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", decimals: 18 },
   DAI: { contract: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", decimals: 18 },
+  // Binance-Peg Dogecoin (DOGE) sur BNB Smart Chain — 8 décimales.
+  DOGE: { contract: "0xbA2aE424d960c26247Dd6c32edC70B295c744C43", decimals: 8 },
   EURC: { contract: "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c", decimals: 6, rpc: ETH_RPC_ENDPOINTS },
   OUSD: { contract: "0x2A8e1E676Ec238d8A992307B495b45B3fEAa5e86", decimals: 18, rpc: ETH_RPC_ENDPOINTS },
 };

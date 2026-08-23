@@ -85,6 +85,19 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
     explorerBase: "https://bscscan.com/tx/",
     accentColor: "text-yellow-400",
   },
+  DOGE: {
+    symbol: "DOGE",
+    name: "Dogecoin (BEP20)",
+    chain: "EVM",
+    network: "BSC (BEP20)",
+    logo: "/doge.png",
+    category: "CRYPTO",
+    addressField: "sidraAddress",
+    decimals: 8,
+    explorerBase: "https://bscscan.com/tx/",
+    accentColor: "text-yellow-500",
+    defaultPrice: 0.14,
+  },
   SOL: {
     symbol: "SOL",
     name: "Solana",
@@ -240,7 +253,7 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
 // --- Helpers de compatibilité ---
 
 export const WALLET_ASSET_ORDER = [
-  "PI", "SDA", "USDT", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
+  "PI", "SDA", "USDT", "BTC", "ETH", "BNB", "DOGE", "SOL", "XRP", "XLM", "TRX", "ADA", "TON",
   "USDC", "DAI", "BUSD", "EURC", "OUSD"
 ];
 
@@ -261,6 +274,7 @@ export const SYNC_ENDPOINTS: Record<string, string> = {
   BTC: "/api/wallet/btc/sync",
   ETH: "/api/wallet/eth/sync",
   BNB: "/api/wallet/bnb/sync",
+  DOGE: "/api/wallet/doge/sync",
   SOL: "/api/wallet/sol/sync",
   XRP: "/api/wallet/xrp/sync",
   XLM: "/api/wallet/xlm/sync",
