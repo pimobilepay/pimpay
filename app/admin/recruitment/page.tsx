@@ -31,6 +31,7 @@ interface Agent {
   country: string | null;
   agentId: string | null;
   agentRole: "AGENT" | "SUPERVISOR" | null;
+  supervisorType: "PRINCIPAL" | "ADJOINT" | "NORMAL" | null;
   agentType: "TERRAIN" | "ADMINISTRATIF" | null;
   status: AgentStatus;
   kycStatus: string;
@@ -147,7 +148,7 @@ function AgentRow({ agent, onAction, onView }: {
           {agent.kycStatus === "VERIFIED" && <BadgeCheck size={11} className="text-blue-400 flex-shrink-0" />}
           {agent.agentRole === "SUPERVISOR" && (
             <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[8px] font-black uppercase tracking-wider flex-shrink-0">
-              <Crown size={8} /> Sup
+              <Crown size={8} /> {agent.supervisorType === "PRINCIPAL" ? "Principal" : agent.supervisorType === "ADJOINT" ? "Adjoint" : "Sup"}
             </span>
           )}
           {(() => {
@@ -454,8 +455,10 @@ function AgentDrawer({ agent, onClose, onAction }: {
 
 // ─── Promote Modal ────────────────────────────────────────────────────────────
 
-function PromoteModal({ onClose, onPromote }: { onClose: () => void; onPromote: (userId: string) => void }) {
+function PromoteModal({ onClose, onPromote }: { onClose: () => void; onPromote: (userId: string, role: "AGENT" | "SUPERVISEUR", supervisorType?: "PRINCIPAL" | "ADJOINT" | "NORMAL") => void }) {
   const [search, setSearch] = useState("");
+  const [role, setRole] = useState<"AGENT" | "SUPERVISEUR">("AGENT");
+  const [supervisorType, setSupervisorType] = useState<"ADJOINT" | "NORMAL">("NORMAL");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
@@ -504,6 +507,13 @@ function PromoteModal({ onClose, onPromote }: { onClose: () => void; onPromote: 
         </div>
 
         <div className="p-4">
+          <div className="flex gap-2 mb-4">
+            <select value={role} onChange={(e) => setRole(e.target.value as "AGENT" | "SUPERVISEUR")} className="flex-1 rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-[11px] text-white outline-none">
+              <option value="AGENT">Agent</option>
+              <option value="SUPERVISEUR">Superviseur</option>
+            </select>
+            {role === "SUPERVISEUR" && <select value={supervisorType} onChange={(e) => setSupervisorType(e.target.value as "ADJOINT" | "NORMAL")} className="flex-1 rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-[11px] text-white outline-none"><option value="NORMAL">Normal</option><option value="ADJOINT">Adjoint</option></select>}
+          </div>
           <div className="flex items-center gap-2 px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] rounded-2xl mb-4">
             <Search size={14} className="text-slate-500" />
             <input
@@ -522,7 +532,7 @@ function PromoteModal({ onClose, onPromote }: { onClose: () => void; onPromote: 
             ) : candidates.map((c) => (
               <button
                 key={c.id}
-                onClick={() => onPromote(c.id)}
+                onClick={() => onPromote(c.id, role, role === "SUPERVISEUR" ? supervisorType : undefined)}
                 className="flex items-center gap-3 w-full px-3 py-2.5 rounded-2xl hover:bg-white/5 transition-colors text-left group"
               >
                 <div
@@ -740,14 +750,14 @@ export default function RecruitmentPage() {
     }
   };
 
-  const handlePromote = async (userId: string) => {
+  const handlePromote = async (userId: string, role: "AGENT" | "SUPERVISEUR" = "AGENT", supervisorType?: "PRINCIPAL" | "ADJOINT" | "NORMAL") => {
     setShowPromoteModal(false);
     setProcessing(true);
     try {
       const res = await fetch("/api/admin/recruitment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "promote", userId }),
+        body: JSON.stringify({ action: "promote", userId, role, supervisorType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

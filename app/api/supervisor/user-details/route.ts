@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { displayName, isSupervisorResponse, requirePrincipalSupervisor } from "@/lib/supervisorAuth";
+import { displayName, isSupervisorResponse, requireSupervisor } from "@/lib/supervisorAuth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const actor = await requirePrincipalSupervisor(req);
+  const actor = await requireSupervisor(req);
   if (isSupervisorResponse(actor)) return actor;
   const userId = new URL(req.url).searchParams.get("userId");
   if (!userId) return NextResponse.json({ error: "userId requis." }, { status: 400 });

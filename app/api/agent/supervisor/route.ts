@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         country: true,
         role: true,
         agentRole: true,
+        supervisorType: true,
         agentType: true,
       },
     });
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
     // uniquement ceux qu'il a parrainés.
     const teamAgents = await prisma.user.findMany({
       where: {
-        role: 'AGENT',
+        role: { in: ['AGENT', 'SUPERVISEUR'] },
         id: { not: supervisor.id },
       },
       orderBy: { createdAt: 'desc' },
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
         status: true,
         kycStatus: true,
         agentRole: true,
+        supervisorType: true,
         agentType: true,
         agentId: true,
         createdAt: true,

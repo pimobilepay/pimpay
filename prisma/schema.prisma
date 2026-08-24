@@ -85,6 +85,7 @@ model User {
   statusReason         String?
   maintenanceUntil     DateTime?
   agentRole            AgentRole?       @default(AGENT)
+  supervisorType       SupervisorType? @default(NORMAL)
   agentType            AgentType?       @default(TERRAIN)
   emailVerified        DateTime?
   accounts             Account[]
@@ -1331,6 +1332,12 @@ enum SystemWalletType {
 enum AgentRole {
   AGENT
   SUPERVISOR
+}
+
+enum SupervisorType {
+  PRINCIPAL
+  ADJOINT
+  NORMAL
 }
 
 // Distinction opérationnelle des agents :

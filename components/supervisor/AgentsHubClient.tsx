@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-type User = { id: string; name: string; username: string | null; email?: string | null; phone?: string | null; role: string; roleLabel: string; status: string; kycStatus: string; createdAt: string };
+type User = { id: string; name: string; username: string | null; email?: string | null; phone?: string | null; role: string; roleLabel: string; supervisorType?: "PRINCIPAL" | "ADJOINT" | "NORMAL" | null; status: string; kycStatus: string; createdAt: string };
 type Detail = User & { firstName: string | null; lastName: string | null; avatar: string | null; country: string | null; city: string | null; address: string | null; nationality: string | null; gender: string | null; birthDate: string | null; occupation: string | null; kycSubmittedAt: string | null; kycVerifiedAt: string | null; idType: string | null; idNumber: string | null; idCountry: string | null; idExpiryDate: string | null; wallets: { currency: string; balance: number; frozenBalance: number }[]; _count: { transactionsFrom: number; transactionsTo: number; referrals: number; sessions: number }; displayName: string };
 type Log = { id: string; targetId: string | null; details: string | null; status: string; createdAt: string };
 

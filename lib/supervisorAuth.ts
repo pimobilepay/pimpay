@@ -3,6 +3,16 @@ import { getAuthPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/lib/permissions";
 
+export async function requireSupervisor(req: NextRequest) {
+  const payload = await getAuthPayload();
+  if (!payload) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const actor = await prisma.user.findUnique({ where: { id: payload.id }, select: { id: true, name: true, username: true, role: true, agentRole: true, agentType: true, status: true, adminProfile: { select: { active: true, permissions: true } } } });
+  if (!actor || actor.status !== "ACTIVE") return NextResponse.json({ error: "Compte inactif" }, { status: 403 });
+  const allowed = actor.role === "ADMIN" || actor.role === "SUPERVISEUR_PRINCIPAL" || (actor.role === "AGENT" && actor.agentRole === "SUPERVISOR");
+  if (!allowed) return NextResponse.json({ error: "Accès réservé aux superviseurs." }, { status: 403 });
+  return actor;
+}
+
 export async function requirePrincipalSupervisor(req: NextRequest) {
   const payload = await getAuthPayload();
   if (!payload) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
