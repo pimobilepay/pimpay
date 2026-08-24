@@ -53,6 +53,10 @@ const searchSchema = z.object({
   children: z.number().int().min(0).max(9),
   infants: z.number().int().min(0).max(9),
   cabin: z.enum(["economy", "premium-economy", "business", "first"]),
+}).superRefine((data, context) => {
+  if (data.tripType === "round-trip" && data.returnDate && data.returnDate < data.departureDate) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["returnDate"], message: "La date de retour doit être postérieure au départ." });
+  }
 });
 
 export async function POST(request: Request) {
@@ -83,8 +87,8 @@ export async function POST(request: Request) {
       const status = error.code === "unavailable" ? 503 : error.code === "empty" ? 200 : 502;
       if (status === 200) return NextResponse.json({ flights: [] });
       return NextResponse.json(
-        { error: error.code === "unavailable" ? "La recherche de vols est temporairement indisponible. Réessayez plus tard." : error.message },
-        { status }
+        { error: error.code === "invalid" ? "Le service de recherche de vols est mal configuré. Vérifiez le fournisseur Duffel." : error.code === "unavailable" ? "La recherche de vols est temporairement indisponible. Réessayez plus tard." : error.message },
+        { status: error.code === "invalid" ? 502 : status }
       );
     }
     console.error("[FLIGHT_SEARCH_POST]:", error);

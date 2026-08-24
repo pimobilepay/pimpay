@@ -3,7 +3,20 @@ import { searchAirportsLocal } from "./airports-data";
 
 type DuffelOffer = { id: string; total_amount: string; total_currency: string; slices?: any[] };
 function duffelHeaders() { const token = process.env.DUFFEL_ACCESS_TOKEN || process.env.FLIGHT_API_KEY; if (!token) throw new FlightProviderError("Flight provider is not configured", "unavailable"); return { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Duffel-Version": "v2" }; }
-async function duffel(path: string, init: RequestInit) { const response = await fetch(`https://api.duffel.com${path}`, { ...init, headers: { ...duffelHeaders(), ...(init.headers ?? {}) }, cache: "no-store", signal: AbortSignal.timeout(15000) }); const body = await response.json().catch(() => null); if (!response.ok) throw new FlightProviderError(body?.errors?.[0]?.message ?? "Flight provider request failed", response.status === 404 ? "empty" : "unavailable"); return body?.data; }
+async function duffel(path: string, init: RequestInit) {
+  try {
+    const response = await fetch(`https://api.duffel.com${path}`, { ...init, headers: { ...duffelHeaders(), ...(init.headers ?? {}) }, cache: "no-store", signal: AbortSignal.timeout(20000) });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      const code = response.status === 404 ? "empty" : response.status === 401 || response.status === 403 ? "invalid" : "unavailable";
+      throw new FlightProviderError(code === "invalid" ? "La configuration du fournisseur de vols est invalide." : body?.errors?.[0]?.message ?? "Flight provider request failed", code);
+    }
+    return body?.data;
+  } catch (error) {
+    if (error instanceof FlightProviderError) throw error;
+    throw new FlightProviderError("Le fournisseur de vols ne répond pas.", "unavailable");
+  }
+}
 function mapOffer(offer: DuffelOffer): FlightOffer { const segments = (offer.slices ?? []).flatMap((slice: any) => (slice.segments ?? []).map((segment: any) => ({ flightNumber: `${segment.marketing_carrier?.iata_code ?? ""}${segment.marketing_carrier_flight_number ?? ""}`, airline: segment.marketing_carrier?.name ?? "Airline", airlineLogo: segment.marketing_carrier?.logo_symbol_url, departure: { time: segment.departing_at, airport: { iata: segment.origin?.iata_code ?? "", city: segment.origin?.city_name ?? "", name: segment.origin?.name ?? "", country: segment.origin?.country_code ?? "" } }, arrival: { time: segment.arriving_at, airport: { iata: segment.destination?.iata_code ?? "", city: segment.destination?.city_name ?? "", name: segment.destination?.name ?? "", country: segment.destination?.country_code ?? "" } }, durationMinutes: Math.max(0, Math.round((new Date(segment.arriving_at).getTime() - new Date(segment.departing_at).getTime()) / 60000)), baggage: "Cabin baggage included" }))); return { id: offer.id, segments, stops: Math.max(0, segments.length - (offer.slices?.length ?? 1)), totalDurationMinutes: segments.reduce((sum, segment) => sum + segment.durationMinutes, 0), baggage: "Cabin baggage included", price: { amount: Number(offer.total_amount), currency: offer.total_currency } }; }
 const CABIN_MAP: Record<string, string> = { economy: "economy", "premium-economy": "premium_economy", business: "business", first: "first" };
 
