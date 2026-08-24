@@ -176,7 +176,7 @@ export default function SupervisorClient() {
               <ShieldCheck className="h-6 w-6 text-emerald-500" />
               <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight text-balance">Supervision</h1>
             </div>
-            <p className="text-sm text-slate-500 mt-1">Pilotez votre équipe d&apos;agents et validez les dossiers KYC</p>
+            <p className="text-sm text-slate-500 mt-1">Pilotez votre équipe d&apos;agents et validez les dossiers KYC</p><div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300"><Lock className="size-3" /> Rôles réservés au superviseur administratif</div>
           </div>
           <Button
             variant="outline"

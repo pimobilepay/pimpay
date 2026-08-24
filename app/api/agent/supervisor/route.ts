@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         country: true,
         role: true,
         agentRole: true,
+        agentType: true,
       },
     });
 
@@ -156,6 +157,8 @@ export async function GET(req: NextRequest) {
         avatar: supervisor.avatar,
         country: supervisor.country,
         agentRole: supervisor.agentRole,
+        agentType: supervisor.agentType,
+        canManageRoles: supervisor.role === 'SUPERVISEUR_PRINCIPAL' && supervisor.agentType === 'ADMINISTRATIF',
       },
       stats: {
         totalAgents,
