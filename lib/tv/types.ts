@@ -1,10 +1,10 @@
 export type TVCountry = { code: string; name: string; flag: string }
-export type TVService = { id: string; name: string; country: string; logo?: string; available: boolean }
+export type TVService = { id: string; name: string; country: string; logo?: string; icon?: 'canal' | 'dstv' | 'startimes'; available: boolean }
 export type TVPackage = { id: string; name: string; price: number; currency: string; duration: string; channels?: number }
 export type TVSubscriber = { id: string; name: string; status: 'ACTIVE' | 'INACTIVE' | 'UNKNOWN' }
 export type TVProvider = { verifySubscriber(input: { serviceId: string; subscriberNumber: string }): Promise<TVSubscriber>; getPackages(input: { serviceId: string; subscriberNumber: string }): Promise<TVPackage[]>; pay(input: { serviceId: string; subscriberNumber: string; packageId: string }): Promise<{ status: 'PENDING' | 'SUCCESS' | 'FAILED'; reference?: string }> }
 export const TV_COUNTRIES: TVCountry[] = [{ code: 'CD', name: 'République démocratique du Congo', flag: 'CD' }, { code: 'CM', name: 'Cameroun', flag: 'CM' }, { code: 'CI', name: "Côte d'Ivoire", flag: 'CI' }, { code: 'SN', name: 'Sénégal', flag: 'SN' }]
-export const TV_SERVICES: TVService[] = [{ id: 'canalplus', name: 'Canal+', country: 'CD', available: true }, { id: 'dstv', name: 'DStv', country: 'CM', available: true }, { id: 'startimes', name: 'StarTimes', country: 'CD', available: true }, { id: 'canalplus-ci', name: 'Canal+', country: 'CI', available: true }, { id: 'canalplus-sn', name: 'Canal+', country: 'SN', available: true }]
+export const TV_SERVICES: TVService[] = [{ id: 'canalplus', name: 'Canal+', country: 'CD', icon: 'canal', available: true }, { id: 'dstv', name: 'DStv', country: 'CM', icon: 'dstv', available: true }, { id: 'startimes', name: 'StarTimes', country: 'CD', icon: 'startimes', available: true }, { id: 'canalplus-ci', name: 'Canal+', country: 'CI', icon: 'canal', available: true }, { id: 'canalplus-sn', name: 'Canal+', country: 'SN', icon: 'canal', available: true }]
 export const DEVELOPMENT_PACKAGES: TVPackage[] = [{ id: 'demo-essential', name: 'Essentiel', price: 0, currency: 'XAF', duration: '30 jours', channels: 80 }, { id: 'demo-premium', name: 'Premium', price: 0, currency: 'XAF', duration: '30 jours', channels: 150 }]
 export const sanitizeSubscriber = (value: string) => value.trim().replace(/[^a-zA-Z0-9+_-]/g, '').slice(0, 64)
 export const isDevelopmentMode = () => !process.env.MAISHAPAY_API_KEY || !process.env.MAISHAPAY_BASE_URL
