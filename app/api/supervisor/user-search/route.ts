@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       { phone: { equals: q } },
       { name: { contains: q, mode: "insensitive" } },
     ] },
-    select: { id: true, name: true, firstName: true, lastName: true, username: true, email: true, phone: true, role: true, status: true, kycStatus: true, createdAt: true },
+    select: { id: true, name: true, firstName: true, lastName: true, username: true, email: true, phone: true, role: true, supervisorType: true, status: true, kycStatus: true, createdAt: true },
     take: 10,
     orderBy: { createdAt: "desc" },
   });
