@@ -209,7 +209,7 @@ const DASH_T = {
     pieSortant: "支出", pieEntrant: "收入", pieSwaps: "兑换", pieAutres: "其他", pieTotal: "总计", pieNone: "无",
     quickServices: "快捷服务",
     svcBankTitle: "银行转账", svcBankSub: "转账到银行",
-    svcDepositTitle: "�����值", svcDepositSub: "为账户充值",
+    svcDepositTitle: "�����值", svcDepositSub: "为账户充���",
     svcPimTitle: "Pim 币", svcPimSub: "奖励",
     svcSupportTitle: "客服", svcSupportSub: "帮助与联系",
     recentTransactions: "最近交易",
@@ -332,7 +332,18 @@ export default function UserDashboard() {
       if (currencySwitcherRef.current && !currencySwitcherRef.current.contains(event.target as Node)) setShowCurrencySwitcher(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const refreshBalance = () => {
+      if (document.visibilityState === "visible") fetchDashboardData();
+    };
+    const balanceInterval = window.setInterval(refreshBalance, 15000);
+    window.addEventListener("focus", refreshBalance);
+    document.addEventListener("visibilitychange", refreshBalance);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.clearInterval(balanceInterval);
+      window.removeEventListener("focus", refreshBalance);
+      document.removeEventListener("visibilitychange", refreshBalance);
+    };
   }, []);
 
   // Real-time notification polling

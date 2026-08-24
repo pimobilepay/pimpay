@@ -8,10 +8,11 @@ export function useBalance() {
 
   const fetchBalance = useCallback(async () => {
     try {
-      const res = await fetch("/api/wallet/balance");
+      const res = await fetch("/api/wallet/balance", { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
-        setBalance(data.balance);
+        const nextBalance = Number(data.balance);
+        if (Number.isFinite(nextBalance)) setBalance(nextBalance);
       }
     } catch (err) {
       console.error("Erreur lors de la récupération de la balance", err);
@@ -22,6 +23,17 @@ export function useBalance() {
 
   useEffect(() => {
     fetchBalance();
+    const interval = window.setInterval(fetchBalance, 15000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") fetchBalance();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
   }, [fetchBalance]);
 
   return { balance, loading, refreshBalance: fetchBalance };

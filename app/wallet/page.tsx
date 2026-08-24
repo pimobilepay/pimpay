@@ -403,11 +403,23 @@ export default function WalletPage() {
     fetchMarketPrices();
     
     // Real-time market price refresh every 30 seconds
-    const priceInterval = setInterval(() => {
+    const priceInterval = window.setInterval(() => {
       fetchMarketPrices();
     }, 30000);
-    
-    return () => clearInterval(priceInterval);
+    const balanceInterval = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadWalletData();
+    }, 15000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") loadWalletData();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.clearInterval(priceInterval);
+      window.clearInterval(balanceInterval);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
   }, [loadWalletData, fetchMarketPrices]);
 
   // Real-time balance auto-refresh: poll notifications and reload balances
