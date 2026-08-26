@@ -242,63 +242,39 @@ export default function DepositPage() {
     } catch (e: any) { toast.error(e.message || t("deposit.flow.connectionError")); } finally { setIsLoading(false); }
   };
   
-  // Card deposit handler
+  // Le checkout GeniusPay hébergé collecte les données carte de façon sécurisée.
+  // Aucun numéro, CVV ou date d'expiration ne transite par PimobiPay.
   const handleCardDeposit = async () => {
-    // Validate inputs
-    const cleanCardNumber = cardNumber.replace(/\s/g, "");
-    if (cleanCardNumber.length !== 16) {
-      toast.error(t("deposit.flow.invalidCardNumber"));
-      return;
-    }
-    if (!cardExpiry || cardExpiry.length !== 5) {
-      toast.error(t("deposit.flow.invalidExpiry"));
-      return;
-    }
-    if (!cardCvv || cardCvv.length < 3) {
-      toast.error(t("deposit.flow.invalidCvv"));
-      return;
-    }
-    if (!cardHolder.trim()) {
-      toast.error(t("deposit.flow.holderRequired"));
-      return;
-    }
     if (!amount || parseFloat(amount) <= 0) {
       toast.error(t("deposit.flow.invalidAmount"));
       return;
     }
-    if (cardType === "unknown") {
-      toast.error(t("deposit.flow.unsupportedCard"));
-      return;
-    }
-    
+
     setIsLoading(true);
     try {
-      const payload = {
-        amount: parseFloat(amount),
-        currency: "USD",
-        cardNumber: cleanCardNumber,
-        cardExpiry: cardExpiry,
-        cardCvv: cardCvv,
-        cardHolder: cardHolder.trim(),
-        cardType: cardType,
-        method: "card",
-        description: `Depot par carte ${cardType.toUpperCase()}`,
-      };
-      
-      const res = await fetch("/api/transaction/deposit/card", {
+      const res = await fetch("/api/transaction/deposit/geniuspay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          amountUsd: parseFloat(amount),
+          countryCode: selectedCountry.code,
+          method: "card",
+          customerName: cardHolder.trim() || undefined,
+        }),
       });
-      
-      const result = await res.json();
-      
-      if (res.ok && result.success) {
+      const result = await res.json().catch(() => ({}));
+
+      if (res.ok && result.checkoutUrl) {
         toast.success(t("deposit.flow.txInitiated"));
-        router.push(`/deposit/confirm?ref=${result.reference}&amount=${amount}&method=card`);
-      } else {
-        toast.error(result.message || t("deposit.flow.cardError"));
+        if (typeof window !== "undefined" && window.self !== window.top) {
+          window.open(result.checkoutUrl, "_blank", "noopener,noreferrer");
+        } else {
+          window.location.href = result.checkoutUrl;
+        }
+        return;
       }
+
+      toast.error(result.error || t("deposit.flow.cardError"));
     } catch (e: any) {
       toast.error(e.message || t("deposit.flow.connectionError"));
     } finally {
@@ -578,7 +554,7 @@ export default function DepositPage() {
               {/* Deposit Button */}
               <button
                 onClick={handleCardDeposit}
-                disabled={isLoading || !amount || !cardNumber || !cardExpiry || !cardCvv || !cardHolder || cardType === "unknown"}
+                disabled={isLoading || !amount}
                 className="w-full h-16 bg-blue-600 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
