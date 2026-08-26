@@ -60,12 +60,23 @@ export function resolveAggregator(
     };
   }
 
-  // 2. PawaPay avec rails Mobile Money natifs pour ce pays/opérateur
-  //    (ex. Burkina Faso : ORANGE_BFA / MOOV_BFA ; Sénégal, Bénin, Mali…).
-  //    [FIX BURKINA FASO +226] On préfère PawaPay au simple checkout carte
-  //    GeniusPay dès qu'un rail Mobile Money natif existe, sinon le dépôt Mobile
-  //    Money du client échouait (GeniusPay ne pousse pas de MoMo hors CI).
-  if (pp.supported && pp.provider) {
+  // 2. GeniusPay avec le rail PawaPay intégré pour les marchés hors CI.
+  //    Le Burkina Faso doit impérativement utiliser GeniusPay comme point
+  //    d'entrée production : `pawapay` est envoyé à GeniusPay avec le code
+  //    opérateur ORANGE_BFA/MOOV_BFA. L'application ne contacte jamais
+  //    directement l'API PawaPay pour ce flux.
+  if (gp.supported && pp.supported && pp.provider) {
+    return {
+      aggregator: "GENIUSPAY",
+      supported: true,
+      currency: gp.currency || pp.currency,
+      provider: pp.provider,
+    };
+  }
+
+  // 3. PawaPay direct reste disponible uniquement pour les pays qui ne sont
+  //    pas couverts par GeniusPay et pour les flux legacy déjà existants.
+  if (!gp.supported && pp.supported && pp.provider) {
     return {
       aggregator: "PAWAPAY",
       supported: true,
@@ -74,7 +85,7 @@ export function resolveAggregator(
     };
   }
 
-  // 3. Repli GeniusPay : checkout hébergé (carte) quand la devise est
+  // 4. Repli GeniusPay : checkout hébergé (carte) quand la devise est
   //    compatible mais qu'aucun rail Mobile Money natif n'est disponible
   //    (ex. Coris Money au Burkina Faso, Togo, Niger…).
   if (gp.supported) {

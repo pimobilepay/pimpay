@@ -22,6 +22,7 @@ import {
 import {
   getGeniusPayCurrency,
   isGeniusPayMomoPushCountry,
+  isGeniusPayCountrySupported,
 } from "@/lib/geniuspay-catalog";
 import { resolveProvider } from "@/lib/pawapay-catalog";
 import {
@@ -326,7 +327,9 @@ export async function POST(req: NextRequest) {
       const fb = resolveProvider(countryCode, operatorHint);
       let fallbackError: string | null = null;
 
-      if (fb.supported && fb.provider) {
+      // Ne jamais contourner GeniusPay pour un pays qu'il couvre : le rail
+      // PawaPay doit rester interne à GeniusPay, pas un appel direct.
+      if (!isGeniusPayCountrySupported(countryCode) && fb.supported && fb.provider) {
         try {
           const fbAmount =
             fb.currency === currency
