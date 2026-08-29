@@ -31,6 +31,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { creditOnchainDeposit } from "@/lib/blockchain/credit-deposit";
+import { getDogeBalance, generateDogeWallet } from "@/lib/blockchain/dogecoin";
+import { encrypt } from "@/lib/encryption";
 import { getBnbBalance } from "@/lib/blockchain/bnb";
 import { getTrxBalance, getUsdtBalance, USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
 import {
@@ -56,7 +58,7 @@ interface SyncResult {
 interface AssetSyncSpec {
   currency: string;
   /** Champ d'adresse Prisma requis pour lire le solde on-chain. */
-  addressField: "sidraAddress" | "usdtAddress" | "walletAddress" | "solAddress" | "xrpAddress" | "xlmAddress";
+  addressField: "sidraAddress" | "usdtAddress" | "walletAddress" | "solAddress" | "xrpAddress" | "xlmAddress" | "dogeAddress";
   network: string;
   source: string;
   decimals: number;
@@ -93,13 +95,12 @@ const ASSET_SPECS: AssetSyncSpec[] = [
 
   {
     currency: "DOGE",
-    addressField: "sidraAddress",
-    network: "BSC (BEP20)",
-    source: "BSC_MAINNET",
+    addressField: "dogeAddress",
+    network: "Dogecoin Mainnet",
+    source: "DOGE_MAINNET",
     decimals: 8,
     minDeposit: 0.01,
-    read: (a) => getEvmTokenBalance(a, "DOGE"),
-    extraMetadata: { contractAddress: BSC_TOKENS.DOGE.contract },
+    read: getDogeBalance,
   },
 
   // ── Stablecoins EVM (ERC20 / BEP20) ───────────────────────────────────────
@@ -232,11 +233,24 @@ export async function POST() {
         solAddress: true,     // SOL
         xrpAddress: true,     // XRP
         xlmAddress: true,     // XLM
+        dogeAddress: true,    // DOGE natif
       },
     });
 
     if (!user) {
       return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
+    }
+
+    let dogeAddress = user.dogeAddress;
+    if (!dogeAddress) {
+      const generated = generateDogeWallet();
+      const updated = await prisma.user.updateMany({
+        where: { id: userId, dogeAddress: null },
+        data: { dogeAddress: generated.address, dogePrivateKey: encrypt(generated.privateKeyWIF) },
+      });
+      dogeAddress = updated.count > 0
+        ? generated.address
+        : (await prisma.user.findUnique({ where: { id: userId }, select: { dogeAddress: true } }))?.dogeAddress;
     }
 
     // ── 3. Lecture on-chain en PARALLELE (les RPC sont independants) ──────────
@@ -245,7 +259,7 @@ export async function POST() {
     // les paralleliser epuiserait le pool de connexions.
     const reads = await Promise.all(
       ASSET_SPECS.map(async (spec) => {
-        const address = user[spec.addressField];
+        const address = spec.currency === "DOGE" ? dogeAddress : user[spec.addressField];
         if (!address) {
           return { spec, address: null, balance: null, failed: false };
         }

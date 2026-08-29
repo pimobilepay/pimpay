@@ -23,8 +23,9 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
-import { getEvmTokenBalance, BSC_TOKENS } from "@/lib/blockchain/balances";
+import { getDogeBalance, generateDogeWallet } from "@/lib/blockchain/dogecoin";
 import { creditOnchainDeposit } from "@/lib/blockchain/credit-deposit";
+import { encrypt } from "@/lib/encryption";
 
 export async function POST() {
   try {
@@ -35,19 +36,33 @@ export async function POST() {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { sidraAddress: true },
+      select: { dogeAddress: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    // DOGE BEP-20 utilise la même adresse EVM que BNB, jamais une adresse native Dogecoin.
-    if (!user.sidraAddress) {
-      return NextResponse.json({ error: "Adresse BSC utilisateur absente" }, { status: 422 });
+    let dogeAddress = user.dogeAddress;
+    if (!dogeAddress) {
+      const generated = generateDogeWallet();
+      const updated = await prisma.user.updateMany({
+        where: { id: userId, dogeAddress: null },
+        data: {
+          dogeAddress: generated.address,
+          dogePrivateKey: encrypt(generated.privateKeyWIF),
+        },
+      });
+      dogeAddress = updated.count > 0
+        ? generated.address
+        : (await prisma.user.findUnique({ where: { id: userId }, select: { dogeAddress: true } }))?.dogeAddress;
     }
 
-    const blockchainBalance = await getEvmTokenBalance(user.sidraAddress, "DOGE");
+    if (!dogeAddress) {
+      return NextResponse.json({ error: "Adresse Dogecoin utilisateur absente" }, { status: 422 });
+    }
+
+    const blockchainBalance = await getDogeBalance(dogeAddress);
     if (blockchainBalance === null) {
       const existing = await prisma.wallet.findUnique({
         where: { userId_currency: { userId, currency: "DOGE" } },
