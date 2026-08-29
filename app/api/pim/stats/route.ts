@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const TOTAL_SUPPLY = 10_000_000_000;
+const TOTAL_SUPPLY = 100_000_000;
 
 export async function GET() {
   try {

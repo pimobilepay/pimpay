@@ -12,7 +12,7 @@ export default function PimCoinsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [coinStats, setCoinStats] = useState({ users: 0, totalSupply: 10_000_000_000 });
+  const [coinStats, setCoinStats] = useState({ users: 0, totalSupply: 100_000_000 });
 
   const checkAuth = useCallback(async () => {
     try {
@@ -41,7 +41,7 @@ export default function PimCoinsPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && Number.isFinite(data.users)) {
-          setCoinStats({ users: data.users, totalSupply: 10_000_000_000 });
+          setCoinStats({ users: data.users, totalSupply: 100_000_000 });
         }
       })
       .catch((error) => console.error("Error fetching PIM stats:", error));
