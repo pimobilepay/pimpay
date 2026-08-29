@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Coins, Loader2, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Coins, Loader2, RefreshCcw, Users, Vault } from "lucide-react";
 import { PimMiner } from "@/components/PimMiner";
 import { BottomNav } from "@/components/bottom-nav";
 
@@ -12,6 +12,7 @@ export default function PimCoinsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [coinStats, setCoinStats] = useState({ users: 0, totalSupply: 10_000_000_000 });
 
   const checkAuth = useCallback(async () => {
     try {
@@ -36,6 +37,14 @@ export default function PimCoinsPage() {
 
   useEffect(() => {
     checkAuth();
+    fetch("/api/pim/stats", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Number.isFinite(data.users)) {
+          setCoinStats({ users: data.users, totalSupply: 10_000_000_000 });
+        }
+      })
+      .catch((error) => console.error("Error fetching PIM stats:", error));
   }, [checkAuth]);
 
   const handleRefresh = () => {
@@ -94,6 +103,24 @@ export default function PimCoinsPage() {
           </p>
         </div>
       </div>
+
+      {/* Statistiques du réseau */}
+      <section className="grid grid-cols-2 gap-3 px-4 pt-4" aria-label="Statistiques PIM Coin">
+        <div className="rounded-2xl border border-white/5 bg-slate-800/40 p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-amber-500/15">
+            <Users className="size-5 text-amber-400" aria-hidden="true" />
+          </div>
+          <p className="text-xl font-black text-white">{coinStats.users.toLocaleString("fr-FR")}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Utilisateurs actifs</p>
+        </div>
+        <div className="rounded-2xl border border-white/5 bg-slate-800/40 p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-orange-500/15">
+            <Vault className="size-5 text-orange-400" aria-hidden="true" />
+          </div>
+          <p className="text-xl font-black text-white">{coinStats.totalSupply.toLocaleString("fr-FR")}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Supply total PIM</p>
+        </div>
+      </section>
 
       {/* Minage */}
       <div className="px-4 py-8">
