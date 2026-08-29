@@ -98,7 +98,18 @@ export async function verifyPiSessionToken(piToken: string | undefined | null): 
 
   // 2. Fallback : traiter la valeur comme un access token Pi Network
   const cached = PI_TOKEN_CACHE.get(piToken);
-  if (cached && cached.expires > Date.now()) return cached.userId;
+  if (cached && cached.expires > Date.now()) {
+    // Ne jamais laisser le cache contourner une déconnexion globale.
+    // Une déconnexion marque toutes les sessions de l'utilisateur inactives,
+    // tandis que le token Pi peut rester identique pendant la durée du cache.
+    const activeSession = await prisma.session.findFirst({
+      where: { userId: cached.userId, isActive: true },
+      select: { id: true },
+    });
+    if (activeSession) return cached.userId;
+    PI_TOKEN_CACHE.delete(piToken);
+    return null;
+  }
 
   try {
     const piRes = await fetch("https://api.minepi.com/v2/me", {
