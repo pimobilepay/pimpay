@@ -65,7 +65,9 @@ export function resolveEndpoint(
   operatorHint: string
 ): ResolvedEndpoint {
   const resolution = resolveAggregator(countryCode, operatorHint);
-  const endpoint = resolution.aggregator
+  const hasMobileMoneyRail = Boolean(resolution.method || resolution.provider);
+  const isMobileMoneyOperation = operation === "deposit" && operatorHint.trim().length > 0;
+  const endpoint = resolution.aggregator && (!isMobileMoneyOperation || hasMobileMoneyRail)
     ? ENDPOINTS[operation][resolution.aggregator]
     : null;
   return { ...resolution, endpoint, operation };

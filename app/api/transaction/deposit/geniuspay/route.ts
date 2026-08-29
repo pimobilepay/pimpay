@@ -125,6 +125,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Ne jamais transformer silencieusement un dépôt Mobile Money non couvert
+    // en checkout carte. Le Tchad (TD) possède Airtel Money dans le catalogue
+    // applicatif, mais aucun rail GeniusPay/PawaPay confirmé à ce jour.
+    if (method !== "card" && !isMobileMoney) {
+      return NextResponse.json(
+        { error: `Dépôt Mobile Money indisponible pour ${countryCode}. Aucun opérateur compatible n'est configuré.` },
+        { status: 422 }
+      );
+    }
+
     // Un paiement Mobile Money exige un numéro de téléphone.
     if (isMobileMoney && !phone) {
       return NextResponse.json(

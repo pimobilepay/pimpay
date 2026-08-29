@@ -190,7 +190,10 @@ export default function DepositPage() {
         const operatorHint = `${selectedOperator?.id || ""} ${selectedOperator?.name || ""}`;
         const routed = resolveEndpoint("deposit", selectedCountry.code, operatorHint);
         if (!routed.endpoint) {
-          toast.error(t("deposit.flow.initError"));
+          const unavailableMessage = selectedCountry.code === "TD"
+            ? "Le dépôt Mobile Money n'est pas encore disponible au Tchad."
+            : t("deposit.flow.initError");
+          toast.error(unavailableMessage);
           setIsLoading(false);
           return;
         }
