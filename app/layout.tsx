@@ -83,6 +83,9 @@ export default async function RootLayout({
           On laisse donc PiInitializer etre le point d'initialisation unique et coherent.
         */}
 
+        {/* Google Ad Manager GPT rewarded web events */}
+        <Script src="https://securepubads.g.doubleclick.net/tag/js/gpt.js" strategy="afterInteractive" nonce={nonce} />
+
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-W8HP6W3DM4"

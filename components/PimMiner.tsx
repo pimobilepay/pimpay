@@ -4,6 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pickaxe, Loader2, Clock, Check, Sparkles, Flame } from "lucide-react";
 import { toast } from "sonner";
 
+declare global {
+  interface Window { googletag?: typeof googletag; }
+  var googletag: {
+    cmd: Array<() => void>;
+    enums: { OutOfPageFormat: { REWARDED: string } };
+    defineOutOfPageSlot: (path: string, format: string) => googletag.Slot | null;
+    pubads: () => googletag.PubAdsService;
+    display: (slot: googletag.Slot) => void;
+    enableServices: () => void;
+    destroySlots: (slots?: googletag.Slot[]) => boolean;
+  };
+}
+
+declare namespace googletag {
+  interface Slot { addService(service: PubAdsService): Slot; }
+  interface Event { slot: Slot; }
+  interface RewardedSlotGrantedEvent extends Event {}
+  interface PubAdsService { addEventListener(event: string, listener: (event: Event) => void): void; show?: () => void; }
+}
+
 interface MineStatus {
   balance: number;
   reward: number;
@@ -82,32 +102,43 @@ export function PimMiner({ onBalanceChange }: PimMinerProps) {
   }, [remaining, fetchStatus]);
 
   const handleMine = async () => {
-    if (isMining) return;
+    if (isMining || !canMine) return;
     setIsMining(true);
+    let rewarded = false;
+    let slot: googletag.Slot | null = null;
     try {
-      const res = await fetch("/api/pim/mine", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStatus(data);
-        setRemaining(data.remainingMs);
-        onBalanceChange?.(data.balance);
-        setJustMined(true);
-        setTimeout(() => setJustMined(false), 2500);
-        toast.success(`+${data.reward} PIM minés !`, {
-          description: "Revenez dans 24h pour la prochaine session.",
-        });
-      } else if (res.status === 429) {
-        setStatus(data);
-        setRemaining(data.remainingMs);
-        toast.error("Minage indisponible", {
-          description: "Le cooldown de 24h n'est pas encore écoulé.",
-        });
-      } else {
-        toast.error(data.error || "Erreur lors du minage");
+      const attemptResponse = await fetch("/api/pim/mine/ad-attempt", { cache: "no-store" });
+      const { attemptToken } = await attemptResponse.json();
+      if (!attemptResponse.ok || !attemptToken) throw new Error("Impossible de préparer la récompense");
+      const googletag = window.googletag;
+      const adUnitPath = process.env.NEXT_PUBLIC_GAM_REWARDED_AD_UNIT_PATH;
+      if (!googletag?.defineOutOfPageSlot || !adUnitPath) {
+        toast.error("Publicité indisponible", { description: "Réessayez plus tard." });
+        return;
       }
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const finish = (error?: Error) => { if (settled) return; settled = true; clearTimeout(timeout); error ? reject(error) : resolve(); };
+        const timeout = window.setTimeout(() => finish(new Error("Ad timeout")), 15000);
+        googletag.cmd.push(() => {
+          try {
+            slot = googletag.defineOutOfPageSlot(adUnitPath, googletag.enums.OutOfPageFormat.REWARDED);
+            if (!slot) return finish(new Error("Rewarded slot unavailable"));
+            slot.addService(googletag.pubads());
+            const onReady = (event: googletag.Event & { makeRewardedVisible?: () => void }) => { if (event.slot === slot && event.makeRewardedVisible) event.makeRewardedVisible(); else if (event.slot === slot) finish(new Error("Rewarded ad unavailable")); };
+            const onGranted = (event: googletag.RewardedSlotGrantedEvent) => { if (event.slot === slot) { rewarded = true; void fetch("/api/pim/mine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attemptToken, rewardGranted: true }) }).then(async (res) => { const data = await res.json(); if (!res.ok || !data.success) throw new Error(data.error || "Activation refused"); setStatus(data); setRemaining(data.remainingMs); onBalanceChange?.(data.balance); setJustMined(true); window.setTimeout(() => setJustMined(false), 2500); toast.success(`+${data.reward} PIM minés !`, { description: "Revenez dans 24h pour la prochaine session." }); }).catch((error) => toast.error(error.message)); } };
+            const onClosed = (event: googletag.events.Event) => { if (event.slot === slot) finish(rewarded ? undefined : new Error("Ad closed without reward")); };
+            googletag.pubads().addEventListener("rewardedSlotReady", onReady);
+            googletag.pubads().addEventListener("rewardedSlotGranted", onGranted);
+            googletag.pubads().addEventListener("rewardedSlotClosed", onClosed);
+            googletag.enableServices(); googletag.display(slot);
+          } catch (error) { finish(error instanceof Error ? error : new Error("Ad failed")); }
+        });
+      });
     } catch (error) {
-      toast.error("Erreur réseau. Réessayez.");
+      if (!rewarded) toast.error("Publicité indisponible", { description: "Aucun PIM n'a été crédité. Réessayez plus tard." });
     } finally {
+      if (slot) window.googletag?.destroySlots([slot]);
       setIsMining(false);
     }
   };
