@@ -17,6 +17,7 @@ import axios from "axios";
 import * as bitcoin from "bitcoinjs-lib";
 import { ECPairFactory } from "ecpair";
 import * as tinysecp from "tiny-secp256k1";
+import { randomBytes } from "node:crypto";
 
 const ECPair = ECPairFactory(tinysecp);
 const TIMEOUT = 10000;
@@ -41,7 +42,11 @@ export interface GeneratedDogeWallet {
 
 /** Génère une nouvelle paire adresse/clé Dogecoin (P2PKH). */
 export function generateDogeWallet(): GeneratedDogeWallet {
-  const keyPair = ECPair.makeRandom({ network: DOGECOIN_NETWORK });
+  const keyPair = ECPair.makeRandom({
+    network: DOGECOIN_NETWORK,
+    compressed: true,
+    rng: (size) => randomBytes(size),
+  });
   const { address } = bitcoin.payments.p2pkh({
     pubkey: Buffer.from(keyPair.publicKey),
     network: DOGECOIN_NETWORK,

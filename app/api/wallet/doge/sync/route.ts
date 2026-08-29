@@ -43,7 +43,7 @@ export async function POST() {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    let dogeAddress = user.dogeAddress;
+    let dogeAddress: string | null = user.dogeAddress ?? null;
     if (!dogeAddress) {
       const generated = generateDogeWallet();
       const updated = await prisma.user.updateMany({
@@ -79,11 +79,10 @@ export async function POST() {
       userId,
       currency: "DOGE",
       blockchainBalance,
-      network: "BSC (BEP20)",
-      source: "BSC_MAINNET",
+      network: "Dogecoin Mainnet",
+      source: "DOGE_MAINNET",
       decimals: 8,
       minDeposit: 0.01,
-      extraMetadata: { contractAddress: BSC_TOKENS.DOGE.contract },
     });
 
     return NextResponse.json({

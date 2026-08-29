@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { Keypair } from "@solana/web3.js";
 import b58 from "bs58";
+import { encrypt } from "@/lib/encryption";
 
 /**
  * GET: Récupère l'adresse Solana de l'utilisateur
