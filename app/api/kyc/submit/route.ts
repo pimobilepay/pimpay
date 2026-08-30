@@ -185,6 +185,29 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Refuse explicit identity collisions before the fraud score so the user
+    // receives an actionable explanation instead of a generic server error.
+    const duplicateIdUser = existingUsers.find(
+      (candidate) => candidate.idNumber === kycData.idNumber && candidate.id !== userId
+    );
+    const duplicatePhoneUser = existingUsers.find(
+      (candidate) => candidate.phone === kycData.phone && candidate.id !== userId
+    );
+
+    if (duplicateIdUser || duplicatePhoneUser) {
+      const reasons = [
+        duplicateIdUser ? "NUMERO_DOCUMENT_DEJA_ASSOCIE" : null,
+        duplicatePhoneUser ? "TELEPHONE_DEJA_ASSOCIE" : null,
+      ].filter(Boolean);
+      return NextResponse.json({
+        success: false,
+        code: "ACCOUNT_CONFLICT",
+        error: "Ces informations sont déjà utilisées par un autre compte PiMobiPay.",
+        details: "Connectez-vous au compte qui contient déjà ces informations ou contactez le support. Ne créez pas un nouveau compte.",
+        conflictFields: reasons,
+      }, { status: 409 });
+    }
+
     // Run fraud detection
     const fraudResult = computeFraudScore(
       { ...kycData, userId },
@@ -305,8 +328,25 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error("Erreur Submit KYC:", error);
+
+    // Prisma unique constraints can still catch a race between the duplicate
+    // check and the update. Return the same actionable error to the client.
+    if (error?.code === "P2002") {
+      return NextResponse.json({
+        success: false,
+        code: "ACCOUNT_CONFLICT",
+        error: "Ces informations sont déjà utilisées par un autre compte PiMobiPay.",
+        details: "Un compte existe déjà avec ce numéro de document ou ce téléphone. Connectez-vous à ce compte ou contactez le support.",
+      }, { status: 409 });
+    }
+
     return NextResponse.json(
-      { error: "Echec de l'enregistrement" },
+      {
+        success: false,
+        code: "KYC_SUBMISSION_FAILED",
+        error: "Le dossier KYC n'a pas pu être enregistré.",
+        details: "Vérifiez votre connexion et vos informations, puis réessayez. Si le problème persiste, contactez le support.",
+      },
       { status: 500 }
     );
   }

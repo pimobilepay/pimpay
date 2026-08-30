@@ -25,6 +25,12 @@ export default function KYCPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<{
+    code?: string;
+    message: string;
+    details?: string;
+    conflictFields?: string[];
+  } | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<string>("NONE");
@@ -239,6 +245,7 @@ export default function KYCPage() {
     if (!acceptedTerms) { toast.error(t("kyc.acceptTermsRequired")); return; }
 
     setIsSubmitting(true);
+    setSubmissionError(null);
     try {
       const res = await fetch("/api/kyc/submit", {
         method: "POST",
@@ -251,6 +258,14 @@ export default function KYCPage() {
         setFraudResult(result.fraudCheck);
         toast.success(t("kyc.kycSubmitted"));
         setTimeout(() => router.push("/dashboard"), 2500);
+      } else if (res.status === 409 || result.code === "ACCOUNT_CONFLICT") {
+        setSubmissionError({
+          code: result.code,
+          message: result.error || "Ces informations sont déjà utilisées par un autre compte PiMobiPay.",
+          details: result.details,
+          conflictFields: result.conflictFields,
+        });
+        toast.error(result.error || "Informations déjà associées à un autre compte");
       } else if (res.status === 403) {
         setFraudResult({
           score: result.fraudScore,
@@ -259,9 +274,19 @@ export default function KYCPage() {
         });
         toast.error(result.error || t("kyc.submissionRejected"));
       } else {
+        setSubmissionError({
+          code: result.code,
+          message: result.error || t("kyc.submissionError"),
+          details: result.details,
+        });
         toast.error(result.error || t("kyc.submissionError"));
       }
     } catch {
+      setSubmissionError({
+        code: "NETWORK_ERROR",
+        message: "Impossible de contacter le serveur.",
+        details: "Vérifiez votre connexion Internet et réessayez.",
+      });
       toast.error(t("kyc.networkError"));
     } finally {
       setIsSubmitting(false);
@@ -661,8 +686,32 @@ export default function KYCPage() {
               </div>
             </div>
 
-            {/* Fraud result display (after submission attempt) */}
-            {fraudResult && (
+        {submissionError && (
+          <div role="alert" className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-100">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="mt-0.5 shrink-0 text-red-400" />
+              <div className="min-w-0">
+                <p className="text-sm font-black">{submissionError.message}</p>
+                {submissionError.details && (
+                  <p className="mt-2 text-xs leading-relaxed text-red-100/80">{submissionError.details}</p>
+                )}
+                {submissionError.conflictFields?.length ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-red-100/90">
+                    {submissionError.conflictFields.map((field) => (
+                      <li key={field}>{field === "TELEPHONE_DEJA_ASSOCIE" ? "Le numéro de téléphone est déjà lié à un compte." : "Le numéro du document est déjà lié à un compte."}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <button type="button" onClick={() => router.push("/auth/login")} className="mt-4 rounded-xl bg-red-500/20 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-red-100">
+                  Se connecter à mon compte
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fraud result display (after submission attempt) */}
+        {fraudResult && (
               <div className={`rounded-2xl p-5 border ${
                 fraudResult.riskLevel === "LOW" ? 'bg-emerald-500/5 border-emerald-500/20' :
                 fraudResult.riskLevel === "MEDIUM" ? 'bg-amber-500/5 border-amber-500/20' :
