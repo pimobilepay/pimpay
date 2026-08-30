@@ -258,6 +258,13 @@ export default function KYCPage() {
         setFraudResult(result.fraudCheck);
         toast.success(t("kyc.kycSubmitted"));
         setTimeout(() => router.push("/dashboard"), 2500);
+      } else if (result.code === "SESSION_REQUIRED" || result.code === "ACCOUNT_MISMATCH") {
+        setSubmissionError({
+          code: result.code,
+          message: result.error || "Votre session ne correspond pas à ce compte.",
+          details: result.details,
+        });
+        toast.error(result.error || "Session ou compte incorrect");
       } else if (res.status === 409 || result.code === "ACCOUNT_CONFLICT") {
         setSubmissionError({
           code: result.code,

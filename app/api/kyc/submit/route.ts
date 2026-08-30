@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, KycStatus } from "@prisma/client";
 import { generateKycTicket, buildUserDisplayName } from "@/lib/kyc-ticket";
+import { getAuthUserIdFromRequest } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
@@ -134,7 +135,30 @@ export async function POST(request: NextRequest) {
     const { userId, ...kycData } = data;
 
     if (!userId) {
-      return NextResponse.json({ error: "ID Utilisateur requis" }, { status: 401 });
+      return NextResponse.json({
+        success: false,
+        code: "SESSION_REQUIRED",
+        error: "Votre session a expiré.",
+        details: "Reconnectez-vous à votre compte avant de soumettre le dossier KYC.",
+      }, { status: 401 });
+    }
+
+    const authenticatedUserId = await getAuthUserIdFromRequest(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json({
+        success: false,
+        code: "SESSION_REQUIRED",
+        error: "Votre session a expiré ou n'est pas valide.",
+        details: "Reconnectez-vous à votre compte PiMobiPay, puis recommencez la vérification.",
+      }, { status: 401 });
+    }
+    if (authenticatedUserId !== userId) {
+      return NextResponse.json({
+        success: false,
+        code: "ACCOUNT_MISMATCH",
+        error: "Vous êtes connecté avec un autre compte.",
+        details: "Le dossier KYC ouvert ne correspond pas à votre session actuelle. Déconnectez-vous, reconnectez-vous au bon compte, puis recommencez.",
+      }, { status: 403 });
     }
 
     // Validate user exists
