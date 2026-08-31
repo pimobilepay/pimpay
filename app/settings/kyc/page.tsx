@@ -245,7 +245,9 @@ export default function KYCPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formData, userId })
       });
-      const result = await res.json();
+      const result = await res.json().catch(() => ({
+        error: "Le serveur a renvoyé une réponse illisible. Réessayez dans quelques instants."
+      }));
 
       if (res.ok && result.success) {
         setFraudResult(result.fraudCheck);

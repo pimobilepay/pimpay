@@ -126,6 +126,51 @@ function computeFraudScore(data: Record<string, any>, ip: string, existingUsers:
   };
 }
 
+// ---- VALIDATION ----
+
+const REQUIRED_FIELDS: Record<string, string> = {
+  idType: "Sélectionnez le type de document d'identité.",
+  idCountry: "Sélectionnez le pays qui a délivré votre document.",
+  idNumber: "Saisissez le numéro de votre document d'identité.",
+  birthDate: "Saisissez votre date de naissance.",
+  firstName: "Saisissez votre prénom.",
+  lastName: "Saisissez votre nom.",
+  nationality: "Sélectionnez votre nationalité.",
+  gender: "Sélectionnez votre genre.",
+  phone: "Saisissez votre numéro de téléphone.",
+  address: "Saisissez votre adresse complète.",
+  city: "Saisissez votre ville.",
+  kycFrontUrl: "Ajoutez la photo du recto de votre document.",
+  kycBackUrl: "Ajoutez la photo du verso de votre document.",
+  kycSelfieUrl: "Prenez un selfie pour vérifier votre identité.",
+};
+
+function validateKycData(data: Record<string, unknown>) {
+  for (const [field, message] of Object.entries(REQUIRED_FIELDS)) {
+    if (typeof data[field] !== "string" || !data[field].trim()) return message;
+  }
+
+  if (data.idExpiryDate !== "PERMANENT" && typeof data.idExpiryDate !== "string") {
+    return "Saisissez la date d'expiration du document ou sélectionnez « Document permanent ».";
+  }
+
+  if (data.idExpiryDate !== "PERMANENT" && Number.isNaN(Date.parse(data.idExpiryDate as string))) {
+    return "La date d'expiration du document est invalide. Choisissez une date valide.";
+  }
+
+  if (Number.isNaN(Date.parse(data.birthDate as string))) {
+    return "La date de naissance est invalide. Choisissez une date valide.";
+  }
+
+  const birthDate = new Date(data.birthDate as string);
+  if (birthDate >= new Date()) return "La date de naissance doit être antérieure à aujourd'hui.";
+  if (Date.now() - birthDate.getTime() < 18 * 365.25 * 24 * 60 * 60 * 1000) {
+    return "Vous devez avoir au moins 18 ans pour soumettre un dossier KYC.";
+  }
+
+  return null;
+}
+
 // ---- MAIN API HANDLER ----
 
 export async function POST(request: NextRequest) {
@@ -133,8 +178,13 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     const { userId, ...kycData } = data;
 
-    if (!userId) {
-      return NextResponse.json({ error: "ID Utilisateur requis" }, { status: 401 });
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json({ error: "Votre session est expirée. Reconnectez-vous avant de soumettre le dossier." }, { status: 401 });
+    }
+
+    const validationError = validateKycData(kycData);
+    if (validationError) {
+      return NextResponse.json({ error: validationError, code: "KYC_VALIDATION_ERROR" }, { status: 422 });
     }
 
     // Validate user exists
@@ -226,9 +276,23 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      const fraudMessages: Record<string, string> = {
+        DUPLICATE_ID_NUMBER: "Ce numéro de document est déjà associé à un autre compte.",
+        DUPLICATE_PHONE: "Ce numéro de téléphone est déjà associé à un autre compte.",
+        NAME_MISMATCH: "Le prénom ne correspond pas aux informations déjà enregistrées sur votre compte.",
+        UNDERAGE: "Vous devez avoir au moins 18 ans pour utiliser ce service.",
+        INVALID_AGE: "La date de naissance fournie semble invalide. Vérifiez-la avant de réessayer.",
+        EXPIRED_DOCUMENT: "Votre document d'identité est expiré. Utilisez un document encore valide.",
+        MISSING_SELFIE: "Le selfie est obligatoire pour vérifier votre identité.",
+        MISSING_FRONT_ID: "La photo du recto de votre document est obligatoire.",
+        MISSING_BACK_ID: "La photo du verso de votre document est obligatoire.",
+        SHORT_ID_NUMBER: "Le numéro de document est trop court. Vérifiez le numéro saisi.",
+      };
+      const firstFraudMessage = fraudResult.flags.map(flag => fraudMessages[flag]).find(Boolean);
       return NextResponse.json({
         success: false,
-        error: "Votre soumission a ete rejetee pour raison de securite",
+        error: firstFraudMessage || "Votre dossier nécessite une vérification manuelle pour des raisons de sécurité.",
+        code: "KYC_SECURITY_REVIEW",
         fraudScore: fraudResult.score,
         riskLevel: fraudResult.riskLevel,
       }, { status: 403 });
@@ -245,7 +309,7 @@ export async function POST(request: NextRequest) {
         nationality: kycData.nationality,
         idType: kycData.idType,
         idNumber: kycData.idNumber,
-        idExpiryDate: kycData.idExpiryDate ? new Date(kycData.idExpiryDate) : null,
+        idExpiryDate: kycData.idExpiryDate === "PERMANENT" ? null : new Date(kycData.idExpiryDate),
         idCountry: kycData.idCountry,
         occupation: kycData.occupation,
         phone: kycData.phone,
@@ -304,9 +368,14 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("Erreur Submit KYC:", error);
+    console.error("[v0] Erreur Submit KYC:", error);
+    const message = error instanceof SyntaxError
+      ? "Les données envoyées sont invalides. Rechargez la page et réessayez."
+      : error?.code?.startsWith("P")
+        ? "Impossible d'enregistrer votre dossier dans le compte. Vérifiez vos informations et réessayez."
+        : "Le service de vérification est momentanément indisponible. Réessayez dans quelques instants.";
     return NextResponse.json(
-      { error: "Echec de l'enregistrement" },
+      { error: message, code: "KYC_SUBMISSION_ERROR" },
       { status: 500 }
     );
   }
