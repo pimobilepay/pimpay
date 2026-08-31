@@ -67,7 +67,7 @@ export default function PimCoinsPage() {
     <>
       <Script
         async
-        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6239719931579659"
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7528814893106755"
         crossOrigin="anonymous"
         strategy="afterInteractive"
       />
