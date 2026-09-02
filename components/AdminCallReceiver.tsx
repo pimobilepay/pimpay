@@ -16,7 +16,7 @@ import {
   Minimize2,
   Maximize2,
 } from "lucide-react";
-import { getPusherClient, VOIP_CHANNEL, VOIP_EVENTS } from "@/lib/pusher-client";
+import { getPusherClient, isPusherConfigured, VOIP_CHANNEL, VOIP_EVENTS } from "@/lib/pusher-client";
 import type { PresenceChannel } from "pusher-js";
 
 export type CallState = "idle" | "incoming" | "connected" | "ended";
@@ -298,7 +298,17 @@ export default function AdminCallReceiver({
 
   // Listen for incoming calls
   useEffect(() => {
-    const pusher = getPusherClient();
+    // Le panneau admin doit rester utilisable lorsque le temps réel n'est pas configuré.
+    if (!isPusherConfigured()) return;
+
+    let pusher: ReturnType<typeof getPusherClient>;
+    try {
+      pusher = getPusherClient();
+    } catch (error) {
+      console.error("[AdminWebRTC] Pusher unavailable:", error);
+      return;
+    }
+
     pusher.config.authEndpoint = "/api/pusher/auth";
 
     const channel = pusher.subscribe(VOIP_CHANNEL) as PresenceChannel;
