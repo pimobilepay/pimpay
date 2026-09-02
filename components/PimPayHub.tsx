@@ -137,6 +137,7 @@ interface DashboardData {
   dailyEarnings: {
     pi: number
     xaf: number
+    amount?: number
     usd?: number
   }
   liquidityHealth: number
@@ -1168,7 +1169,8 @@ export default function PimPayHub() {
     }
   )
 
-  const floatBalance = data?.floatBalance || 0
+  const activeCurrency = data?.currency || 'XAF'
+  const floatBalance = data?.floatBalance ?? 0
   const dailyEarnings = data?.dailyEarnings || { pi: 0, xaf: 0 }
   const liquidityHealth = data?.liquidityHealth || 0
   const commissionData = data?.commissionData || []
@@ -1385,7 +1387,7 @@ export default function PimPayHub() {
                     {isLoading ? (
                       <span className="inline-block w-32 h-8 bg-muted animate-pulse rounded" />
                     ) : (
-                      formatCurrency(floatBalance)
+                      formatCurrency(floatBalance, activeCurrency)
                     )}
                   </motion.p>
                 </div>
@@ -1422,7 +1424,10 @@ export default function PimPayHub() {
                     {isLoading ? (
                       <span className="inline-block w-20 h-6 bg-muted animate-pulse rounded" />
                     ) : (
-                      formatCurrency(dailyEarnings.usd || dailyEarnings.xaf || 0)
+                      formatCurrency(
+                        dailyEarnings.amount ?? dailyEarnings.usd ?? dailyEarnings.xaf ?? 0,
+                        activeCurrency
+                      )
                     )}
                   </p>
                 </div>
