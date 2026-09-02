@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle, XCircle, Search, RefreshCw,
-  Clock, Hash, Phone, Globe, ArrowLeft,
+  Clock, Hash, Phone, Globe, ArrowLeft, ChevronLeft, ChevronRight, Square, SquareCheck,
   Calendar, Smartphone, Banknote, ShieldCheck,
   Copy, TrendingUp, Loader2, X
 } from 'lucide-react';
@@ -283,6 +283,9 @@ export default function AdminTransactionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
   // Prix Pi unique configuré par l'admin (Réglages → Politique Monétaire)
   const { price: piPrice, source: priceSource } = usePiPrice();
 
@@ -311,7 +314,7 @@ export default function AdminTransactionsPage() {
     fetchTransactions();
   }, []);
 
-  const handleAction = async (id: string, action: 'approve' | 'reject') => {
+  const handleAction = async (id: string, action: 'approve' | 'reject', skipConfirm = false) => {
     // Find the transaction to check its status
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
@@ -319,7 +322,7 @@ export default function AdminTransactionsPage() {
     const isAgentTransaction = tx.status === 'PENDING_CONFIRMATION';
     const actionLabel = action === 'approve' ? 'validation' : 'annulation';
     
-    if (!confirm(`Confirmer la ${actionLabel} ${isAgentTransaction ? 'de la transaction agent' : ''} ?`)) return;
+    if (!skipConfirm && !confirm(`Confirmer la ${actionLabel} ${isAgentTransaction ? 'de la transaction agent' : ''} ?`)) return;
 
     setIsProcessing(id);
     try {
@@ -360,6 +363,14 @@ export default function AdminTransactionsPage() {
     }
   };
 
+  const toggleSelection = (id: string) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const filteredTransactions = transactions.filter(t => {
     // Apply status filter
     if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
@@ -376,6 +387,23 @@ export default function AdminTransactionsPage() {
     );
   });
   
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE));
+  const pageTransactions = filteredTransactions.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const selectedTransactions = transactions.filter((tx) => selectedIds.has(tx.id));
+
+  const handleBulkAction = async (action: 'approve' | 'reject') => {
+    if (!selectedTransactions.length) return;
+    const label = action === 'approve' ? 'confirmer' : 'annuler';
+    if (!confirm(`Voulez-vous ${label} ${selectedTransactions.length} transaction(s) sélectionnée(s) ?`)) return;
+    setIsProcessing('bulk');
+    const results = await Promise.allSettled(selectedTransactions.map((tx) => handleAction(tx.id, action, true)));
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    setSelectedIds(new Set());
+    setIsProcessing(null);
+    if (failed) toast.error(`${failed} transaction(s) n'ont pas pu être traitée(s)`);
+    else toast.success(`${selectedTransactions.length} transaction(s) ${action === 'approve' ? 'confirmée(s)' : 'annulée(s)'}`);
+  };
+
   // Count transactions by status
   const pendingCount = transactions.filter(t => t.status === 'PENDING').length;
   const confirmationCount = transactions.filter(t => t.status === 'PENDING_CONFIRMATION').length;
@@ -450,12 +478,33 @@ export default function AdminTransactionsPage() {
           />
         </div>
 
+        {/* ACTIONS DE MASSE */}
+        <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+            <button type="button" aria-label="Sélectionner les transactions de la page" onClick={() => {
+              const next = new Set(selectedIds);
+              const allSelected = pageTransactions.length > 0 && pageTransactions.every((tx) => next.has(tx.id));
+              pageTransactions.forEach((tx) => allSelected ? next.delete(tx.id) : next.add(tx.id));
+              setSelectedIds(next);
+            }} className="text-blue-400 hover:text-blue-300">
+              {pageTransactions.length > 0 && pageTransactions.every((tx) => selectedIds.has(tx.id)) ? <SquareCheck size={18} /> : <Square size={18} />}
+            </button>
+            {selectedTransactions.length} sélectionnée(s)
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => handleBulkAction('reject')} disabled={!selectedTransactions.length || !!isProcessing} className="inline-flex items-center gap-2 rounded-xl bg-rose-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-rose-400 disabled:opacity-40"><XCircle size={15} /> Annuler les sélectionnées</button>
+            <button type="button" onClick={() => handleBulkAction('approve')} disabled={!selectedTransactions.length || !!isProcessing} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-emerald-400 disabled:opacity-40"><CheckCircle size={15} /> Confirmer les sélectionnées</button>
+            <button type="button" onClick={() => handleBulkAction('reject')} disabled={!transactions.length || !!isProcessing} className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-40"><XCircle size={15} /> Annuler toutes ({transactions.length})</button>
+          </div>
+        </div>
+
         {/* TABLE */}
         <div className="bg-white/5 border border-white/10 rounded-[32px] overflow-hidden backdrop-blur-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-white/5 border-b border-white/5">
+                  <th className="w-12 p-6 text-[10px] font-black uppercase text-slate-500">Sélect.</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Reference</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Statut</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-500">Client</th>
@@ -467,16 +516,21 @@ export default function AdminTransactionsPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr><td colSpan={7} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
+                  <tr><td colSpan={8} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Initialisation du scan...</td></tr>
                 ) : filteredTransactions.length === 0 ? (
-                  <tr><td colSpan={7} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
+                  <tr><td colSpan={8} className="p-20 text-center font-black uppercase text-[10px] text-slate-600">Aucune anomalie detectee</td></tr>
                 ) : (
-                  filteredTransactions.map((tx) => (
+                  pageTransactions.map((tx) => (
                     <tr 
                       key={tx.id} 
                       className="hover:bg-blue-600/[0.03] transition-colors cursor-pointer"
                       onClick={() => setSelectedTx(tx)}
                     >
+                      <td className="p-6" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" aria-label={`Sélectionner la transaction ${tx.id}`} onClick={() => toggleSelection(tx.id)} className="text-blue-400">
+                          {selectedIds.has(tx.id) ? <SquareCheck size={18} /> : <Square size={18} />}
+                        </button>
+                      </td>
                       <td className="p-6">
                         <div className="flex items-center gap-3">
                           <Hash size={14} className="text-blue-500" />
@@ -573,6 +627,13 @@ export default function AdminTransactionsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-white/10 px-2 pt-5">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Page {currentPage} sur {totalPages} · {filteredTransactions.length} transaction(s)</span>
+          <div className="flex gap-2">
+            <button type="button" aria-label="Page précédente" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1} className="rounded-xl bg-white/5 p-3 text-slate-300 disabled:opacity-30"><ChevronLeft size={16} /></button>
+            <button type="button" aria-label="Page suivante" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages} className="rounded-xl bg-white/5 p-3 text-slate-300 disabled:opacity-30"><ChevronRight size={16} /></button>
           </div>
         </div>
         </div>
