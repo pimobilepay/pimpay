@@ -152,7 +152,14 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
     return { allowed: true, status: 200, ip };
   }
 
-  // 2. Liste noire admin (riposte).
+  // 2. Protection désactivée : ce réglage doit aussi neutraliser les anciennes
+  //    entrées de liste noire pour éviter qu'une IP reste bloquée après retrait
+  //    de la restriction dans l'interface admin.
+  if (!settings.proxyDetectionEnabled) {
+    return { allowed: true, status: 200, ip };
+  }
+
+  // 3. Liste noire admin (riposte).
   if (await isIpBlocked(ip)) {
     await logSystemEvent({
       level: "WARN",
@@ -164,11 +171,6 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
       userId: opts.userId ?? undefined,
     });
     return { allowed: false, status: 403, reason: "IP bloquée", ip, blockedByList: true };
-  }
-
-  // 3. Détection désactivée → on laisse passer.
-  if (!settings.proxyDetectionEnabled) {
-    return { allowed: true, status: 200, ip };
   }
 
   // 3a. [FIX iOS] IP du client non résolvable : on ne bloque JAMAIS sur une
