@@ -116,14 +116,14 @@ function shouldBlock(
 ): { block: boolean; reason: string } {
   const reasons: string[] = [];
 
-  // Tor = réseau d'anonymisation à risque par nature → bloqué dès que la catégorie
-  // est activée, indépendamment du score.
-  if (proxy.isTor && s.blockTor) reasons.push("Tor");
-
-  // VPN / Proxy / Datacenter : on n'applique le blocage QUE si le score de risque
-  // atteint le seuil configuré. Cela évite de bloquer des IP normales/à faible
-  // risque que les heuristiques marquent comme "proxy" sans réelle menace.
+  // Toutes les catégories suivent le seuil configuré. Le verrouillage total
+  // (seuil <= 30) est traité séparément dans guardRequest.
   const meetsThreshold = proxy.riskScore >= s.riskScoreThreshold;
+  if (proxy.isTor && s.blockTor && meetsThreshold) reasons.push(`Tor (risque ${proxy.riskScore})`);
+
+  // VPN / Proxy / Datacenter : on ne bloque que si le score atteint le seuil,
+  // afin d'éviter les faux positifs sur les connexions légitimes.
+
   if (proxy.isVpn && s.blockVpn && meetsThreshold) reasons.push(`VPN (risque ${proxy.riskScore})`);
   if (proxy.isProxy && !proxy.isVpn && !proxy.isTor && s.blockProxy && meetsThreshold)
     reasons.push(`Proxy (risque ${proxy.riskScore})`);
