@@ -173,9 +173,9 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
     return { allowed: false, status: 403, reason: "IP bloquée", ip, blockedByList: true };
   }
 
-  // 3a. Verrouillage total : le seuil 0 est un réglage explicite de blocage.
-  //     Il doit être évalué avant le fallback d'IP inconnue, sinon les clients
-  //     dont l'IP n'est pas transmise par le proxy contournent le verrouillage.
+  // 3a. Verrouillage total : tout seuil de 30 ou moins est un réglage
+  //     explicite de blocage total. Il doit être évalué avant le fallback d'IP
+  //     inconnue, sinon certains clients contournent le verrouillage.
   if (settings.riskScoreThreshold <= LOCKDOWN_THRESHOLD) {
     const enforce = settings.proxyDetectionMode === "BLOCK";
     await logSystemEvent({
