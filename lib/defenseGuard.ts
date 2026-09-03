@@ -173,17 +173,9 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
     return { allowed: false, status: 403, reason: "IP bloquée", ip, blockedByList: true };
   }
 
-  // 3a. [FIX iOS] IP du client non résolvable : on ne bloque JAMAIS sur une
-  //     absence d'information. Certains chemins opérateurs (notamment sur iOS)
-  //     n'exposent pas d'en-tête x-forwarded-for exploitable ; bloquer ici
-  //     revenait à refuser l'accès à des utilisateurs parfaitement légitimes.
-  if (ip === "unknown") {
-    return { allowed: true, status: 200, ip };
-  }
-
-  // 3b. Verrouillage total : seuil descendu à 30 ou moins → l'admin bloque
-  //     volontairement TOUT le trafic entrant (la liste blanche ci-dessus reste
-  //     prioritaire pour ne pas verrouiller les IP de confiance).
+  // 3a. Verrouillage total : tout seuil de 30 ou moins est un réglage
+  //     explicite de blocage total. Il doit être évalué avant le fallback d'IP
+  //     inconnue, sinon certains clients contournent le verrouillage.
   if (settings.riskScoreThreshold <= LOCKDOWN_THRESHOLD) {
     const enforce = settings.proxyDetectionMode === "BLOCK";
     await logSystemEvent({
@@ -204,7 +196,12 @@ export async function guardRequest(req: Request, opts: GuardOptions): Promise<Gu
         ip,
       };
     }
-    // Mode SURVEILLER : on journalise mais on laisse passer.
+    return { allowed: true, status: 200, ip };
+  }
+
+  // 3b. [FIX iOS] IP du client non résolvable : on ne bloque JAMAIS sur une
+  //     absence d'information lorsque le verrouillage total n'est pas actif.
+  if (ip === "unknown") {
     return { allowed: true, status: 200, ip };
   }
 
