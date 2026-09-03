@@ -7,6 +7,8 @@ import { TransactionStatus, TransactionType } from "@prisma/client";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { decrypt } from "@/lib/crypto";
 import { sendDoge } from "@/lib/blockchain/dogecoin";
+import { TronWeb } from "tronweb";
+import { USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
 
 /**
  * Sécurise l'accès : le worker doit envoyer le header:
@@ -67,6 +69,11 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
     return await broadcastDogeWithdraw(job, address);
   }
 
+  // USDT utilise le réseau TRON/TRC20 (et non un RPC EVM générique).
+  if (currency === "USDT" || currency === "USDT_TRC20") {
+    return await broadcastUsdtTronWithdraw(job, address);
+  }
+
   // TODO: Supporter d'autres blockchains:
   // - TRON (USDT TRC20): TronWeb + contrat USDT
   // - EVM (USDT-ERC20, ETH, BNB, etc.): ethers + RPC
@@ -83,6 +90,38 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
  * externe demandée. Le montant du job est en DOGE "humain" ; il est converti
  * en koinu (1 DOGE = 1e8 koinu) pour lib/blockchain/dogecoin.ts.
  */
+async function broadcastUsdtTronWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
+  if (!job.fromUserId) throw new Error("Retrait USDT sans utilisateur source");
+
+  const user = await prisma.user.findUnique({
+    where: { id: job.fromUserId },
+    select: { usdtAddress: true, usdtPrivateKey: true },
+  });
+  if (!user?.usdtAddress || !user.usdtPrivateKey) {
+    throw new Error("Aucun portefeuille USDT TRON configuré pour cet utilisateur");
+  }
+
+  const fullHost = process.env.TRON_FULL_HOST || "https://api.trongrid.io";
+  const privateKey = decrypt(user.usdtPrivateKey).replace(/^0x/, "");
+  const tronWeb = new TronWeb({ fullHost, privateKey });
+
+  if (!tronWeb.isAddress(user.usdtAddress) || !tronWeb.isAddress(toAddress)) {
+    throw new Error("Adresse USDT TRON invalide");
+  }
+
+  const amount = Number(job.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Montant USDT invalide");
+  const rawAmount = BigInt(Math.round(amount * 1_000_000));
+  if (rawAmount <= 0n) throw new Error("Montant USDT trop faible");
+
+  const contract = await tronWeb.contract().at(USDT_TRC20_CONTRACT);
+  const result = await contract.methods.transfer(toAddress, rawAmount.toString()).send({
+    feeLimit: Number(process.env.TRON_USDT_FEE_LIMIT || 150_000_000),
+  });
+  if (typeof result !== "string" || !result) throw new Error("TRON n'a pas retourné de hash de transaction");
+  return result;
+}
+
 async function broadcastDogeWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
   if (!job.fromUserId) {
     throw new Error("Retrait DOGE sans utilisateur source (fromUserId manquant)");
