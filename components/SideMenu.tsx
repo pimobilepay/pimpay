@@ -11,7 +11,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import LogoutOverlay from "@/components/LogoutOverlay";
 import { ReferralProgram } from "@/components/ReferralProgram";
-import { toast } from "sonner";
+import { performClientLogout } from "@/lib/client-logout";
 
 interface UserData {
   name: string;
@@ -152,43 +152,10 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
   ];
 
   const logout = async () => {
-    // Empêcher les double-clics
+    // Un seul flux garantit le nettoyage des cookies, du stockage et la redirection.
     if (loggingOut) return;
-
-    // Signaler au SessionGuard que c'est une déconnexion VOLONTAIRE
-    // → évite le faux message "déconnecté par l'administrateur"
-    window.dispatchEvent(new Event("pimpay:logging-out"));
-
-    // Afficher l'écran de chargement
     setLoggingOut(true);
-
-    const clearClientSession = () => {
-      localStorage.removeItem("pimpay_user");
-      const cookieNames = ["token", "pimpay_token", "session", "refresh_token", "pi_session_token"];
-      for (const name of cookieNames) {
-        document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
-        document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure`;
-      }
-    };
-
-    try {
-      // 1. Appel API pour invalider la session en DB et supprimer les cookies httpOnly
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      // 2. Nettoyer le stockage local + cookies côté client
-      clearClientSession();
-    } catch {
-      // En cas d'erreur réseau, forcer quand même la déconnexion locale
-      clearClientSession();
-    }
-
-    // Confirmation traduite (fr / en / zh selon la langue de l'utilisateur) —
-    // remplace le faux message "déconnecté par l'administrateur" qui pouvait
-    // s'afficher à cause d'une vérification de session concurrente.
-    toast.success(t("settings.logoutSuccess"));
-
-    // 3. Remplacer l'historique courant : le bouton retour ne doit pas
-    // permettre de réafficher une page protégée après la déconnexion.
-    window.location.replace("/auth/login");
+    await performClientLogout();
   };
 
   return (

@@ -13,10 +13,14 @@ function clearClientCookies() {
   if (typeof document === "undefined") return;
 
   for (const name of SESSION_COOKIE_NAMES) {
-    for (const path of ["/", "/api/auth/refresh"]) {
+    for (const path of ["/", "/api", "/api/auth", "/api/auth/refresh"]) {
       document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path};`;
+      document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}; SameSite=None; Secure`;
     }
-    document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${window.location.hostname};`;
+    const hostname = window.location.hostname;
+    for (const domain of [hostname, `.${hostname}`]) {
+      document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${domain};`;
+    }
   }
 }
 
