@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, FileCheck, Settings, LogOut, RefreshCw, ChevronRight, Shield, MessageSquare,
   BarChart3, ArrowLeft, History, Eye, Bell, Crosshair,
   ShieldAlert, UserCog, Vault, BookOpen, Snowflake, Gavel, Gift,
-  Megaphone, SlidersHorizontal, Rocket, PiggyBank
+  Megaphone, SlidersHorizontal, Rocket, PiggyBank, Store
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -78,6 +78,7 @@ export default function AdminDashboard() {
             { label: "Diffusion", desc: "Groupes & maintenance", icon: <Megaphone size={20} />, path: "/admin/broadcast", color: "amber" },
             { label: "Plafonds", desc: "Limites & exceptions", icon: <SlidersHorizontal size={20} />, path: "/admin/limits", color: "indigo" },
             { label: "Utilisateurs", desc: "Gestion comptes", icon: <Users size={20} />, path: "/admin/users", color: "purple" },
+            { label: "Marchands", desc: "Comptes & accès", icon: <Store size={20} />, path: "/admin/merchants", color: "cyan" },
             { label: "Transactions", desc: "Flux financiers", icon: <ArrowRightLeft size={20} />, path: "/admin/transactions", color: "emerald" },
             { label: "Historique", desc: "Toutes les transactions", icon: <History size={20} />, path: "/admin/historique", color: "teal" },
             { label: "KYC", desc: "Verifications", icon: <FileCheck size={20} />, path: "/admin/kyc", color: "amber" },
