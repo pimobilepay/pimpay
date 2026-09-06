@@ -51,7 +51,7 @@ export interface HotelProvider {
 export class HotelProviderError extends Error {
   constructor(
     message: string,
-    public readonly code: "unavailable" | "invalid" | "empty" = "unavailable",
+    public readonly code: "unavailable" | "invalid" | "forbidden" | "empty" = "unavailable",
   ) {
     super(message);
     this.name = "HotelProviderError";

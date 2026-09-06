@@ -26,9 +26,12 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   // le scanner QR à utiliser getUserMedia, y compris lorsque l'application
   // est chargée dans l'iframe cross-origin du Pi Browser. camera=() désactivait
   // totalement la caméra, ce qui provoquait "Accès caméra refusé".
+  // De même, geolocation=* (et non geolocation=()) autorise la recherche
+  // d'hôtels à proximité à demander la position : geolocation=() bloquait
+  // l'API au niveau navigateur, la permission n'était donc jamais demandée.
   res.headers.set(
     "Permissions-Policy",
-    "camera=*, microphone=(), geolocation=(), browsing-topics=()"
+    "camera=*, microphone=(), geolocation=*, browsing-topics=()"
   );
   // Force HTTPS pendant 2 ans (inclut les sous-domaines)
   res.headers.set(

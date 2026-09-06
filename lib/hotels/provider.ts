@@ -8,7 +8,9 @@ import { HotelProviderError, type HotelProvider, type HotelResult, type HotelSea
 // ─────────────────────────────────────────────────────────────────────────────
 
 function duffelHeaders() {
-  const token = process.env.DUFFEL_ACCESS_TOKEN || process.env.FLIGHT_API_KEY;
+  // .trim() : un token avec espace/newline final casse l'en-tête
+  // `Bearer <token>` → Duffel renvoie 401 "invalid_authorization_header".
+  const token = (process.env.DUFFEL_ACCESS_TOKEN || process.env.FLIGHT_API_KEY || "").trim();
   if (!token) throw new HotelProviderError("Hotel provider is not configured", "unavailable");
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Duffel-Version": "v2" };
 }
@@ -23,18 +25,23 @@ async function duffel(path: string, init: RequestInit) {
     });
     const body = await response.json().catch(() => null);
     if (!response.ok) {
-      const code =
-        response.status === 404
-          ? "empty"
-          : response.status === 401 || response.status === 403
-            ? "invalid"
-            : "unavailable";
-      throw new HotelProviderError(
-        code === "invalid"
-          ? "La configuration du fournisseur d'hôtels est invalide."
-          : (body?.errors?.[0]?.message ?? "Hotel provider request failed"),
-        code,
-      );
+      const duffelError = body?.errors?.[0];
+      // On journalise la vraie cause côté serveur pour le diagnostic (le
+      // message renvoyé au client reste volontairement générique/actionnable).
+      console.error("[DUFFEL_STAYS]", response.status, duffelError?.code, duffelError?.message);
+      // 401 = token invalide/mal formé. 403 = produit Stays non activé sur le
+      // compte Duffel (l'accès aux hôtels se demande séparément des vols).
+      if (response.status === 401) {
+        throw new HotelProviderError("Le token Duffel est invalide pour la recherche d'hôtels.", "invalid");
+      }
+      if (response.status === 403) {
+        throw new HotelProviderError(
+          "L'accès Duffel Stays n'est pas activé sur ce compte. Activez le produit « Stays » dans votre tableau de bord Duffel.",
+          "forbidden",
+        );
+      }
+      if (response.status === 404) throw new HotelProviderError("empty", "empty");
+      throw new HotelProviderError(duffelError?.message ?? "Hotel provider request failed", "unavailable");
     }
     return body?.data;
   } catch (error) {
