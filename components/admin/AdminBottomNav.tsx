@@ -2,13 +2,14 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutGrid, Users, Settings, BarChart3, Landmark
+  LayoutGrid, Users, Settings, BarChart3, Landmark, Coins
 } from "lucide-react";
 
 const navItems = [
   { label: "Accueil", icon: LayoutGrid, path: "/admin" },
   { label: "Users", icon: Users, path: "/admin/users" },
   { label: "Tresorerie", icon: Landmark, path: "/admin/treasury" },
+  { label: "Staking", icon: Coins, path: "/admin/staking" },
   { label: "Analytics", icon: BarChart3, path: "/admin/analytics" },
   { label: "Config", icon: Settings, path: "/admin/settings" },
 ];
