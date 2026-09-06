@@ -209,17 +209,16 @@
     },
     "onlyBuiltDependencies": [
       "@firebase/util",
+      "@google/genai",
       "@prisma/client",
       "@prisma/engines",
       "@swc/core",
-      "bufferutil",
       "core-js",
       "eccrypto",
       "prisma",
       "protobufjs",
       "secp256k1",
-      "sharp",
-      "utf-8-validate"
+      "unrs-resolver"
     ]
   }
 }

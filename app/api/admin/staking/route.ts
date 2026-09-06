@@ -7,7 +7,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const auth = await adminAuth(req);
   if (!auth || auth instanceof NextResponse) {
-    return auth || NextResponse.json({ error: "Accès non autorisé" }, { status: 401 });
+    // [FIX ADMIN STAKING] Cette réponse d'erreur ne contenait ni `positions`
+    // ni `totals` : la page admin (`data.positions.reduce/.length`) plantait
+    // dès que la session admin expirait. On garde toujours la même forme de
+    // réponse, erreur ou non, pour que le client n'ait jamais à deviner.
+    return NextResponse.json(
+      { error: "Accès non autorisé", configured: true, positions: [], totals: null },
+      { status: 401 },
+    );
   }
 
   const source = req.nextUrl.searchParams.get("source") || "platform";
