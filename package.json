@@ -14,7 +14,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "migrate:keys": "tsc --outDir dist scripts/migrate-encrypt-keys.ts lib/crypto.ts --module commonjs --moduleResolution node --esModuleInterop true --skipLibCheck true && ENCRYPTION_KEY=$ENCRYPTION_KEY node dist/scripts/migrate-encrypt-keys.js"
+    "migrate:keys": "tsc --outDir dist scripts/migrate-encrypt-keys.ts lib/crypto.ts --module commonjs --moduleResolution node --esModuleInterop true --skipLibCheck true && ENCRYPTION_KEY=$ENCRYPTION_KEY node dist/scripts/migrate-encrypt-keys.js",
+    "defense:reset-threshold": "tsc --outDir dist scripts/reset-defense-threshold.ts lib/prisma.ts --module commonjs --moduleResolution node --esModuleInterop true --skipLibCheck true && node dist/scripts/reset-defense-threshold.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",

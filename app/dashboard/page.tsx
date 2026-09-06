@@ -53,6 +53,7 @@ import { useCurrency, CURRENCIES as CURRENCY_LIST } from "@/context/CurrencyCont
 import { ReferralProgram } from "@/components/ReferralProgram";
 import { PartnersMarquee } from "@/components/PartnersMarquee";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { performClientLogout } from "@/lib/client-logout";
 
 const USD_TO_XAF = 601.32;
 
@@ -599,13 +600,19 @@ export default function UserDashboard() {
     .sort((a, b) => b.usdValue - a.usdValue)
     .slice(0, 4);
 
+  // [FIX DECONNEXION] Cette fonction appelait bien l'API de logout mais
+  // s'arrêtait là : elle ne purgeait ni les cookies de secours côté client
+  // (nécessaires en iframe Pi Browser / iOS où la suppression de cookie
+  // cross-site peut être ignorée), ni le localStorage/sessionStorage, et
+  // utilisait `router.push` (navigation douce) au lieu d'une navigation dure.
+  // Résultat : sur le tableau de bord principal, cliquer sur "Déconnexion"
+  // pouvait laisser l'utilisateur techniquement toujours connecté (données en
+  // mémoire/local storage non nettoyées, voire cookie de session ayant
+  // survécu). On utilise maintenant le même flux unifié que le reste de
+  // l'app.
   const handleLogout = async () => {
-    // Signale au SessionGuard qu'il s'agit d'une déconnexion VOLONTAIRE, pour
-    // éviter le faux toast "déconnecté par l'administrateur" pendant l'appel.
-    window.dispatchEvent(new Event("pimpay:logging-out"));
-    await fetch("/api/auth/logout", { method: "POST" });
     toast.success(t("settings.logoutSuccess"));
-    router.push("/auth/login");
+    await performClientLogout();
   };
 
   const getTxIcon = (tx: any) => {

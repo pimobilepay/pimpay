@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import useUser from '@/hooks/useUser';
+import { performClientLogout } from '@/lib/client-logout';
 import {
   LayoutDashboard,
   FileText,
@@ -187,10 +188,16 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
   };
 
   // Fonction de deconnexion
+  // [FIX DECONNEXION] Cette fonction ne faisait que retirer des clés
+  // localStorage inutilisées (l'authentification repose sur des cookies
+  // httpOnly, pas sur localStorage) puis un simple `router.push('/')` : le
+  // cookie de session restait donc valide côté serveur et le proxy
+  // redirigeait immédiatement l'utilisateur vers /business, qui restait
+  // connecté malgré le clic sur "Déconnexion". On utilise maintenant le même
+  // flux unifié que le reste de l'app (révocation serveur + purge cookies +
+  // redirection dure vers /auth/login).
   const handleLogout = () => {
-    localStorage.removeItem('pimpay_token');
-    localStorage.removeItem('pimpay_user');
-    router.push('/');
+    void performClientLogout();
   };
 
   const filteredNotifs = notifications.filter(

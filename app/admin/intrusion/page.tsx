@@ -12,6 +12,12 @@ import { AdminTopNav } from "@/components/admin/AdminTopNav";
 
 type ThreatLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+// Doit rester synchronisé avec LOCKDOWN_THRESHOLD dans lib/defenseGuard.ts :
+// en dessous (ou à) ce seuil, TOUT le trafic entrant est bloqué (verrouillage
+// total), sauf liste blanche.
+const LOCKDOWN_THRESHOLD = 30;
+const RECOMMENDED_THRESHOLD = 75;
+
 type SecEvent = {
   id: string;
   level: string;
@@ -321,21 +327,31 @@ export default function IntrusionPage() {
     }
   };
 
-  const saveSettings = async (next: DefenseSettings) => {
+  const saveSettings = async (next: DefenseSettings, confirmLockdown?: boolean) => {
     setSettings(next); // optimiste
     try {
       setSavingSettings(true);
       const res = await fetch("/api/admin/intrusion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update-settings", settings: next }),
+        body: JSON.stringify({
+          action: "update-settings",
+          settings: confirmLockdown ? { ...next, confirmLockdown: true } : next,
+        }),
       });
-      if (!res.ok) throw new Error("Erreur");
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // [FIX PROTECTION INTRUSION] Le serveur refuse un seuil <= 30 sans
+        // confirmation explicite (verrouillage total = tout le trafic
+        // bloqué). On revient au réglage précédent au lieu de laisser
+        // l'interface afficher une valeur qui n'a en réalité pas été
+        // appliquée côté serveur.
+        throw new Error(json?.error || "Erreur");
+      }
       if (json.settings) setSettings(json.settings);
       toast.success("Protection mise à jour");
-    } catch {
-      toast.error("Échec de la mise à jour");
+    } catch (err: any) {
+      toast.error(err?.message || "Échec de la mise à jour");
       fetchData(true);
     } finally {
       setSavingSettings(false);
@@ -344,6 +360,23 @@ export default function IntrusionPage() {
 
   const updateSetting = <K extends keyof DefenseSettings>(key: K, value: DefenseSettings[K]) => {
     if (!settings) return;
+    // [FIX PROTECTION INTRUSION] Un seuil <= 30 ("verrouillage total") bloque
+    // TOUT le trafic entrant, y compris les utilisateurs légitimes. On exige
+    // une confirmation explicite avant de l'appliquer, pour éviter qu'un
+    // glissement de curseur ou une erreur ne coupe l'accès à toute la
+    // plateforme sans que l'admin s'en rende compte.
+    if (key === "riskScoreThreshold" && (value as number) <= LOCKDOWN_THRESHOLD) {
+      const ok = window.confirm(
+        `Attention : un seuil de ${value} active le verrouillage total — TOUT le trafic entrant sera bloqué (HTTP 403), sauf liste blanche. Le réglage recommandé et équilibré est ${RECOMMENDED_THRESHOLD}.\n\nConfirmer quand même le verrouillage total ?`,
+      );
+      if (!ok) {
+        // Ne pas appliquer : revenir au réglage recommandé et équilibré.
+        saveSettings({ ...settings, riskScoreThreshold: RECOMMENDED_THRESHOLD });
+        return;
+      }
+      saveSettings({ ...settings, [key]: value }, true);
+      return;
+    }
     saveSettings({ ...settings, [key]: value });
   };
 
@@ -985,15 +1018,24 @@ export default function IntrusionPage() {
                     (&lt; 50) bloque des adresses normales sans réelle menace.{" "}
                     <span className="text-emerald-400/80 font-bold">Recommandé : 75.</span>
                   </p>
-                  {settings.riskScoreThreshold <= 30 ? (
+                  {settings.riskScoreThreshold <= LOCKDOWN_THRESHOLD ? (
                     <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-red-600/15 border border-red-500/30 p-2.5">
                       <ShieldX size={13} className="text-red-400 mt-0.5 shrink-0" />
-                      <p className="text-[9px] text-red-300/90 leading-relaxed">
-                        <span className="font-black uppercase tracking-wide">Verrouillage total actif.</span>{" "}
-                        En mode « Bloquer », tout le trafic entrant (connexion, transferts) est refusé
-                        (HTTP 403), à l&apos;exception des IP de la liste blanche. Remontez le seuil pour
-                        rétablir l&apos;accès.
-                      </p>
+                      <div className="flex-1">
+                        <p className="text-[9px] text-red-300/90 leading-relaxed">
+                          <span className="font-black uppercase tracking-wide">Verrouillage total actif.</span>{" "}
+                          En mode « Bloquer », tout le trafic entrant (connexion, transferts) est refusé
+                          (HTTP 403), à l&apos;exception des IP de la liste blanche.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={savingSettings}
+                          onClick={() => saveSettings({ ...settings, riskScoreThreshold: RECOMMENDED_THRESHOLD }, true)}
+                          className="mt-2 px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 text-[9px] font-black uppercase tracking-wider hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+                        >
+                          Rétablir l&apos;équilibre ({RECOMMENDED_THRESHOLD})
+                        </button>
+                      </div>
                     </div>
                   ) : settings.riskScoreThreshold < 50 && (
                     <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5">

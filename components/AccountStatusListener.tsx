@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import AccountStatusModal from "./AccountStatusModal";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { clearSessionKeepLanguage } from "@/lib/clear-session";
+import { performClientLogout } from "@/lib/client-logout";
 
 interface AccountStatusListenerProps {
   userId?: string;
@@ -27,7 +26,6 @@ const fetcher = async (url: string) => {
 };
 
 export default function AccountStatusListener({ userId }: AccountStatusListenerProps) {
-  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [statusData, setStatusData] = useState<{
     status: "SUSPENDED" | "BANNED" | "FROZEN" | "MAINTENANCE";
@@ -56,21 +54,16 @@ export default function AccountStatusListener({ userId }: AccountStatusListenerP
   }, [mutate]);
 
   // Déconnexion forcée côté client (purge cookies + redirect)
+  // [FIX DECONNEXION] Cette implémentation "maison" ne posait pas le marqueur
+  // `pimpay_loggedout` lu par le proxy et faisait une navigation douce
+  // (`router.push`) : dans le contexte iframe Pi Browser / iOS où la
+  // suppression de cookie cross-site est parfois ignorée, un cookie de
+  // session encore valide pouvait faire rebondir l'utilisateur vers le
+  // dashboard juste après cette "déconnexion forcée". On réutilise le flux
+  // unifié `performClientLogout` (déjà robuste face à ce cas).
   const forceLogout = useCallback(async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch { /* continuer même si l'API échoue */ }
-
-    const cookiesToClear = ["pimpay_token", "token", "pi_session_token", "next-auth.session-token", "next-auth.csrf-token"];
-    cookiesToClear.forEach((name) => {
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    });
-    clearSessionKeepLanguage();
-
-    router.push("/auth/login");
-    router.refresh();
-  }, [router]);
+    await performClientLogout();
+  }, []);
 
   const handleStatusChange = useCallback((newStatus: any) => {
     if (!newStatus) return;

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { logSystemEvent } from "@/lib/systemLogger";
 import { invalidateIpCache, normalizeIp } from "@/lib/ipBlock";
-import { getDefenseSettings, invalidateSettingsCache } from "@/lib/defenseGuard";
+import { getDefenseSettings, invalidateSettingsCache, LOCKDOWN_THRESHOLD } from "@/lib/defenseGuard";
 
 // Actions considérées comme des évènements de sécurité / intrusion.
 const INTRUSION_ACTIONS = [
@@ -338,7 +338,28 @@ export async function POST(req: NextRequest) {
       if (typeof s.blockHeaderSpoof === "boolean") data.blockHeaderSpoof = s.blockHeaderSpoof;
       if (typeof s.autoBlockOnDetection === "boolean") data.autoBlockOnDetection = s.autoBlockOnDetection;
       if (Number.isFinite(s.riskScoreThreshold)) {
-        data.riskScoreThreshold = Math.max(0, Math.min(100, Math.floor(s.riskScoreThreshold)));
+        const nextThreshold = Math.max(0, Math.min(100, Math.floor(s.riskScoreThreshold)));
+        // [FIX PROTECTION INTRUSION] Un seuil <= 30 déclenche le "verrouillage
+        // total" (lib/defenseGuard.ts) : TOUT le trafic entrant est refusé
+        // (HTTP 403), y compris pour des utilisateurs légitimes — seule la
+        // liste blanche passe encore. Rien n'empêchait jusqu'ici de descendre
+        // le curseur à 30 par erreur (glissement, mauvais clic) et de bloquer
+        // silencieusement toute la plateforme. On exige désormais une
+        // confirmation explicite (`confirmLockdown: true`) pour appliquer un
+        // seuil aussi bas ; sinon la requête est rejetée et le réglage
+        // recommandé (75, équilibré) reste en place.
+        if (nextThreshold <= LOCKDOWN_THRESHOLD && s.confirmLockdown !== true) {
+          return NextResponse.json(
+            {
+              error:
+                "Seuil de verrouillage total (≤ 30) : cette valeur bloque TOUT le trafic entrant. Confirmez explicitement pour l'appliquer, ou choisissez 75 (équilibré, recommandé).",
+              requiresConfirmation: true,
+              recommended: 75,
+            },
+            { status: 400 },
+          );
+        }
+        data.riskScoreThreshold = nextThreshold;
       }
       if (typeof s.ipWhitelist === "string") data.ipWhitelist = s.ipWhitelist.slice(0, 2000);
 
