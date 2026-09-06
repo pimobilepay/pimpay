@@ -74,7 +74,28 @@ const provider: FlightProvider = {
  // avant repli sur le GET) — on appelle directement le vrai endpoint pour
  // éviter un aller-retour réseau inutile à chaque tarification.
  async priceFlight(offerId) { const data = await duffel(`/air/offers/${encodeURIComponent(offerId)}`, { method: "GET" }); return data ? mapOffer(data) : null; },
- async createBooking(input: any) { const data = await duffel("/air/orders", { method: "POST", body: JSON.stringify({ data: { selected_offers: [input.offerId], passengers: input.passengers, payments: [{ type: "balance", amount: String(input.amount), currency: input.currency }] } }) }); return { bookingId: data.id, status: data.booking_reference ? "CONFIRMED" : "PROCESSING", bookingReference: data.booking_reference }; },
+ async createBooking(input: any) {
+   const passengers = (input.passengers ?? []).map((passenger: any) => ({
+     given_name: [passenger.firstName, passenger.middleName].filter(Boolean).join(" "),
+     family_name: passenger.lastName,
+     gender: passenger.gender,
+     born_on: passenger.dateOfBirth,
+     email: passenger.email,
+     phone_number: passenger.phone,
+     title: passenger.gender === "female" ? "ms" : "mr",
+     identity_documents: [{
+       type: "passport",
+       unique_identifier: passenger.documentNumber,
+       issuing_country: passenger.issuingCountry,
+       expires_on: passenger.passportExpirationDate,
+     }],
+   }));
+   const data = await duffel("/air/orders", {
+     method: "POST",
+     body: JSON.stringify({ data: { selected_offers: [input.offerId], passengers, payments: [{ type: "balance", amount: String(input.amount), currency: input.currency }] } }),
+   });
+   return { bookingId: data.id, status: data.booking_reference ? "CONFIRMED" : "PROCESSING", bookingReference: data.booking_reference };
+ },
  async getBooking(bookingId) { return duffel(`/air/orders/${encodeURIComponent(bookingId)}`, { method: "GET" }); },
  async cancelBooking(bookingId) { return duffel(`/air/order_cancellations`, { method: "POST", body: JSON.stringify({ data: { order_id: bookingId } }) }); },
 };
