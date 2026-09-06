@@ -51,7 +51,7 @@ export interface FlightProvider {
 }
 
 export class FlightProviderError extends Error {
-  constructor(message: string, public readonly code: "unavailable" | "invalid" | "empty" = "unavailable") {
+  constructor(message: string, public readonly code: "unavailable" | "invalid" | "empty" | "expired" = "unavailable") {
     super(message);
     this.name = "FlightProviderError";
   }

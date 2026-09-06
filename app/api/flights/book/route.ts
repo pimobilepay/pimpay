@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientIp, checkRateLimit } from "@/lib/rate-limit";
 import { getAuthoritativePrice } from "@/lib/flights/pricing";
 import { bookFlight } from "@/lib/flights/booking";
+import { FlightProviderError } from "@/lib/flights/types";
 
 const passenger = z.object({ firstName: z.string().trim().min(1).max(80), middleName: z.string().trim().max(80).optional().default(""), lastName: z.string().trim().min(1).max(80), dateOfBirth: z.string().date(), gender: z.enum(["male", "female", "other"]), nationality: z.string().length(2), email: z.string().email(), phone: z.string().min(6).max(30), documentNumber: z.string().min(3).max(40), issuingCountry: z.string().length(2), passportExpirationDate: z.string().date() });
 const schema = z.object({ offerId: z.string().min(1).max(200), displayedAmount: z.number().finite().nonnegative(), tripType: z.string(), passengers: z.array(passenger).min(1).max(9), idempotencyKey: z.string().min(16).max(100) });
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ bookingId: confirmed.id, bookingReference: confirmed.bookingReference, status: confirmed.status, airline: priced.offer.segments[0]?.airline, route: priced.offer.segments.map((s) => s.departure.airport.iata).concat(priced.offer.segments.at(-1)?.arrival.airport.iata ?? []).join(" → "), total: priced.total, currency: "PI" });
   } catch (error) {
     await prisma.flightBooking.update({ where: { id: booking.id }, data: { status: "FAILED" } });
+    if (error instanceof FlightProviderError && error.code === "expired") {
+      return NextResponse.json({ error: error.message, code: "OFFER_EXPIRED", retryable: true }, { status: 409 });
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : "Booking failed; your balance was not charged" }, { status: 502 });
   }
 }

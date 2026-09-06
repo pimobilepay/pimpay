@@ -8,8 +8,10 @@ async function duffel(path: string, init: RequestInit) {
     const response = await fetch(`https://api.duffel.com${path}`, { ...init, headers: { ...duffelHeaders(), ...(init.headers ?? {}) }, cache: "no-store", signal: AbortSignal.timeout(20000) });
     const body = await response.json().catch(() => null);
     if (!response.ok) {
-      const code = response.status === 404 ? "empty" : response.status === 401 || response.status === 403 ? "invalid" : "unavailable";
-      throw new FlightProviderError(code === "invalid" ? "La configuration du fournisseur de vols est invalide." : body?.errors?.[0]?.message ?? "Flight provider request failed", code);
+      const providerMessage = body?.errors?.[0]?.message ?? "Flight provider request failed";
+      const isExpiredOffer = /offer|availability|expired|no longer available|cannot be booked/i.test(providerMessage);
+      const code = isExpiredOffer ? "expired" : response.status === 404 ? "empty" : response.status === 401 || response.status === 403 ? "invalid" : "unavailable";
+      throw new FlightProviderError(code === "invalid" ? "La configuration du fournisseur de vols est invalide." : code === "expired" ? "Cette offre de vol n'est plus disponible. Recherchez à nouveau pour obtenir un prix et une disponibilité actualisés." : providerMessage, code);
     }
     return body?.data;
   } catch (error) {
