@@ -132,7 +132,14 @@ export default function FlightCheckoutPage() {
 
         <section className="mt-7 rounded-3xl border border-white/10 bg-white/[0.035] p-5">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-sky-500/15"><Plane className="size-4 text-sky-400" /></span>
+            {first?.airlineLogo ? (
+              <span className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={first.airlineLogo || "/placeholder.svg"} alt={first?.airline ?? "Compagnie"} crossOrigin="anonymous" loading="lazy" className="size-full object-contain" />
+              </span>
+            ) : (
+              <span className="flex size-9 items-center justify-center rounded-xl bg-sky-500/15"><Plane className="size-4 text-sky-400" /></span>
+            )}
             <div>
               <p className="text-xs font-black text-white">{first?.airline ?? "Compagnie"}</p>
               <p className="text-[10px] text-slate-500">{first?.flightNumber}</p>

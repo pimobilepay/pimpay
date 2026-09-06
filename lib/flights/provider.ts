@@ -17,7 +17,17 @@ async function duffel(path: string, init: RequestInit) {
     throw new FlightProviderError("Le fournisseur de vols ne répond pas.", "unavailable");
   }
 }
-function mapOffer(offer: DuffelOffer): FlightOffer { const segments = (offer.slices ?? []).flatMap((slice: any) => (slice.segments ?? []).map((segment: any) => ({ flightNumber: `${segment.marketing_carrier?.iata_code ?? ""}${segment.marketing_carrier_flight_number ?? ""}`, airline: segment.marketing_carrier?.name ?? "Airline", airlineLogo: segment.marketing_carrier?.logo_symbol_url, departure: { time: segment.departing_at, airport: { iata: segment.origin?.iata_code ?? "", city: segment.origin?.city_name ?? "", name: segment.origin?.name ?? "", country: segment.origin?.country_code ?? "" } }, arrival: { time: segment.arriving_at, airport: { iata: segment.destination?.iata_code ?? "", city: segment.destination?.city_name ?? "", name: segment.destination?.name ?? "", country: segment.destination?.country_code ?? "" } }, durationMinutes: Math.max(0, Math.round((new Date(segment.arriving_at).getTime() - new Date(segment.departing_at).getTime()) / 60000)), baggage: "Cabin baggage included" }))); return { id: offer.id, segments, stops: Math.max(0, segments.length - (offer.slices?.length ?? 1)), totalDurationMinutes: segments.reduce((sum, segment) => sum + segment.durationMinutes, 0), baggage: "Cabin baggage included", price: { amount: Number(offer.total_amount), currency: offer.total_currency } }; }
+// Duffel expose le logo de chaque compagnie sur l'objet transporteur :
+//   • logo_symbol_url  → pastille carrée (idéale à côté du nom)
+//   • logo_lockup_url  → logo complet avec le nom de la compagnie
+//   • iata_code        → permet de reconstruire l'URL du logo depuis le CDN
+//     public Duffel si le champ logo_* n'est pas renvoyé par le fournisseur.
+function airlineLogoFrom(carrier: any): string | undefined {
+  if (carrier?.logo_symbol_url) return carrier.logo_symbol_url;
+  if (carrier?.iata_code) return `https://assets.duffel.com/img/airlines/for-light-background/full-color-logo/${carrier.iata_code}.svg`;
+  return undefined;
+}
+function mapOffer(offer: DuffelOffer): FlightOffer { const segments = (offer.slices ?? []).flatMap((slice: any) => (slice.segments ?? []).map((segment: any) => { const carrier = segment.marketing_carrier ?? segment.operating_carrier ?? {}; return { flightNumber: `${carrier.iata_code ?? ""}${segment.marketing_carrier_flight_number ?? ""}`, airline: carrier.name ?? "Airline", airlineLogo: airlineLogoFrom(carrier), airlineLogoLockup: carrier.logo_lockup_url, iataCode: carrier.iata_code, departure: { time: segment.departing_at, airport: { iata: segment.origin?.iata_code ?? "", city: segment.origin?.city_name ?? "", name: segment.origin?.name ?? "", country: segment.origin?.country_code ?? "" } }, arrival: { time: segment.arriving_at, airport: { iata: segment.destination?.iata_code ?? "", city: segment.destination?.city_name ?? "", name: segment.destination?.name ?? "", country: segment.destination?.country_code ?? "" } }, durationMinutes: Math.max(0, Math.round((new Date(segment.arriving_at).getTime() - new Date(segment.departing_at).getTime()) / 60000)), baggage: "Cabin baggage included" }; })); return { id: offer.id, segments, stops: Math.max(0, segments.length - (offer.slices?.length ?? 1)), totalDurationMinutes: segments.reduce((sum, segment) => sum + segment.durationMinutes, 0), baggage: "Cabin baggage included", price: { amount: Number(offer.total_amount), currency: offer.total_currency } }; }
 const CABIN_MAP: Record<string, string> = { economy: "economy", "premium-economy": "premium_economy", business: "business", first: "first" };
 
 const provider: FlightProvider = {

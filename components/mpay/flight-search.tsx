@@ -79,6 +79,33 @@ function AirportPicker({ label, placeholder, value, onChange }: { label: string;
   );
 }
 
+// Affiche le logo réel de la compagnie (fourni par Duffel). En cas de logo
+// absent ou d'échec de chargement, on retombe sur l'icône avion générique.
+// Les logos Duffel sont conçus pour un fond clair → conteneur blanc.
+function AirlineLogo({ src, alt, size = "size-9" }: { src?: string; alt: string; size?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span className={`flex ${size} items-center justify-center rounded-xl bg-sky-500/15`}>
+        <Plane className="size-4 text-sky-400" />
+      </span>
+    );
+  }
+  return (
+    <span className={`flex ${size} items-center justify-center overflow-hidden rounded-xl bg-white p-1.5`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src || "/placeholder.svg"}
+        alt={alt}
+        crossOrigin="anonymous"
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="size-full object-contain"
+      />
+    </span>
+  );
+}
+
 function FlightCard({ offer, onSelect }: { offer: FlightOffer; onSelect: () => void }) {
   const first = offer.segments[0];
   const last = offer.segments[offer.segments.length - 1];
@@ -86,9 +113,7 @@ function FlightCard({ offer, onSelect }: { offer: FlightOffer; onSelect: () => v
     <article className="rounded-3xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:border-sky-400/40 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-sky-500/15">
-            <Plane className="size-4 text-sky-400" />
-          </span>
+          <AirlineLogo src={first?.airlineLogo} alt={first?.airline ?? "Compagnie"} />
           <div>
             <p className="text-xs font-black text-white">{first?.airline ?? "Compagnie"}</p>
             <p className="text-[10px] text-slate-500">{first?.flightNumber ?? "Vol"}</p>

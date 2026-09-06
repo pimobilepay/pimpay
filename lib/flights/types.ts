@@ -24,6 +24,8 @@ export interface FlightSegment {
   flightNumber: string;
   airline: string;
   airlineLogo?: string;
+  airlineLogoLockup?: string;
+  iataCode?: string;
   departure: { time: string; airport: Airport };
   arrival: { time: string; airport: Airport };
   durationMinutes: number;
