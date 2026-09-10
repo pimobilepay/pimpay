@@ -42,24 +42,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verification du token aupres de Pi Platform API
+    // Le compte doit toujours être validé par Pi : les valeurs envoyées par le
+    // navigateur ne sont jamais une preuve d'identité. C'est particulièrement
+    // important lors du basculement testnet -> mainnet, où le uid peut changer.
     let verifiedUser: any = null;
     try {
       const piRes = await fetch("https://api.minepi.com/v2/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
       });
 
-      if (piRes.ok) {
-        verifiedUser = await piRes.json();
+      if (!piRes.ok) {
+        return NextResponse.json({ error: "Jeton Pi invalide ou expiré" }, { status: 401 });
       }
+      verifiedUser = await piRes.json();
     } catch (err) {
-      console.warn("[PIMOBIPAY] Verification Pi API echouee, fallback local:", err);
+      console.error("[PIMOBIPAY] Verification Pi API indisponible:", err);
+      return NextResponse.json({ error: "Impossible de vérifier le compte Pi" }, { status: 503 });
     }
 
-    // On utilise les donnees verifiees si disponibles, sinon celles envoyees par le client
-    const finalPiUserId = verifiedUser?.uid || piUserId;
-    const finalUsername = verifiedUser?.username || username;
-    // Pi Network peut retourner le phone dans credentials ou dans user
+    const finalPiUserId = String(verifiedUser?.uid || "");
+    const finalUsername = String(verifiedUser?.username || "").trim();
+    if (!finalPiUserId || !finalUsername || finalPiUserId !== String(piUserId)) {
+      return NextResponse.json({ error: "Identité Pi vérifiée incohérente" }, { status: 401 });
+    }
+    // Pi Network peut retourner le phone dans credentials ou dans user.
     const finalPhone = verifiedUser?.credentials?.phone_number || phone || null;
 
     // Champs selectionnes apres chaque lecture/ecriture du User
@@ -78,20 +85,43 @@ export async function POST(request: Request) {
       },
     } as const;
 
-    // 1) On tente de retrouver un utilisateur existant par son piUserId.
-    //    Si trouve -> update. Sinon -> create avec gestion des collisions de username.
+    // 1) Recherche par uid puis par username. Le username vérifié est la clé
+    // de rattachement stable quand le uid testnet n'est pas celui du mainnet.
     let user = await prisma.user.findUnique({
       where: { piUserId: finalPiUserId },
       select: userSelect,
     });
+    let matchedByUsername = false;
+
+    if (!user) {
+      user = await prisma.user.findUnique({
+        where: { username: finalUsername },
+        select: userSelect,
+      });
+      matchedByUsername = Boolean(user);
+    }
 
     if (user) {
-      // Utilisateur existant : on met a jour les champs de session et, si fourni, le phone.
+      if (matchedByUsername && user.piUserId && user.piUserId !== finalPiUserId) {
+        const conflictingUser = await prisma.user.findUnique({
+          where: { piUserId: finalPiUserId },
+          select: { id: true },
+        });
+        if (conflictingUser && conflictingUser.id !== user.id) {
+          return NextResponse.json(
+            { error: "Ce compte Pi mainnet est déjà lié à un autre compte PimPay" },
+            { status: 409 }
+          );
+        }
+      }
+      // Lors d'une migration, on remplace l'ancien uid par celui vérifié du
+      // mainnet, sans toucher aux wallets, au profil ni à l'historique.
       user = await prisma.user.update({
-        where: { piUserId: finalPiUserId },
+        where: { id: user.id },
         data: {
-          // On conserve le username existant en base; on ne l'ecrase pas avec celui de Pi
-          // pour eviter une collision avec un autre compte ayant deja ce username.
+          ...(matchedByUsername && user.piUserId !== finalPiUserId
+            ? { piUserId: finalPiUserId }
+            : {}),
           lastLoginAt: new Date(),
           lastLoginIp: request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown",
           ...(finalPhone && { phone: finalPhone }),
@@ -99,7 +129,7 @@ export async function POST(request: Request) {
         select: userSelect,
       });
     } else {
-      // Nouvel utilisateur : on tente de creer avec le username fourni par Pi.
+      // Nouvel utilisateur : on tente de creer avec le username vérifié par Pi.
       // Si ce username est deja pris par un autre compte, on genere un username unique.
       const baseCreateData = {
         piUserId: finalPiUserId,
