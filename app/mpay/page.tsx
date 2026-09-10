@@ -237,6 +237,7 @@ const isTransactionSent = (tx: TransactionHistory, userId: string): boolean => {
 };
 
 type ActiveView = "hub" | "scanner" | "receive" | "pay-merchant";
+type MpayHubTab = "shopping" | "map";
 
 export default function MPayPage() {
   const router = useRouter();
@@ -245,6 +246,7 @@ export default function MPayPage() {
     p === "low" ? t("mpay.priorityLow") : p === "instant" ? t("mpay.priorityInstant") : t("mpay.priorityFast");
   const dateLocale = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
   const [activeView, setActiveView] = useState<ActiveView>("hub");
+  const [activeMpayTab, setActiveMpayTab] = useState<MpayHubTab>("shopping");
   const [userBalance, setUserBalance] = useState(0);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [notifications, setNotifications] = useState(0);
@@ -1066,11 +1068,50 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
           </div>
         </section>
 
-        {/* PAYMENT SERVICES */}
-        <PaymentServices />
+        {/* MPAY HUB TABS */}
+        <section aria-label="Services MPay" className="rounded-2xl border border-white/10 bg-white/[0.025] p-1.5">
+          <div className="grid grid-cols-2 gap-1.5" role="tablist" aria-label="Choisir une expérience MPay">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeMpayTab === "shopping"}
+              onClick={() => setActiveMpayTab("shopping")}
+              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-[9px] font-black uppercase tracking-wider transition-all ${
+                activeMpayTab === "shopping"
+                  ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                  : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+              }`}
+            >
+              <ShoppingCart size={14} aria-hidden="true" />
+              Shopping en ligne
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeMpayTab === "map"}
+              onClick={() => setActiveMpayTab("map")}
+              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-[9px] font-black uppercase tracking-wider transition-all ${
+                activeMpayTab === "map"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                  : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+              }`}
+            >
+              <Store size={14} aria-hidden="true" />
+              Map of Pi
+            </button>
+          </div>
+        </section>
+
+        {/* ONLINE SHOPPING */}
+        {activeMpayTab === "shopping" && (
+          <section role="tabpanel" aria-label="Shopping en ligne">
+            <PaymentServices />
+          </section>
+        )}
 
         {/* MAP OF PI MERCHANTS */}
-        <section>
+        {activeMpayTab === "map" && (
+        <section role="tabpanel" aria-label="Map of Pi">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Store size={14} className="text-amber-500" />
@@ -1166,8 +1207,9 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
             </button>
           )}
         </section>
+        )}
 
-{/* P2P CONTACTS */}
+        {/* P2P CONTACTS */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
