@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Script from "next/script";
 import { ArrowLeft, Coins, Loader2, RefreshCcw, Users, Vault } from "lucide-react";
 import { PimMiner } from "@/components/PimMiner";
 import { BottomNav } from "@/components/bottom-nav";
@@ -65,12 +64,6 @@ export default function PimCoinsPage() {
 
   return (
     <>
-      <Script
-        async
-        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7528814893106755"
-        crossOrigin="anonymous"
-        strategy="afterInteractive"
-      />
       <div className="min-h-screen bg-[#020617] text-white pb-24">
       {/* Header */}
       <header className="px-4 py-4 flex items-center justify-between bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">

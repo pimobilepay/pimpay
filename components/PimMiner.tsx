@@ -1,35 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pickaxe, Loader2, Clock, Check, Sparkles, Flame } from "lucide-react";
+import { Pickaxe, Loader2, Clock, Check, Sparkles, Flame, Users, Trophy } from "lucide-react";
 import { toast } from "sonner";
-
-interface GptSlot {
-  addService(service: GptPubAdsService): GptSlot;
-}
-
-interface GptEvent {
-  slot: GptSlot;
-  makeRewardedVisible?: () => void;
-}
-
-interface GptPubAdsService {
-  addEventListener(event: string, listener: (event: GptEvent) => void): void;
-}
-
-interface GptApi {
-  cmd: Array<() => void>;
-  enums: { OutOfPageFormat: { REWARDED: string } };
-  defineOutOfPageSlot: (path: string, format: string) => GptSlot | null;
-  pubads: () => GptPubAdsService;
-  display: (slot: GptSlot) => void;
-  enableServices: () => void;
-  destroySlots: (slots?: GptSlot[]) => boolean;
-}
-
-declare global {
-  interface Window { googletag?: GptApi; }
-}
 
 interface MineStatus {
   balance: number;
@@ -39,6 +12,10 @@ interface MineStatus {
   lastMinedAt: string | null;
   nextMineAt: string | null;
   remainingMs: number;
+  miningCount: number;
+  referralCount: number;
+  level: number;
+  levelProgress: number;
 }
 
 interface PimMinerProps {
@@ -111,41 +88,23 @@ export function PimMiner({ onBalanceChange }: PimMinerProps) {
   const handleMine = async () => {
     if (isMining || !canMine) return;
     setIsMining(true);
-    let rewarded = false;
-    let slot: GptSlot | null = null;
     try {
-      const attemptResponse = await fetch("/api/pim/mine/ad-attempt", { cache: "no-store" });
-      const { attemptToken } = await attemptResponse.json();
-      if (!attemptResponse.ok || !attemptToken) throw new Error("Impossible de préparer la récompense");
-      const googletag = window.googletag;
-      const adUnitPath = process.env.NEXT_PUBLIC_GAM_REWARDED_AD_UNIT_PATH;
-      if (!googletag?.defineOutOfPageSlot || !adUnitPath) {
-        toast.error("Publicité indisponible", { description: "Réessayez plus tard." });
-        return;
-      }
-      await new Promise<void>((resolve, reject) => {
-        let settled = false;
-        const finish = (error?: Error) => { if (settled) return; settled = true; clearTimeout(timeout); error ? reject(error) : resolve(); };
-        const timeout = window.setTimeout(() => finish(new Error("Ad timeout")), 15000);
-        googletag.cmd.push(() => {
-          try {
-            slot = googletag.defineOutOfPageSlot(adUnitPath, googletag.enums.OutOfPageFormat.REWARDED);
-            if (!slot) return finish(new Error("Rewarded slot unavailable"));
-            slot.addService(googletag.pubads());
-            const onReady = (event: GptEvent) => { if (event.slot === slot && event.makeRewardedVisible) event.makeRewardedVisible(); else if (event.slot === slot) finish(new Error("Rewarded ad unavailable")); };
-            const onGranted = (event: GptEvent) => { if (event.slot === slot) { rewarded = true; void fetch("/api/pim/mine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attemptToken, rewardGranted: true }) }).then(async (res) => { const data = await res.json(); if (!res.ok || !data.success) throw new Error(data.error || "Activation refused"); setStatus(data); setRemaining(data.remainingMs); onBalanceChange?.(data.balance); setJustMined(true); window.setTimeout(() => setJustMined(false), 2500); toast.success(`+${data.reward} PIM minés !`, { description: "Revenez dans 24h pour la prochaine session." }); }).catch((error) => toast.error(error.message)); } };
-            const onClosed = (event: GptEvent) => { if (event.slot === slot) finish(rewarded ? undefined : new Error("Ad closed without reward")); };
-            googletag.pubads().addEventListener("rewardedSlotReady", onReady);
-            googletag.pubads().addEventListener("rewardedSlotGranted", onGranted);
-            googletag.pubads().addEventListener("rewardedSlotClosed", onClosed);
-            googletag.enableServices(); googletag.display(slot);
-          } catch (error) { finish(error instanceof Error ? error : new Error("Ad failed")); }
-        });
+      const response = await fetch("/api/pim/mine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Minage indisponible");
+      setStatus(data);
+      setRemaining(data.remainingMs);
+      onBalanceChange?.(data.balance);
+      setJustMined(true);
+      window.setTimeout(() => setJustMined(false), 2500);
+      toast.success(`+${data.reward} PIM minés !`, { description: "Revenez dans 24h pour la prochaine session." });
     } catch (error) {
-      if (!rewarded) toast.error("Publicité indisponible", { description: "Aucun PIM n'a été crédité. Réessayez plus tard." });
+      toast.error(error instanceof Error ? error.message : "Impossible de miner pour le moment");
     } finally {
-      if (slot) window.googletag?.destroySlots([slot]);
       setIsMining(false);
     }
   };
@@ -293,9 +252,25 @@ export function PimMiner({ onBalanceChange }: PimMinerProps) {
         </div>
       </div>
 
+      <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-white/5 bg-slate-800/40 p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-cyan-500/15">
+            <Trophy className="size-5 text-cyan-300" aria-hidden="true" />
+          </div>
+          <p className="text-lg font-black text-white">Niveau {status?.level ?? 1}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">{status?.levelProgress ?? 0}/7 sessions</p>
+        </div>
+        <div className="rounded-2xl border border-white/5 bg-slate-800/40 p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-emerald-500/15">
+            <Users className="size-5 text-emerald-300" aria-hidden="true" />
+          </div>
+          <p className="text-lg font-black text-white">{status?.referralCount ?? 0}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Parrainages actifs</p>
+        </div>
+      </div>
+
       <p className="mt-6 max-w-sm text-center text-xs leading-relaxed text-slate-500">
-        Minez gratuitement {reward} PIM Coins toutes les 24 heures. Le compteur redémarre à chaque
-        session réclamée.
+        Minez gratuitement {reward} PIM Coins toutes les 24 heures. Chaque session validée fait progresser votre niveau.
       </p>
     </div>
   );
