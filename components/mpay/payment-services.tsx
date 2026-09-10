@@ -6,7 +6,7 @@ import {
   Plane, TrainFront, Hotel, UtensilsCrossed, Car, SquareParking,
   GraduationCap, HeartPulse, Landmark, Gamepad2, Gift, Globe,
   ShoppingCart, Banknote, QrCode, Search, Star, LayoutGrid,
-  ChevronRight, X, HandCoins, type LucideIcon,
+  ChevronRight, X, HandCoins, ArrowUpRight, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -25,6 +25,25 @@ interface PaymentService {
   /** Ouvre le terminal Tap to Phone en overlay (au lieu de naviguer) */
   opensTerminal?: boolean;
 }
+
+interface ShoppingMarketplace {
+  id: string;
+  name: string;
+  description: string;
+  logo: string;
+  href: string;
+  accent: string;
+}
+
+const SHOPPING_MARKETPLACES: ShoppingMarketplace[] = [
+  { id: "amazon", name: "Amazon", description: "Livres, maison et électronique", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/amazon/default.svg", href: "https://www.amazon.com", accent: "from-amber-400/20 to-orange-500/5" },
+  { id: "ebay", name: "eBay", description: "Enchères et bonnes affaires", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/ebay/default.svg", href: "https://www.ebay.com", accent: "from-blue-500/20 to-red-500/5" },
+  { id: "alibaba", name: "Alibaba", description: "Achats en gros et fournisseurs", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/alibaba/default.svg", href: "https://www.alibaba.com", accent: "from-orange-500/20 to-red-500/5" },
+  { id: "aliexpress", name: "AliExpress", description: "Shopping international", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/aliexpress/default.svg", href: "https://www.aliexpress.com", accent: "from-red-500/20 to-orange-500/5" },
+  { id: "temu", name: "Temu", description: "Découvertes à petits prix", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/temu/default.svg", href: "https://www.temu.com", accent: "from-orange-400/20 to-pink-500/5" },
+  { id: "shein", name: "SHEIN", description: "Mode et tendances", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/shein/default.svg", href: "https://www.shein.com", accent: "from-pink-500/20 to-violet-500/5" },
+  { id: "walmart", name: "Walmart", description: "Courses et produits du quotidien", logo: "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/walmart/default.svg", href: "https://www.walmart.com", accent: "from-blue-500/20 to-cyan-500/5" },
+];
 
 // Full catalog of PIMOBIPAY payment services (Premium Dark)
 const SERVICES: PaymentService[] = [
@@ -128,6 +147,58 @@ export function PaymentServices() {
 
   return (
     <section aria-labelledby="payment-services-heading">
+      {/* Online shopping hub */}
+      <div className="mb-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <ShoppingCart size={15} className="text-orange-400" />
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-orange-300">Shopping en ligne</p>
+            </div>
+            <h2 className="text-lg font-black tracking-tight text-white sm:text-xl">Payez vos achats avec MPay</h2>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-slate-400 sm:text-[11px]">
+              Retrouvez vos marketplaces préférées et utilisez votre solde MPay pour régler vos achats en toute simplicité.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full border border-orange-400/20 bg-orange-400/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-orange-200">
+            Hub MPay
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
+          {SHOPPING_MARKETPLACES.map((marketplace) => (
+            <a
+              key={marketplace.id}
+              href={marketplace.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Ouvrir ${marketplace.name} dans un nouvel onglet`}
+              className={`group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${marketplace.accent} p-3 transition-all hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-white p-2 shadow-lg shadow-black/20">
+                  <img
+                    src={marketplace.logo}
+                    alt={`Logo ${marketplace.name}`}
+                    className="max-h-full max-w-full object-contain"
+                    loading="lazy"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                  />
+                </div>
+                <ArrowUpRight size={13} className="text-slate-500 transition-colors group-hover:text-white" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-white">{marketplace.name}</p>
+                <p className="mt-1 line-clamp-2 text-[8px] leading-relaxed text-slate-400">{marketplace.description}</p>
+              </div>
+            </a>
+          ))}
+        </div>
+        <p className="mt-3 text-[8px] font-medium text-slate-600">
+          Vous serez redirigé vers le site officiel de chaque marketplace. Les marques et logos appartiennent à leurs propriétaires respectifs.
+        </p>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
