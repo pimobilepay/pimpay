@@ -4,7 +4,7 @@ import { adminAuth } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
-type Period = "24h" | "7d" | "30d" | "90d" | "all";
+type Period = "24h" | "7d" | "30d" | "90d" | "all" | "custom";
 type BucketUnit = "hour" | "day" | "week" | "month";
 
 // Whitelisted config per period. `durationMs` is used to derive the previous
@@ -15,6 +15,7 @@ const PERIOD_CONFIG: Record<Period, { durationMs: number | null; unit: BucketUni
   "30d": { durationMs: 30 * 24 * 60 * 60 * 1000, unit: "day" },
   "90d": { durationMs: 90 * 24 * 60 * 60 * 1000, unit: "week" },
   "all": { durationMs: null, unit: "month" },
+  "custom": { durationMs: null, unit: "day" },
 };
 
 function round2(n: number): number {
@@ -62,14 +63,30 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const periodParam = (url.searchParams.get("period") || "30d") as Period;
-    const period: Period = PERIOD_CONFIG[periodParam] ? periodParam : "30d";
-    const { durationMs, unit } = PERIOD_CONFIG[period];
+    const requestedStart = url.searchParams.get("start");
+    const requestedEnd = url.searchParams.get("end");
+    const hasValidCustomRange = Boolean(
+      requestedStart && requestedEnd &&
+      /^\d{4}-\d{2}-\d{2}$/.test(requestedStart) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(requestedEnd) &&
+      requestedStart <= requestedEnd,
+    );
+    const period: Period = periodParam === "custom" && hasValidCustomRange
+      ? "custom"
+      : PERIOD_CONFIG[periodParam] ? periodParam : "30d";
+    const config = period === "custom" ? { durationMs: null, unit: "day" as BucketUnit } : PERIOD_CONFIG[period];
+    const { durationMs, unit } = config;
 
     const now = new Date();
 
-    // Resolve the window start. For "all" we anchor on the very first user.
+    // Resolve the window start. Custom ranges use calendar-day boundaries.
     let start: Date;
-    if (durationMs === null) {
+    if (period === "custom" && requestedStart && requestedEnd) {
+      start = new Date(`${requestedStart}T00:00:00`);
+      const customEnd = new Date(`${requestedEnd}T23:59:59.999`);
+      // Keep the selected calendar day as the upper bound instead of "now".
+      now.setTime(Math.min(now.getTime(), customEnd.getTime()));
+    } else if (durationMs === null) {
       const firstUser = await prisma.user.findFirst({
         orderBy: { createdAt: "asc" },
         select: { createdAt: true },
@@ -79,7 +96,7 @@ export async function GET(req: NextRequest) {
       start = new Date(now.getTime() - durationMs);
     }
 
-    // Previous comparison window (skipped for "all").
+    // Previous comparison window (skipped for "all" and custom ranges).
     const prevStart = durationMs !== null ? new Date(start.getTime() - durationMs) : null;
     const prevEnd = start;
 

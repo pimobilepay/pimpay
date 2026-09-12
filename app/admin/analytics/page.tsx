@@ -124,7 +124,7 @@ type AnalyticsData = {
   recentSignups: RecentUser[];
 };
 
-type GrowthPeriod = "24h" | "7d" | "30d" | "90d" | "all";
+type GrowthPeriod = "24h" | "7d" | "30d" | "90d" | "all" | "custom";
 
 type GrowthMetric = { value: number; previous: number; growth: number | null };
 
@@ -655,6 +655,8 @@ export default function AdminAnalyticsPage() {
   const [chartTab, setChartTab] = useState<"users" | "transactions" | "volume">("users");
   const [visitorsPeriod, setVisitorsPeriod] = useState<"today" | "week" | "month">("today");
   const [growthPeriod, setGrowthPeriod] = useState<GrowthPeriod>("30d");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [growthMetric, setGrowthMetric] = useState<"newUsers" | "transactions" | "volume" | "fees">("newUsers");
   const [growthData, setGrowthData] = useState<GrowthData | null>(null);
   const [growthLoading, setGrowthLoading] = useState(false);
@@ -724,10 +726,15 @@ export default function AdminAnalyticsPage() {
   }, [fetchAnalytics]);
 
   // Fetch growth metrics for the selected period
-  const fetchGrowth = useCallback(async (period: GrowthPeriod) => {
+  const fetchGrowth = useCallback(async (period: GrowthPeriod, startDate?: string, endDate?: string) => {
     try {
       setGrowthLoading(true);
-      const res = await fetch(`/api/admin/analytics/growth?period=${period}`, { cache: "no-store" });
+      const params = new URLSearchParams({ period });
+      if (period === "custom" && startDate && endDate) {
+        params.set("start", startDate);
+        params.set("end", endDate);
+      }
+      const res = await fetch(`/api/admin/analytics/growth?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Erreur API croissance");
       const json = (await res.json()) as GrowthData;
       setGrowthData(json);
@@ -738,7 +745,11 @@ export default function AdminAnalyticsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchGrowth(growthPeriod); }, [growthPeriod, fetchGrowth]);
+  useEffect(() => {
+    if (growthPeriod !== "custom" || (customStartDate && customEndDate)) {
+      fetchGrowth(growthPeriod, customStartDate, customEndDate);
+    }
+  }, [growthPeriod, customStartDate, customEndDate, fetchGrowth]);
 
   // Fetch user session details
   const fetchUserSession = useCallback(async (userId: string) => {
@@ -2439,6 +2450,18 @@ export default function AdminAnalyticsPage() {
                 </button>
               ))}
               {growthLoading && <Loader2 size={16} className="text-blue-400 animate-spin self-center ml-1" />}
+            </div>
+
+            <div className="flex flex-col gap-2 mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 sm:flex-row sm:items-end">
+              <div className="flex flex-1 flex-col gap-1">
+                <label htmlFor="analytics-start-date" className="text-[9px] font-black uppercase tracking-wider text-slate-500">Date de début</label>
+                <input id="analytics-start-date" type="date" value={customStartDate} onChange={(event) => { setCustomStartDate(event.target.value); setGrowthPeriod("custom"); }} className="h-9 rounded-xl border border-white/[0.08] bg-slate-950 px-3 text-xs text-white outline-none focus:border-blue-500" />
+              </div>
+              <div className="flex flex-1 flex-col gap-1">
+                <label htmlFor="analytics-end-date" className="text-[9px] font-black uppercase tracking-wider text-slate-500">Date de fin</label>
+                <input id="analytics-end-date" type="date" min={customStartDate || undefined} value={customEndDate} onChange={(event) => { setCustomEndDate(event.target.value); setGrowthPeriod("custom"); }} className="h-9 rounded-xl border border-white/[0.08] bg-slate-950 px-3 text-xs text-white outline-none focus:border-blue-500" />
+              </div>
+              {growthPeriod === "custom" && (!customStartDate || !customEndDate) && <p className="text-[10px] text-amber-400 sm:max-w-32">Choisissez les deux dates.</p>}
             </div>
 
             {/* Metric cards */}
