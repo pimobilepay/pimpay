@@ -988,7 +988,7 @@ export default function UserDashboard() {
               { icon: <Building2 size={18} />, label: tr.svcBankTitle, sub: tr.svcBankSub, link: "/bank", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
               { icon: <Banknote size={18} />, label: tr.svcDepositTitle, sub: tr.svcDepositSub, link: "/deposit", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
               { icon: <Star size={18} />, label: tr.svcPimTitle, sub: tr.svcPimSub, link: "/pim-coins", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-              { icon: <MessageCircle size={18} />, label: tr.svcSupportTitle, sub: tr.svcSupportSub, link: "/support", color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
+              { icon: <MessageCircle size={18} />, label: tr.svcSupportTitle, sub: tr.svcSupportSub, link: "/chat", color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
             ].map((s, i) => (
               <button
                 key={i}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
+import { countries as ALL_COUNTRIES } from "@/lib/country-data";
 
 export const dynamic = "force-dynamic";
 
@@ -209,13 +210,50 @@ export async function GET(req: NextRequest) {
     const userGrowth = newUsersYesterday > 0 ? Math.round(((newUsersToday - newUsersYesterday) / newUsersYesterday) * 100) : newUsersToday > 0 ? 100 : 0;
     const txGrowth = transactionsYesterday > 0 ? Math.round(((transactionsToday - transactionsYesterday) / transactionsYesterday) * 100) : transactionsToday > 0 ? 100 : 0;
 
-    // Process country data with additional metrics
-    const finalTopCountries = (topCountries || []).map(c => ({
-      country: c.country,
-      count: c.count,
-      activeCount: c.active_count || 0,
-      newCount: c.new_count || 0,
-    }));
+    // Canonicalize and merge country variants (ISO codes, accents and aliases)
+    // before sending data to the map/list so one country can only appear once.
+    const normalizeCountry = (value: string) => value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\\u0300-\\u036f]/g, "")
+      .replace(/[’'`-]/g, " ")
+      .replace(/\\s+/g, " ")
+      .trim();
+    const countryAliases: Record<string, string> = {
+      "cote divoire": "côte d'ivoire",
+      "ivory coast": "côte d'ivoire",
+      "rdc": "république démocratique du congo",
+      "dr congo": "république démocratique du congo",
+      "democratic republic of the congo": "république démocratique du congo",
+    };
+    const countryByKey = new Map<string, { name: string; code: string }>();
+    ALL_COUNTRIES.forEach((country) => {
+      countryByKey.set(normalizeCountry(country.name), { name: country.name, code: country.code });
+      countryByKey.set(country.code.toLowerCase(), { name: country.name, code: country.code });
+    });
+
+    const mergedCountries = new Map<string, { country: string; count: number; activeCount: number; newCount: number }>();
+    (topCountries || []).forEach((row) => {
+      const rawKey = normalizeCountry(row.country || "");
+      const aliasKey = countryAliases[rawKey] ? normalizeCountry(countryAliases[rawKey]) : rawKey;
+      const canonical = countryByKey.get(aliasKey);
+      const country = canonical?.name || countryAliases[rawKey] || row.country.trim();
+      const key = canonical?.code || normalizeCountry(country);
+      const existing = mergedCountries.get(key);
+      if (existing) {
+        existing.count += row.count || 0;
+        existing.activeCount += row.active_count || 0;
+        existing.newCount += row.new_count || 0;
+      } else {
+        mergedCountries.set(key, {
+          country,
+          count: row.count || 0,
+          activeCount: row.active_count || 0,
+          newCount: row.new_count || 0,
+        });
+      }
+    });
+    const finalTopCountries = Array.from(mergedCountries.values()).sort((a, b) => b.count - a.count);
 
     // Process domain/server data: classify each host so the admin can quickly
     // tell apart the Pi Browser sandbox, custom sub-domains, and Vercel previews.
