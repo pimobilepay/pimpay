@@ -439,6 +439,13 @@ export const COUNTRY_OPERATORS: Record<string, MobileOperator[]> = {
     { name: "Digicel",  logo: OP_LOGOS.digicel,type: "telecom" },
     { name: "Flow",     logo: OP_LOGOS.flow,   type: "telecom" },
   ],
+  // Guinée équatoriale
+  // Les icônes sont volontairement servies depuis /public afin que vous puissiez
+  // déposer vos fichiers localement sans modifier cette configuration.
+  GQ: [
+    { name: "Orange Equatorial Guinea", logo: "/operators/equatorial-guinea-orange.png", type: "mobile_money" },
+    { name: "Muni Money", logo: "/operators/equatorial-guinea-muni.png", type: "mobile_money" },
+  ],
   // Romania
   RO: [
     { name: "Digi Mobil",       logo: OP_LOGOS.digi,        type: "telecom" },
