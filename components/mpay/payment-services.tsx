@@ -72,8 +72,22 @@ const SERVICES: PaymentService[] = [
 ];
 
 const SUPPORTED_PAYMENTS = [
-  "Pi", "USDT", "USDC", "USD", "EUR", "XAF", "XOF", "BTC", "ETH",
-  "BNB", "TRX", "Solana", "Visa", "Mastercard", "Bank", "Mobile Money",
+  { name: "Pi", logo: "/pi.png" },
+  { name: "USDT", logo: "/usdt.png" },
+  { name: "USDC", logo: "/usdc.png" },
+  { name: "USD", logo: "/logo.png" },
+  { name: "EUR", logo: "/logo.png" },
+  { name: "XAF", logo: "/logo.png" },
+  { name: "XOF", logo: "/logo.png" },
+  { name: "BTC", logo: "/btc.png" },
+  { name: "ETH", logo: "/eth.png" },
+  { name: "BNB", logo: "/bnb.png" },
+  { name: "TRX", logo: "/trx.png" },
+  { name: "Solana", logo: "/sol.png" },
+  { name: "Visa", logo: "/visa.png" },
+  { name: "Mastercard", logo: "/logo.png" },
+  { name: "Bank", logo: "/logo.png" },
+  { name: "Mobile Money", logo: "/m-pesa.png" },
 ];
 
 const FAVORITES_KEY = "pimpay_service_favorites";
@@ -329,14 +343,22 @@ export function PaymentServices() {
           Paiements supportés
         </p>
         <div className="flex flex-wrap gap-1.5">
-          {SUPPORTED_PAYMENTS.map((p) => (
-            <span
-              key={p}
-              className="text-[8px] font-bold text-slate-300 bg-white/[0.04] border border-white/10 px-2 py-1 rounded-lg"
-            >
-              {p}
-            </span>
-          ))}
+{SUPPORTED_PAYMENTS.map((payment) => (
+  <span
+  key={payment.name}
+  className="inline-flex items-center gap-1.5 text-[8px] font-bold text-slate-300 bg-white/[0.04] border border-white/10 px-2 py-1 rounded-lg"
+  >
+  <span className="flex size-4 items-center justify-center overflow-hidden rounded-full bg-white/90 p-0.5">
+  <img
+  src={payment.logo}
+  alt={`Logo ${payment.name}`}
+  className="size-full object-contain"
+  loading="lazy"
+  />
+  </span>
+  {payment.name}
+  </span>
+  ))}
         </div>
       </div>
 
