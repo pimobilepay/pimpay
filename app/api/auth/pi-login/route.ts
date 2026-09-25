@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import { guardRequest } from "@/lib/defenseGuard";
 import { blockIfMaintenance } from "@/lib/maintenance";
 import { setAuthCookie } from "@/lib/auth-cookies";
+import { generateWalletAddress } from "@/lib/wallet-utils";
 
 /**
  * POST /api/auth/pi-login
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
       role: true,
       status: true,
       piUserId: true,
+      walletAddress: true,
       firstName: true,
       lastName: true,
       avatar: true,
@@ -122,6 +124,7 @@ export async function POST(request: Request) {
           ...(matchedByUsername && user.piUserId !== finalPiUserId
             ? { piUserId: finalPiUserId }
             : {}),
+          ...(!user.walletAddress ? { walletAddress: generateWalletAddress() } : {}),
           lastLoginAt: new Date(),
           lastLoginIp: request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown",
           ...(finalPhone && { phone: finalPhone }),
