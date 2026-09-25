@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
         if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
         await prisma.user.update({
           where: { id: targetUserId },
-          data: { walletAddress: null, piUserId: null },
+          data: { walletAddress: null },
         });
         break;
 

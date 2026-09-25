@@ -10,7 +10,7 @@ export function DeletePiAddressesButton({ userId, hasAddresses }: { userId: stri
 
   async function handleDelete() {
     if (!hasAddresses || loading) return;
-    if (!window.confirm("Supprimer l'adresse Pi Network et le Pi User ID de cet utilisateur ?")) return;
+    if (!window.confirm("Supprimer uniquement l'adresse du wallet Pi de cet utilisateur ?")) return;
 
     setLoading(true);
     try {
