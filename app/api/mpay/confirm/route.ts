@@ -119,19 +119,33 @@ export async function POST(req: Request) {
         },
       });
 
-      // Create notification for recipient
-      await tx.notification.create({
-        data: {
-          userId: recipientId!,
-          title: "Paiement recu",
-          message: `Vous avez recu ${amountNum} Pi via mPay`,
-          type: "PAYMENT_RECEIVED",
-          metadata: JSON.stringify({
-            amount: amountNum,
-            from: session.name || session.username || "Pioneer",
-            txRef: txRef
-          })
-        }
+      const notificationMetadata = JSON.stringify({
+        amount: amountNum,
+        currency: "PI",
+        reference: txRef,
+        transactionId: transactionRecord.id,
+        method: method || "MPAY",
+        status: "SUCCESS",
+      });
+
+      // Chaque transaction MPay notifie les deux parties.
+      await tx.notification.createMany({
+        data: [
+          {
+            userId: recipientId!,
+            title: "Paiement reçu",
+            message: `Vous avez reçu ${amountNum} Pi via mPay`,
+            type: "PAYMENT_RECEIVED",
+            metadata: notificationMetadata,
+          },
+          {
+            userId: senderId,
+            title: "Paiement envoyé",
+            message: `Votre paiement de ${amountNum} Pi via mPay a été confirmé`,
+            type: "PAYMENT_SENT",
+            metadata: notificationMetadata,
+          },
+        ],
       });
 
       // Update global stats if exists

@@ -176,18 +176,25 @@ export async function POST(
         },
       });
 
-      // Notifie le demandeur qu'il a ete paye
-      await tx.notification
-        .create({
-          data: {
+      // Chaque règlement MPay notifie le demandeur et le payeur.
+      await tx.notification.createMany({
+        data: [
+          {
             userId: request.requesterId,
-            title: "Demande payee !",
-            message: `${payerName} a regle votre demande de ${amount.toLocaleString()} ${currency}.`,
+            title: "Demande payée !",
+            message: `${payerName} a réglé votre demande de ${amount.toLocaleString()} ${currency}.`,
             type: "PAYMENT_RECEIVED",
-            metadata: { amount, currency, payerName, reference },
+            metadata: { amount, currency, payerName, reference, status: "SUCCESS" },
           },
-        })
-        .catch(() => {});
+          {
+            userId: payerId,
+            title: "Paiement envoyé",
+            message: `Votre règlement de ${amount.toLocaleString()} ${currency} a été confirmé.`,
+            type: "PAYMENT_SENT",
+            metadata: { amount, currency, reference, status: "SUCCESS" },
+          },
+        ],
+      });
 
       return {
         reference,
