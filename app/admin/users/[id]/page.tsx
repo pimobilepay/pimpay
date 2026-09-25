@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AdminControlPanel } from "@/components/admin/AdminControlPanel";
 import { UserDetailHeader } from "./header";
 import { CopyableAddress } from "./CopyableAddress";
+import { DeletePiAddressesButton } from "./DeletePiAddressesButton";
 import { BLOCKCHAIN_EXPLORERS } from "@/lib/blockchain-explorer";
 import {
   User, Mail, Phone, Globe, Calendar, Shield,
@@ -270,6 +271,10 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
 
         {/* ADRESSES BLOCKCHAIN — COMPLETES */}
         <Section icon={<Activity size={14} className="text-amber-500" />} title="Adresses blockchain">
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[10px] text-slate-500">Les adresses Pi peuvent être supprimées par un administrateur.</p>
+            <DeletePiAddressesButton userId={user.id} hasAddresses={Boolean(user.walletAddress || user.piUserId)} />
+          </div>
           <div className="mb-3">
             <CopyableAddress label="Pi User ID" address={user.piUserId} network="Pi Network" />
           </div>

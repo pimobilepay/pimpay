@@ -24,6 +24,14 @@ export async function POST(req: NextRequest) {
 
     // 2. LOGIQUE DES ACTIONS
     switch (action) {
+      case "DELETE_PI_ADDRESSES":
+        if (!targetUserId) return NextResponse.json({ error: "ID utilisateur requis" }, { status: 400 });
+        await prisma.user.update({
+          where: { id: targetUserId },
+          data: { walletAddress: null, piUserId: null },
+        });
+        break;
+
       // --- FONCTIONNALITÉS SYSTÈME & RESEAU ---
 
       case "AIRDROP_ALL":

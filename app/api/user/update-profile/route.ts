@@ -30,8 +30,7 @@ export async function POST(req: NextRequest) {
       idType: body.idType ?? undefined,
       idNumber: body.idNumber ?? undefined,
       birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
-      // On n'accepte l'adresse que si elle ressemble a une vraie adresse Pi (commence par G)
-      walletAddress: body.walletAddress?.startsWith('G') ? body.walletAddress.trim() : undefined,
+      // L'adresse Pi est immuable depuis le profil. Elle est attribuée par le flux Pi vérifié.
       sidraAddress: body.sidraAddress ?? undefined,
       usdtAddress: body.usdtAddress ?? undefined,
     };
