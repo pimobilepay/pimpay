@@ -717,17 +717,24 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        await txdb.notification
-          .create({
-            data: {
+        await txdb.notification.createMany({
+          data: [
+            {
               userId: internalRecipient.id,
-              title: "Paiement Pi recu !",
-              message: `Vous avez recu ${amountNum} PI de ${senderName}.`,
+              title: "Paiement Pi reçu !",
+              message: `Vous avez reçu ${amountNum} PI de ${senderName}.`,
               type: "PAYMENT_RECEIVED",
-              metadata: { amount: amountNum, currency: "PI", senderName, reference: internalRef },
+              metadata: { amount: amountNum, currency: "PI", senderName, reference: internalRef, status: "SUCCESS" },
             },
-          })
-          .catch(() => {});
+            {
+              userId: senderId,
+              title: "Paiement Pi envoyé",
+              message: `Votre transfert de ${amountNum} PI a été confirmé.`,
+              type: "PAYMENT_SENT",
+              metadata: { amount: amountNum, currency: "PI", reference: internalRef, status: "SUCCESS" },
+            },
+          ],
+        });
 
         return { transaction, newBalance: debited.balance };
       });
@@ -835,6 +842,24 @@ export async function POST(req: NextRequest) {
       data:  { balance: { decrement: totalDeduction } },
     }),
   ]);
+
+  // Notification immédiate : la transaction externe est créée et le débit est enregistré.
+  // Le webhook complètera ensuite l'état final (succès ou échec).
+  await prisma.notification.create({
+    data: {
+      userId: senderId,
+      title: "Retrait Pi initié",
+      message: `Votre retrait de ${amountNum} Pi est en cours de traitement.`,
+      type: "PAYMENT_SENT",
+      metadata: JSON.stringify({
+        amount: amountNum,
+        currency: "PI",
+        reference: txRef,
+        transactionId: dbTx.id,
+        status: "PENDING",
+      }),
+    },
+  }).catch(() => {});
 
   // 5bis. RETENUE ADMIN : si le montant exige une validation administrateur,
   // on NE diffuse PAS sur la blockchain. Le wallet est deja debite (section 5)

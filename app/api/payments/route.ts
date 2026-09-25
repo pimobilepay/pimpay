@@ -28,13 +28,13 @@ export async function POST(req: Request) {
       data: {
         // 'reference' est UNIQUE et OBLIGATOIRE dans ton schéma
         reference: `PAY-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`,
-        fromUserId: userId, 
+        fromUserId: userId,
         amount: parseFloat(amount),
         currency: currency || "PI",
-        type: type || "PAYMENT", 
+        type: type || "PAYMENT",
         status: "PENDING",
         // 'blockchainTx' peut servir de référence externe
-        blockchainTx: "", 
+        blockchainTx: "",
         // 'method' n'existe pas en colonne, on utilise 'metadata' (Json)
         metadata: {
           method, // MOBILE_MONEY | BANK_TRANSFER
@@ -44,6 +44,23 @@ export async function POST(req: Request) {
           countryCode: countryCode || "CD"
         }
       }
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: "Transaction initiée",
+        message: `Votre paiement de ${parseFloat(amount).toLocaleString()} ${currency || "PI"} est en cours de traitement.`,
+        type: "PAYMENT_SENT",
+        metadata: JSON.stringify({
+          amount: parseFloat(amount),
+          currency: currency || "PI",
+          reference: transaction.reference,
+          transactionId: transaction.id,
+          method,
+          status: "PENDING",
+        }),
+      },
     });
 
     // 3. Appel vers la passerelle de paiement
