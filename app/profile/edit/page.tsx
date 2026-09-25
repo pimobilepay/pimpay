@@ -596,7 +596,13 @@ export default function EditProfilePage() {
               <Wallet size={12} /> {t("profile.web3Wallet")}
             </h3>
 
-            <InputField label={t("profile.piWalletAddress")} icon={Landmark} value={formData.walletAddress} onChange={updateField("walletAddress")} placeholder={t("profile.placeholderWallet")} mono />
+            <div className="p-4 bg-slate-900/40 border border-amber-500/20 rounded-2xl">
+  <label className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2 mb-2">
+    <Landmark size={12} /> {t("profile.piWalletAddress")}
+  </label>
+  <p className="font-mono text-sm font-bold text-slate-300 break-all">{formData.walletAddress || "Non définie"}</p>
+  <p className="mt-2 text-[10px] font-medium text-amber-400">Cette adresse ne peut pas être modifiée depuis le profil.</p>
+</div>
           </section>
 
           {/* --- ACTIONS --- */}
