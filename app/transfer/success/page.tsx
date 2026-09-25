@@ -39,6 +39,7 @@ function SuccessContent() {
   const urlAmount = searchParams.get("amount");
   const urlCurrency = searchParams.get("currency") || "XAF";
   const urlName = searchParams.get("name") || "Utilisateur";
+  const urlFee = searchParams.get("fee");
   const modeParam = searchParams.get("mode");
 
   const [transaction, setTransaction] = useState<any>(null);
@@ -88,7 +89,9 @@ function SuccessContent() {
   const recipientName = transaction?.recipientName || urlName;
   const recipientAvatar = (recipientName || "U")[0].toUpperCase();
 
-  const fee = transaction?.fee ?? (currency === "PI" ? "0.01 PI" : "0.00");
+  const fee = transaction?.fee ?? urlFee ?? (currency === "PI" ? amount * 0.01 : 0);
+
+  const feeCurrency = currency.toUpperCase();
   const network = currency === "PI" ? "Pi Network" 
     : currency === "USDT" ? "TRON TRC20"
     : currency === "XAF" || currency === "XOF" ? "PIMOBIPAY Fiat" 
@@ -120,7 +123,7 @@ function SuccessContent() {
       if (isNaN(numVal)) return strFee;
 
       if (isCrypto(feeCur)) {
-        const formatted = numVal.toFixed(8).replace(/0+$/, "").replace(/\.$/, "0");
+        const formatted = numVal.toFixed(8);
         return feeCur ? `${formatted} ${feeCur}` : formatted;
       }
 
@@ -137,7 +140,7 @@ function SuccessContent() {
     const numVal = parseFloat(strFee);
     if (!isNaN(numVal)) {
       if (isCrypto(cur)) {
-        return numVal.toFixed(8).replace(/0+$/, "").replace(/\.$/, "0") + ` ${cur}`;
+        return numVal.toFixed(8) + ` ${cur}`;
       }
       return numVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }

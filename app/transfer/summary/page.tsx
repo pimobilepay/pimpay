@@ -182,6 +182,8 @@ const data = useMemo(() => {
   const feeRate = isFiat ? feeConfig.fiatTransferFee : feeConfig.transferFee;
   
   const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+  // Les valeurs de configuration sont des taux : le frais réel dépend du montant transféré.
+  const feeAmount = safeAmount * feeRate;
   const isExternal = detectExternalAddress(recipientId);
   return {
   recipientId,
@@ -190,8 +192,8 @@ const data = useMemo(() => {
   amount: safeAmount,
   currency,
   description,
-  fee: feeRate,
-  isExternal,
+    fee: feeAmount,
+    isExternal,
   };
   }, [searchParams, feeConfig]);
   const totalRequired = useMemo(() => data.amount + data.fee, [data.amount, data.fee]);
@@ -295,8 +297,9 @@ const data = useMemo(() => {
             name: data.name,
             ref: txRef,
             mode: "external",
-            status: status,
-          });
+    status: status,
+    fee: String(data.fee),
+  });
           if (blockchainHash) qs.set("hash", blockchainHash);
           router.push(`/transfer/success?${qs.toString()}`);
         } else {
@@ -339,9 +342,10 @@ const data = useMemo(() => {
         const qs = new URLSearchParams({
           amount: String(data.amount),
           currency: data.currency,
-          name: data.name,
-        });
-        if (ref) qs.set("ref", ref);
+    name: data.name,
+    fee: String(data.fee),
+  });
+  if (ref) qs.set("ref", ref);
         if (isExt) qs.set("mode", "external");
         if (typeof result.newBalance === 'number') qs.set("newBalance", String(result.newBalance));
         router.push(`/transfer/success?${qs.toString()}`);
