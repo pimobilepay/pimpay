@@ -87,14 +87,14 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
   },
   DOGE: {
     symbol: "DOGE",
-    name: "Dogecoin (BEP20)",
-    chain: "EVM",
-    network: "BSC (BEP20)",
+    name: "Dogecoin",
+    chain: "BTC",
+    network: "Dogecoin Mainnet",
     logo: "/doge.png",
     category: "CRYPTO",
-    addressField: "sidraAddress",
+    addressField: "dogeAddress",
     decimals: 8,
-    explorerBase: "https://bscscan.com/tx/",
+    explorerBase: "https://dogechain.info/tx/",
     accentColor: "text-yellow-500",
     defaultPrice: 0.14,
   },
@@ -312,6 +312,7 @@ export const WITHDRAW_ONCHAIN_SUPPORTED = new Set<string>([
   "OUSD",
   "TRX",
   "USDT",
+  "DOGE",
 ]);
 
 /**
