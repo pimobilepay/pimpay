@@ -683,7 +683,7 @@ export default function AdminAnalyticsPage() {
     try {
       if (!silent) setLoading(true);
       setError(false);
-      const res = await fetch("/api/admin/analytics", silent ? { cache: "no-store" } : undefined);
+      const res = await fetch("/api/admin/analytics", { cache: "no-store" });
       if (!res.ok) throw new Error("Erreur API");
       const json = await res.json();
       // Détecte une hausse du nombre d'utilisateurs pour notifier en temps réel
