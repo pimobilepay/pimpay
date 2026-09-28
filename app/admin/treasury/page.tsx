@@ -148,6 +148,21 @@ type TopUser = {
   balances: { currency: string; balance: number }[];
 };
 
+type UserWallet = {
+  id: string;
+  currency: string;
+  balance: number;
+  usdValue: number;
+  user: {
+    id: string;
+    username: string | null;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    role: string;
+  } | null;
+};
+
 type TreasuryData = {
   summary: TreasurySummary;
   systemWallets: SystemWalletSnapshot[];
@@ -158,6 +173,7 @@ type TreasuryData = {
   pendingTransactions: PendingTransaction[];
   largeTransactions: LargeTransaction[];
   topUsers?: TopUser[];
+  walletList?: UserWallet[];
 };
 
 // --- CENTRALIZED FEES TYPES ---
@@ -3624,11 +3640,13 @@ export default function TreasuryPage() {
               </div>
               <div className="divide-y divide-white/[0.04]">
                 {topUsers.map((u, index) => {
-                  const displayName =
-                    [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-                    u.username ||
-                    u.email ||
-                    "Utilisateur";
+                  const isOperator = u.role === "ADMIN" && /operator|operateur/i.test(`${u.username || ""} ${u.email || ""} ${u.firstName || ""} ${u.lastName || ""}`);
+                  const displayName = isOperator
+                    ? "PiMobiPay Operator"
+                    : [u.firstName, u.lastName].filter(Boolean).join(" ") ||
+                      u.username ||
+                      u.email ||
+                      "Utilisateur";
                   const initials = displayName
                     .split(" ")
                     .map((p) => p[0])
@@ -3676,6 +3694,40 @@ export default function TreasuryPage() {
                       <div className="text-right shrink-0">
                         <p className="text-sm font-black text-emerald-400">${formatCurrency(u.totalUSD)}</p>
                         <p className="text-[8px] text-slate-500 uppercase tracking-wider">Valeur estimee</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ALL USER WALLETS */}
+        {data.walletList && data.walletList.length > 0 && (
+          <div>
+            <SectionTitle>Liste des wallets</SectionTitle>
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/[0.06]">
+                <p className="text-xs font-black text-white uppercase tracking-wide">Tous les wallets avec solde</p>
+                <p className="text-[9px] text-slate-500">Classement par valeur estimée en USD</p>
+              </div>
+              <div className="max-h-[28rem] overflow-y-auto divide-y divide-white/[0.04]">
+                {data.walletList.map((wallet) => {
+                  const owner = wallet.user;
+                  const ownerName = owner?.role === "ADMIN" && /operator|operateur/i.test(`${owner.username || ""} ${owner.email || ""} ${owner.firstName || ""} ${owner.lastName || ""}`)
+                    ? "PiMobiPay Operator"
+                    : [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") || owner?.username || owner?.email || "Utilisateur";
+                  return (
+                    <div key={wallet.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
+                      <Wallet size={15} className="text-cyan-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{ownerName}</p>
+                        <p className="text-[9px] text-slate-500">{wallet.currency} · {wallet.id}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-black text-white">{formatCurrency(wallet.balance, true)} {wallet.currency}</p>
+                        <p className="text-[9px] text-emerald-400">${formatCurrency(wallet.usdValue)}</p>
                       </div>
                     </div>
                   );

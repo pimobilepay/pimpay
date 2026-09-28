@@ -152,6 +152,7 @@ export async function GET(req: NextRequest) {
     const userWallets = await prisma.wallet.findMany({
       where: { balance: { gt: 0 } },
       select: {
+        id: true,
         balance: true,
         currency: true,
         user: {
@@ -219,6 +220,18 @@ export async function GET(req: NextRequest) {
           .slice(0, 4),
       }));
 
+    const walletList = userWallets
+      .map((w) => ({
+        id: w.id,
+        currency: w.currency,
+        balance: w.balance,
+        usdValue: Math.round(toUsd(w.currency, w.balance, priceMap) * 100) / 100,
+        user: w.user
+          ? { id: w.user.id, username: w.user.username, email: w.user.email, firstName: w.user.firstName, lastName: w.user.lastName, role: w.user.role }
+          : null,
+      }))
+      .sort((a, b) => b.usdValue - a.usdValue);
+
     // 9. Calculate exact totals from system wallets (real platform balances)
     const totalSystemBalanceUSD = systemWallets.reduce((sum, w) => sum + w.balanceUSD, 0);
     const totalSystemBalancePi = systemWallets.reduce((sum, w) => sum + w.balancePi, 0);
@@ -263,6 +276,7 @@ export async function GET(req: NextRequest) {
       pendingTransactions,
       largeTransactions,
       topUsers,
+      walletList,
     });
   } catch (error: any) {
     console.error("TREASURY_ERROR:", error);
