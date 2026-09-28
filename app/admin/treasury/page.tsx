@@ -148,6 +148,21 @@ type TopUser = {
   balances: { currency: string; balance: number }[];
 };
 
+type UserWallet = {
+  id: string;
+  currency: string;
+  balance: number;
+  usdValue: number;
+  user: {
+    id: string;
+    username: string | null;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    role: string;
+  } | null;
+};
+
 type TreasuryData = {
   summary: TreasurySummary;
   systemWallets: SystemWalletSnapshot[];
@@ -158,6 +173,7 @@ type TreasuryData = {
   pendingTransactions: PendingTransaction[];
   largeTransactions: LargeTransaction[];
   topUsers?: TopUser[];
+  walletList?: UserWallet[];
 };
 
 // --- CENTRALIZED FEES TYPES ---
@@ -1390,6 +1406,70 @@ function TreasuryActionButton({
   );
 }
 
+// --- TOP USER DETAIL DRAWER ---
+function TopUserDrawer({
+  user,
+  isOpen,
+  onClose,
+}: {
+  user: TopUser | null;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  if (!user) return null;
+
+  const isOperator = user.role === "ADMIN" && /operator|operateur/i.test(`${user.username || ""} ${user.email || ""} ${user.firstName || ""} ${user.lastName || ""}`);
+  const displayName = isOperator
+    ? "PiMobiPay Operator"
+    : [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email || "Utilisateur";
+
+  return (
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} direction="right">
+      <DrawerContent className="bg-slate-900 border-l border-white/10 h-full">
+        <div className="flex flex-col h-full overflow-y-auto">
+          <DrawerHeader className="border-b border-white/5 pb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                <PiggyBank size={24} className="text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <DrawerTitle className="text-lg font-black text-white truncate">{displayName}</DrawerTitle>
+                <DrawerDescription className="text-[10px] text-slate-500 truncate">
+                  {user.email || user.username || "Détails du portefeuille"}
+                </DrawerDescription>
+              </div>
+              <DrawerClose className="p-2 rounded-xl bg-white/5 hover:bg-white/10">
+                <X size={18} className="text-slate-400" />
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+
+          <div className="p-4 border-b border-white/5">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2">Valeur totale estimée</p>
+            <p className="text-3xl font-black text-emerald-400">${formatCurrency(user.totalUSD)}</p>
+            <p className="text-[10px] text-slate-500 mt-1">Classement Top 20 des plus gros soldes</p>
+          </div>
+
+          <div className="p-4 space-y-3">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Détail par devise</p>
+            {user.balances.length > 0 ? user.balances.map((balance) => (
+              <div key={balance.currency} className="flex items-center justify-between rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4">
+                <div className="flex items-center gap-3">
+                  <Wallet size={16} className="text-cyan-400" />
+                  <span className="text-sm font-bold text-white">{balance.currency}</span>
+                </div>
+                <span className="text-sm font-black text-white">{formatCurrency(balance.balance, true)} {balance.currency}</span>
+              </div>
+            )) : (
+              <p className="text-xs text-slate-500">Aucun solde disponible.</p>
+            )}
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
 // --- PAGE ---
 export default function TreasuryPage() {
   const router = useRouter();
@@ -1401,6 +1481,8 @@ export default function TreasuryPage() {
   // Wallet drawer state
   const [selectedWallet, setSelectedWallet] = useState<WalletInfo | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedTopUser, setSelectedTopUser] = useState<TopUser | null>(null);
+  const [isTopUserDrawerOpen, setIsTopUserDrawerOpen] = useState(false);
   
   // MFA modal state
   const [isMFAOpen, setIsMFAOpen] = useState(false);
@@ -3624,11 +3706,13 @@ export default function TreasuryPage() {
               </div>
               <div className="divide-y divide-white/[0.04]">
                 {topUsers.map((u, index) => {
-                  const displayName =
-                    [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-                    u.username ||
-                    u.email ||
-                    "Utilisateur";
+                  const isOperator = u.role === "ADMIN" && /operator|operateur/i.test(`${u.username || ""} ${u.email || ""} ${u.firstName || ""} ${u.lastName || ""}`);
+                  const displayName = isOperator
+                    ? "PiMobiPay Operator"
+                    : [u.firstName, u.lastName].filter(Boolean).join(" ") ||
+                      u.username ||
+                      u.email ||
+                      "Utilisateur";
                   const initials = displayName
                     .split(" ")
                     .map((p) => p[0])
@@ -3644,7 +3728,16 @@ export default function TreasuryPage() {
                       ? "bg-orange-600/20 text-orange-400 border-orange-600/40"
                       : "bg-white/[0.04] text-slate-500 border-white/[0.06]";
                   return (
-                    <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTopUser(u);
+                        setIsTopUserDrawerOpen(true);
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors text-left w-full"
+                      aria-label={`Voir les détails du solde de ${displayName}`}
+                    >
                       <div className={`w-7 h-7 shrink-0 rounded-lg border flex items-center justify-center text-[10px] font-black ${rankColor}`}>
                         {index + 1}
                       </div>
@@ -3676,6 +3769,49 @@ export default function TreasuryPage() {
                       <div className="text-right shrink-0">
                         <p className="text-sm font-black text-emerald-400">${formatCurrency(u.totalUSD)}</p>
                         <p className="text-[8px] text-slate-500 uppercase tracking-wider">Valeur estimee</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <TopUserDrawer
+          user={selectedTopUser}
+          isOpen={isTopUserDrawerOpen}
+          onClose={() => {
+            setIsTopUserDrawerOpen(false);
+            setSelectedTopUser(null);
+          }}
+        />
+
+        {/* ALL USER WALLETS */}
+        {data.walletList && data.walletList.length > 0 && (
+          <div>
+            <SectionTitle>Liste des wallets</SectionTitle>
+            <div className="bg-slate-900/60 border border-white/[0.06] rounded-[1.5rem] overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/[0.06]">
+                <p className="text-xs font-black text-white uppercase tracking-wide">Tous les wallets avec solde</p>
+                <p className="text-[9px] text-slate-500">Classement par valeur estimée en USD</p>
+              </div>
+              <div className="max-h-[28rem] overflow-y-auto divide-y divide-white/[0.04]">
+                {data.walletList.map((wallet) => {
+                  const owner = wallet.user;
+                  const ownerName = owner?.role === "ADMIN" && /operator|operateur/i.test(`${owner.username || ""} ${owner.email || ""} ${owner.firstName || ""} ${owner.lastName || ""}`)
+                    ? "PiMobiPay Operator"
+                    : [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") || owner?.username || owner?.email || "Utilisateur";
+                  return (
+                    <div key={wallet.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
+                      <Wallet size={15} className="text-cyan-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{ownerName}</p>
+                        <p className="text-[9px] text-slate-500">{wallet.currency} · {wallet.id}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-black text-white">{formatCurrency(wallet.balance, true)} {wallet.currency}</p>
+                        <p className="text-[9px] text-emerald-400">${formatCurrency(wallet.usdValue)}</p>
                       </div>
                     </div>
                   );
