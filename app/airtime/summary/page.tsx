@@ -23,16 +23,29 @@ function SummaryContent() {
     local: searchParams.get("local") || "0",
     currency: searchParams.get("currency") || "XAF",
     country: searchParams.get("country") || "---",
+    countryCode: searchParams.get("countryCode") || "",
   };
 
   const handleFinalConfirm = async () => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const response = await fetch("/api/recharge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: data.phone,
+          amount: Number(data.usd),
+          operator: data.operator,
+          country: data.country,
+          countryCode: data.countryCode,
+          piAmount: Number(data.pi),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Recharge impossible");
+
       toast.success("Transaction validee !");
-      
-      // Generer une reference unique
-      const reference = `PIM-AIR-${Date.now().toString(36).toUpperCase()}`;
+      const reference = result.reference || `PIM-AIR-${Date.now().toString(36).toUpperCase()}`;
       
       // Passer les donnees a la page success
       const successParams = new URLSearchParams({

@@ -319,13 +319,21 @@ export default function WalletPage() {
   }, []);
 
   const loadWalletData = useCallback(async () => {
-    setLoading(true);
+    // Les mises à jour en arrière-plan conservent l'écran affiché.
+    // Le loader reste réservé au premier chargement de la page.
     try {
-      fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+      // Synchroniser les réseaux avant de lire les wallets persistés. L'ancien
+      // code lançait la sync Sidra sans l'attendre, ce qui affichait souvent
+      // l'ancien solde pendant le premier rafraîchissement.
+      await Promise.allSettled([
+        fetch("/api/wallet/sidra/sync", { method: "POST", cache: "no-store" }),
+        fetch("/api/wallet/sync-all", { method: "POST", cache: "no-store" }),
+      ]);
+
       const [profileRes, balRes, txRes] = await Promise.all([
-        fetch('/api/user/profile'),
-        fetch('/api/wallet/balance'),
-        fetch('/api/wallet/history?limit=10')
+        fetch('/api/user/profile', { cache: 'no-store' }),
+        fetch('/api/wallet/balance', { cache: 'no-store' }),
+        fetch('/api/wallet/history?limit=10', { cache: 'no-store' })
       ]);
       if (profileRes.ok) {
         const profileJson = await profileRes.json();
@@ -406,9 +414,6 @@ export default function WalletPage() {
     const priceInterval = window.setInterval(() => {
       fetchMarketPrices();
     }, 30000);
-    const balanceInterval = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadWalletData();
-    }, 15000);
     const refreshOnFocus = () => {
       if (document.visibilityState === "visible") loadWalletData();
     };
@@ -416,64 +421,10 @@ export default function WalletPage() {
     document.addEventListener("visibilitychange", refreshOnFocus);
     return () => {
       window.clearInterval(priceInterval);
-      window.clearInterval(balanceInterval);
       window.removeEventListener("focus", refreshOnFocus);
       document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, [loadWalletData, fetchMarketPrices]);
-
-  // Real-time balance auto-refresh: poll notifications and reload balances
-  // automatically when a new payment/deposit arrives (no page reload needed)
-  useEffect(() => {
-    let lastNotifId = sessionStorage.getItem("wallet_last_notif_id") || "";
-    const checkNotifications = async () => {
-      try {
-        const res = await fetch("/api/transaction/notifications", { cache: "no-store" });
-        if (!res.ok) return;
-        const result = await res.json();
-        if (result.notifications?.length > 0) {
-          const unreadPayments = result.notifications.filter(
-            (n: any) => !n.read && ["PAYMENT_RECEIVED", "success", "DEPOSIT", "TRANSFER"].includes(n.type)
-          );
-          if (unreadPayments.length > 0 && unreadPayments[0].id !== lastNotifId) {
-            const latest = unreadPayments[0];
-            lastNotifId = latest.id;
-            sessionStorage.setItem("wallet_last_notif_id", latest.id);
-            toast.success("Transaction recue !", {
-              description: latest.message || "Votre solde a ete mis a jour",
-              duration: 6000,
-            });
-            loadWalletData();
-          }
-        }
-      } catch {}
-    };
-    checkNotifications();
-    const interval = setInterval(checkNotifications, 8000);
-    return () => clearInterval(interval);
-  }, [loadWalletData]);
-
-  // Background blockchain sync: periodically poll the on-chain balance for
-  // TRON assets (TRX/USDT) so deposits are detected and credited WITHOUT the
-  // user needing to refresh the page. When a deposit is found, reload balances.
-  useEffect(() => {
-    const syncOnChain = async () => {
-      try {
-        const results = await Promise.all([
-          fetch("/api/wallet/trx/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch("/api/wallet/usdt/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch("/api/wallet/eurc/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch("/api/wallet/ousd/sync", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        ]);
-        const gotDeposit = results.some((d) => d && d.added && parseFloat(d.added) > 0);
-        if (gotDeposit) {
-          loadWalletData();
-        }
-      } catch {}
-    };
-    const interval = setInterval(syncOnChain, 20000);
-    return () => clearInterval(interval);
-  }, [loadWalletData]);
 
   const handleCopy = (address: string) => {
     if (!address) return;

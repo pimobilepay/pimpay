@@ -603,15 +603,15 @@ const TX_TYPE_LABELS: Record<string, string> = {
   CARD_WITHDRAW: "Retrait carte",
 };
 
-// Compact currency formatter for large fintech amounts.
-// Seuil binaire : on bascule en notation compacte dès que la valeur dépasse 1024.
-function formatAmount(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)}Md`;
-  if (abs >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(2)}M`;
-  if (abs > 1024) return `${(value / 1024).toFixed(1)}k`;
-  return value.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
-}
+  // Compact formatter: the compact suffixes use decimal units so 15,139 users display as 15.1k.
+  // Compact notation starts at 1,024, while the displayed unit remains the familiar 1k = 1,000.
+  function formatAmount(value: number): string {
+    const abs = Math.abs(value);
+    if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}Md`;
+    if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+    if (abs >= 1_024) return `${(value / 1_000).toFixed(1)}k`;
+    return value.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+  }
 
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {

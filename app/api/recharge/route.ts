@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { sendNotification } from "@/lib/notifications";
+import { findReloadlyOperator, sendReloadlyTopup } from "@/lib/reloadly";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,9 +17,13 @@ export async function POST(req: NextRequest) {
 
     // 3. RÉCUPÉRATION ET VALIDATION NUMÉRIQUE
     const body = await req.json().catch(() => ({}));
-    const { phoneNumber, amount, operator, piAmount } = body;
+    const { phoneNumber, amount, operator, piAmount, countryCode } = body;
 
     const parsedPiAmount = parseFloat(piAmount);
+    const parsedAmount = Number(amount);
+    if (!countryCode || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return NextResponse.json({ error: "Pays ou montant airtime invalide" }, { status: 400 });
+    }
 
     if (!phoneNumber || isNaN(parsedPiAmount) || parsedPiAmount <= 0) {
       return NextResponse.json({ error: "Données de recharge invalides" }, { status: 400 });
@@ -32,6 +37,16 @@ export async function POST(req: NextRequest) {
     if (!wallet || wallet.balance < parsedPiAmount) {
       return NextResponse.json({ error: "Solde Pi insuffisant" }, { status: 400 });
     }
+
+    // La recharge fournisseur est confirmée avant le débit du wallet.
+    const { token, operatorId } = await findReloadlyOperator(countryCode, operator);
+    const reloadlyOrder = await sendReloadlyTopup({
+      token,
+      operatorId,
+      amount: parsedAmount,
+      recipientPhone: phoneNumber,
+      customIdentifier: `MPAY-AIR-${userId}-${Date.now()}`,
+    });
 
     // 5. TRANSACTION ATOMIQUE (Sécurité financière PIMOBIPAY)
     const result = await prisma.$transaction(async (tx) => {
@@ -55,7 +70,7 @@ export async function POST(req: NextRequest) {
           description: `Recharge mobile ${operator || 'Global'} pour ${phoneNumber}`,
           fromUserId: userId,
           fromWalletId: wallet.id,
-          metadata: { phoneNumber, operator, amountUSD: amount }
+          metadata: { phoneNumber, operator, amountUSD: parsedAmount, provider: "reloadly", reloadlyOrderId: reloadlyOrder?.id ?? null }
         },
       });
     }, { maxWait: 10000, timeout: 30000 });    // 6. NOTIFICATION SYSTÈME (Non-bloquante pour la réponse)
@@ -73,6 +88,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       txId: result.id,
+      reference: result.reference,
       newBalance: result.amount // Optionnel pour mettre à jour l'UI
     });
 
