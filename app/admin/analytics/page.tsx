@@ -1161,7 +1161,7 @@ export default function AdminAnalyticsPage() {
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex items-center justify-between px-5 py-4 max-w-2xl mx-auto">
-          <button onClick={() => router.push("/admin/dashboard")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+          <button onClick={() => router.push("/admin")} className="p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
             <ArrowLeft size={18} />
           </button>
           <div className="text-center">
