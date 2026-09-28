@@ -96,6 +96,7 @@ export default function RechargePage() {
       local: localAmount,
       currency: selectedCountry.currency,
       country: selectedCountry.name,
+      countryCode: selectedCountry.code,
     });
     router.push(`/airtime/summary?${params.toString()}`);
   };
