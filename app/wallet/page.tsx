@@ -321,11 +321,18 @@ export default function WalletPage() {
   const loadWalletData = useCallback(async () => {
     setLoading(true);
     try {
-      fetch("/api/wallet/sidra/sync", { method: "POST" }).catch(() => null);
+      // Synchroniser les réseaux avant de lire les wallets persistés. L'ancien
+      // code lançait la sync Sidra sans l'attendre, ce qui affichait souvent
+      // l'ancien solde pendant le premier rafraîchissement.
+      await Promise.allSettled([
+        fetch("/api/wallet/sidra/sync", { method: "POST", cache: "no-store" }),
+        fetch("/api/wallet/sync-all", { method: "POST", cache: "no-store" }),
+      ]);
+
       const [profileRes, balRes, txRes] = await Promise.all([
-        fetch('/api/user/profile'),
-        fetch('/api/wallet/balance'),
-        fetch('/api/wallet/history?limit=10')
+        fetch('/api/user/profile', { cache: 'no-store' }),
+        fetch('/api/wallet/balance', { cache: 'no-store' }),
+        fetch('/api/wallet/history?limit=10', { cache: 'no-store' })
       ]);
       if (profileRes.ok) {
         const profileJson = await profileRes.json();
