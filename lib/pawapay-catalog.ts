@@ -60,10 +60,10 @@ export const PROVIDER_RULES: Record<string, ProviderRule[]> = {
     { keywords: ["mtn"], provider: "MTN_MOMO_BEN" },
     { keywords: ["moov"], provider: "MOOV_BEN" },
   ],
-  BF: [
-    { keywords: ["moov"], provider: "MOOV_BFA" },
-    { keywords: ["orange"], provider: "ORANGE_BFA" },
-  ],
+  // ORANGE_BFA est volontairement absent : le compte PawaPay actuel
+  // renvoie DEPOSITS_NOT_ALLOWED pour ce provider. Il ne doit donc pas être
+  // proposé ni envoyé à l'API tant qu'il n'est pas activé côté PawaPay.
+  BF: [{ keywords: ["moov"], provider: "MOOV_BFA" }],
   CM: [
     { keywords: ["mtn"], provider: "MTN_MOMO_CMR" },
     { keywords: ["orange"], provider: "ORANGE_CMR" },
