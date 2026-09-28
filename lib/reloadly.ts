@@ -3,7 +3,7 @@ type ReloadlyProduct = {
   name: string;
 };
 
-async function getReloadlyToken(audience: string) {
+async function requestReloadlyToken(audience: string) {
   const clientId = process.env.RELOADLY_CLIENT_ID;
   const clientSecret = process.env.RELOADLY_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("Reloadly n'est pas encore configuré");
@@ -26,11 +26,11 @@ async function getReloadlyToken(audience: string) {
 }
 
 export async function getReloadlyToken() {
-  return getReloadlyToken("https://giftcards.reloadly.com");
+  return requestReloadlyToken("https://giftcards.reloadly.com");
 }
 
 export async function getReloadlyAirtimeToken() {
-  return getReloadlyToken("https://topups.reloadly.com");
+  return requestReloadlyToken("https://topups.reloadly.com");
 }
 
 export async function findReloadlyOperator(countryCode: string, operatorName: string) {
