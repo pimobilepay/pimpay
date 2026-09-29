@@ -92,7 +92,7 @@ const SUPPORTED_PAYMENTS = [
 
 const FAVORITES_KEY = "pimpay_service_favorites";
 
-export function PaymentServices({ onElectricity }: { onElectricity?: () => void }) {
+export function PaymentServices({ onElectricity, onCardDeposit }: { onElectricity?: () => void; onCardDeposit?: () => void }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -146,6 +146,10 @@ export function PaymentServices({ onElectricity }: { onElectricity?: () => void 
     setTimeout(() => setTapped(null), 250);
     if (service.id === "electricity" && onElectricity) {
       onElectricity();
+      return;
+    }
+    if (service.id === "cash" && onCardDeposit) {
+      onCardDeposit();
       return;
     }
     if (service.opensTerminal) {
