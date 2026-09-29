@@ -92,7 +92,7 @@ const SUPPORTED_PAYMENTS = [
 
 const FAVORITES_KEY = "pimpay_service_favorites";
 
-export function PaymentServices() {
+export function PaymentServices({ onElectricity }: { onElectricity?: () => void }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -144,6 +144,10 @@ export function PaymentServices() {
   const handleTap = (service: PaymentService) => {
     setTapped(service.id);
     setTimeout(() => setTapped(null), 250);
+    if (service.id === "electricity" && onElectricity) {
+      onElectricity();
+      return;
+    }
     if (service.opensTerminal) {
       setShowTapTerminal(true);
       return;
