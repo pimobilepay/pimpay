@@ -17,6 +17,8 @@ import { QRScanner } from "@/components/qr-scanner";
 import { ReceiveQR } from "@/components/receive-qr";
 import { KycRequiredModal, isKycPolicyError } from "@/components/kyc-required-modal";
 import { PaymentServices } from "@/components/mpay/payment-services";
+import { ElectricityPaymentFlow } from "@/components/mpay/electricity-payment-flow";
+import { CardDepositFlow } from "@/components/mpay/card-deposit-flow";
 import { useLanguage } from "@/context/LanguageContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import {
@@ -245,6 +247,8 @@ export default function MPayPage() {
     p === "low" ? t("mpay.priorityLow") : p === "instant" ? t("mpay.priorityInstant") : t("mpay.priorityFast");
   const dateLocale = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
   const [activeView, setActiveView] = useState<ActiveView>("hub");
+  const [showElectricity, setShowElectricity] = useState(false);
+  const [showCardDeposit, setShowCardDeposit] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [notifications, setNotifications] = useState(0);
@@ -653,6 +657,14 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
       if (amount.length < 8) setAmount(prev => prev + val);
     }
   };
+
+  if (showElectricity) {
+  return <ElectricityPaymentFlow onClose={() => setShowElectricity(false)} />;
+  }
+
+  if (showCardDeposit) {
+  return <CardDepositFlow onClose={() => setShowCardDeposit(false)} />;
+  }
 
   // QR Scanner View
   if (activeView === "scanner") {
@@ -1067,7 +1079,7 @@ const [showAllMerchants, setShowAllMerchants] = useState(false);
         </section>
 
         {/* PAYMENT SERVICES */}
-        <PaymentServices />
+        <PaymentServices onElectricity={() => setShowElectricity(true)} onCardDeposit={() => setShowCardDeposit(true)} />
 
         {/* MAP OF PI MERCHANTS */}
         <section>
