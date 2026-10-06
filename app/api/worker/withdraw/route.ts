@@ -69,7 +69,10 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
     return await broadcastDogeWithdraw(job, address);
   }
 
-  // USDT utilise le réseau TRON/TRC20 (et non un RPC EVM générique).
+  // TRX natif et USDT utilisent le réseau TRON.
+  if (currency === "TRX") {
+    return await broadcastTrxWithdraw(job, address);
+  }
   if (currency === "USDT" || currency === "USDT_TRC20") {
     return await broadcastUsdtTronWithdraw(job, address);
   }
@@ -90,6 +93,36 @@ async function broadcastWithdraw(job: WithdrawJob): Promise<string> {
  * externe demandée. Le montant du job est en DOGE "humain" ; il est converti
  * en koinu (1 DOGE = 1e8 koinu) pour lib/blockchain/dogecoin.ts.
  */
+async function createTronWallet(job: WithdrawJob) {
+  if (!job.fromUserId) throw new Error("Retrait TRON sans utilisateur source");
+
+  const user = await prisma.user.findUnique({
+    where: { id: job.fromUserId },
+    select: { usdtAddress: true, usdtPrivateKey: true },
+  });
+  if (!user?.usdtAddress || !user.usdtPrivateKey) {
+    throw new Error("Aucun portefeuille TRON configuré pour cet utilisateur");
+  }
+
+  const privateKey = decrypt(user.usdtPrivateKey).replace(/^0x/, "");
+  const tronWeb = new TronWeb({
+    fullHost: process.env.TRON_FULL_HOST || "https://api.trongrid.io",
+    privateKey,
+  });
+  if (!tronWeb.isAddress(user.usdtAddress)) throw new Error("Adresse source TRON invalide");
+  return { tronWeb, userAddress: user.usdtAddress };
+}
+
+async function broadcastTrxWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
+  const { tronWeb } = await createTronWallet(job);
+  if (!tronWeb.isAddress(toAddress)) throw new Error("Adresse TRX invalide");
+  const amountSun = BigInt(Math.round(Number(job.amount) * 1_000_000));
+  if (amountSun <= 0n) throw new Error("Montant TRX invalide");
+  const tx = await tronWeb.trx.sendTransaction(toAddress, amountSun.toString());
+  if (!tx?.result || !tx.txid) throw new Error("TRON n'a pas confirmé le retrait TRX");
+  return tx.txid;
+}
+
 async function broadcastUsdtTronWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
   if (!job.fromUserId) throw new Error("Retrait USDT sans utilisateur source");
 
@@ -120,6 +153,34 @@ async function broadcastUsdtTronWithdraw(job: WithdrawJob, toAddress: string): P
   });
   if (typeof result !== "string" || !result) throw new Error("TRON n'a pas retourné de hash de transaction");
   return result;
+}
+
+async function collectTronWithdrawalFee(job: WithdrawJob): Promise<string | null> {
+  const currency = job.currency.toUpperCase();
+  if (!['TRX', 'USDT', 'USDT_TRC20'].includes(currency) || !(job.fee > 0)) return null;
+  const centralAddress = process.env.TRON_OPERATOR_ADDRESS;
+  if (!centralAddress) throw new Error('TRON_OPERATOR_ADDRESS non configurée');
+
+  const { tronWeb } = await createTronWallet(job);
+  if (!tronWeb.isAddress(centralAddress)) throw new Error('TRON_OPERATOR_ADDRESS invalide');
+
+  if (currency === 'TRX') {
+    const tx = await tronWeb.trx.sendTransaction(
+      centralAddress,
+      BigInt(Math.round(Number(job.fee) * 1_000_000)).toString(),
+    );
+    if (!tx?.result || !tx.txid) throw new Error('Collecte des frais TRX non confirmée');
+    return tx.txid;
+  }
+
+  const rawFee = BigInt(Math.round(Number(job.fee) * 1_000_000));
+  if (rawFee <= 0n) return null;
+  const contract = await tronWeb.contract().at(USDT_TRC20_CONTRACT);
+  const txId = await contract.methods.transfer(centralAddress, rawFee.toString()).send({
+    feeLimit: Number(process.env.TRON_USDT_FEE_LIMIT || 150_000_000),
+  });
+  if (typeof txId !== 'string' || !txId) throw new Error('Collecte des frais USDT non confirmée');
+  return txId;
 }
 
 async function broadcastDogeWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
@@ -322,7 +383,7 @@ export async function POST(req: NextRequest) {
     const jobs = await prisma.transaction.findMany({
       where: {
         type: TransactionType.WITHDRAW,
-        status: TransactionStatus.SUCCESS,  // Transactions de retrait créées comme SUCCESS
+        status: { in: [TransactionStatus.SUCCESS, TransactionStatus.PENDING] },  // Les retraits crypto sont créés PENDING
         blockchainTx: null,                // pas encore broadcast
         AND: [
           {
@@ -396,6 +457,18 @@ export async function POST(req: NextRequest) {
       // 3) Broadcast réel
       try {
         const txHash = await broadcastWithdraw(job);
+        let feeTxHash: string | null = null;
+        let feeCollectionError: string | null = null;
+        if (["TRX", "USDT", "USDT_TRC20"].includes(job.currency.toUpperCase())) {
+          try {
+            feeTxHash = await collectTronWithdrawalFee(job);
+          } catch (feeError: any) {
+            // Le retrait utilisateur reste confirmé; la collecte sera réessayée
+            // par l'outil de trésorerie sans débiter une seconde fois le retrait.
+            feeCollectionError = feeError?.message || "Collecte des frais TRON échouée";
+            console.error("[TRON_FEE_COLLECTION]", feeCollectionError);
+          }
+        }
 
         await prisma.transaction.update({
           where: { id: job.id },
@@ -406,6 +479,9 @@ export async function POST(req: NextRequest) {
               ...(typeof job.metadata === "object" && job.metadata ? job.metadata : {}),
               broadcastedAt: new Date().toISOString(),
               broadcastTx: txHash,
+              ...(feeTxHash ? { feeCollectionTx: feeTxHash } : {}),
+              ...(feeCollectionError ? { feeCollectionError } : {}),
+              ...(feeTxHash ? { feeCentralAddress: process.env.TRON_OPERATOR_ADDRESS } : {}),
             },
           },
         });
