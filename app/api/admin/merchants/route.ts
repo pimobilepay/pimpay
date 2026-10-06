@@ -25,18 +25,21 @@ export async function GET(req: NextRequest) {
       ...(status === "VERIFIED" ? { isVerified: true } : status === "PENDING" ? { isVerified: false } : {}),
     };
 
-    const merchants = await prisma.merchant.findMany({
-      where,
-      select: {
-        id: true, name: true, category: true, address: true, city: true, country: true,
-        piPaymentStatus: true, rating: true, isVerified: true, createdAt: true,
-        user: { select: { id: true, email: true, name: true, username: true, status: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+    const [merchants, total] = await Promise.all([
+      prisma.merchant.findMany({
+        where,
+        select: {
+          id: true, name: true, category: true, address: true, city: true, country: true,
+          piPaymentStatus: true, rating: true, isVerified: true, createdAt: true,
+          user: { select: { id: true, email: true, name: true, username: true, status: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+      prisma.merchant.count({ where }),
+    ]);
 
-    return NextResponse.json({ merchants });
+    return NextResponse.json({ merchants, total });
   } catch (error) {
     console.error("API_ADMIN_MERCHANTS_ERROR:", error);
     return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 });
