@@ -19,6 +19,21 @@ const FALLBACK_CONFIG = {
   priceMode: "GCV",
   stakingAPY: 12.0,
   transactionFee: 0.5,
+  // Frais configurables par opération (fractions: 0.02 = 2 %)
+  transferFee: 0.01,
+  withdrawFee: 0.02,
+  depositCryptoFee: 0.01,
+  exchangeFee: 0.001,
+  depositMobileFee: 0.02,
+  depositCardFee: 0.035,
+  withdrawMobileFee: 0.025,
+  withdrawBankFee: 0.02,
+  fiatTransferFee: 0.005,
+  cardPaymentFee: 0.015,
+  merchantPaymentFee: 0.02,
+  billPaymentFee: 0.015,
+  qrPaymentFee: 0.01,
+  agentFeeShare: 0.5,
   minWithdrawal: 10.0,
   globalAnnouncement: "",
   announcementImage: "",
@@ -318,6 +333,8 @@ export async function POST(req: NextRequest) {
       depositMobileFee, depositCardFee, withdrawMobileFee, withdrawBankFee, fiatTransferFee,
       // Payment fee fields
       cardPaymentFee, merchantPaymentFee, billPaymentFee, qrPaymentFee,
+      // Agent / platform fee split
+      agentFeeShare,
       // Limits
       maxWithdrawal,
       // Referral bonus
@@ -365,6 +382,14 @@ export async function POST(req: NextRequest) {
     if (merchantPaymentFee !== undefined) updateData.merchantPaymentFee = Number(merchantPaymentFee);
     if (billPaymentFee !== undefined) updateData.billPaymentFee = Number(billPaymentFee);
     if (qrPaymentFee !== undefined) updateData.qrPaymentFee = Number(qrPaymentFee);
+    // Agent keeps this fraction; the remainder is platform revenue.
+    if (agentFeeShare !== undefined) {
+      const share = Number(agentFeeShare);
+      if (!Number.isFinite(share) || share < 0 || share > 1) {
+        return NextResponse.json({ error: "La part agent doit être comprise entre 0 et 1" }, { status: 400 });
+      }
+      updateData.agentFeeShare = share;
+    }
     // Referral bonus fields
     if (referralBonus !== undefined) updateData.referralBonus = Number(referralBonus);
     if (referralWelcomeBonus !== undefined) updateData.referralWelcomeBonus = Number(referralWelcomeBonus);
