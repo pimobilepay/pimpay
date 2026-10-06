@@ -1420,7 +1420,7 @@ function TopUserDrawer({
 
   const isOperator = user.role === "ADMIN" && /operator|operateur/i.test(`${user.username || ""} ${user.email || ""} ${user.firstName || ""} ${user.lastName || ""}`);
   const displayName = isOperator
-    ? "PiMobiPay Operator"
+    ? "pimobipay_operator"
     : [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email || "Utilisateur";
 
   return (
@@ -3708,7 +3708,7 @@ export default function TreasuryPage() {
                 {topUsers.map((u, index) => {
                   const isOperator = u.role === "ADMIN" && /operator|operateur/i.test(`${u.username || ""} ${u.email || ""} ${u.firstName || ""} ${u.lastName || ""}`);
                   const displayName = isOperator
-                    ? "PiMobiPay Operator"
+                    ? "pimobipay_operator"
                     : [u.firstName, u.lastName].filter(Boolean).join(" ") ||
                       u.username ||
                       u.email ||
@@ -3800,7 +3800,7 @@ export default function TreasuryPage() {
                 {data.walletList.map((wallet) => {
                   const owner = wallet.user;
                   const ownerName = owner?.role === "ADMIN" && /operator|operateur/i.test(`${owner.username || ""} ${owner.email || ""} ${owner.firstName || ""} ${owner.lastName || ""}`)
-                    ? "PiMobiPay Operator"
+                    ? "pimobipay_operator"
                     : [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") || owner?.username || owner?.email || "Utilisateur";
                   return (
                     <div key={wallet.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
