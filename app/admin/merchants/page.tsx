@@ -12,6 +12,7 @@ type Merchant = {
 
 export default function AdminMerchantsPage() {
   const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
   const [loading, setLoading] = useState(true);
@@ -24,7 +25,8 @@ export default function AdminMerchantsPage() {
       const response = await fetch(`/api/admin/merchants?${params}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Impossible de charger les marchands");
-      setMerchants(data.merchants || []);
+      setMerchants(Array.isArray(data.merchants) ? data.merchants : []);
+      setTotal(typeof data.total === "number" ? data.total : 0);
     } catch (err) { setError(err instanceof Error ? err.message : "Erreur inattendue"); }
     finally { setLoading(false); }
   }
@@ -43,7 +45,7 @@ export default function AdminMerchantsPage() {
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Consultez les comptes marchands et ouvrez leur espace opérationnel en un clic.</p>
           </div>
           <div className="flex gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"><p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Total affiché</p><p className="mt-1 text-xl font-black">{merchants.length}</p></div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"><p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Total réel</p><p className="mt-1 text-xl font-black">{total}</p></div>
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3"><p className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Vérifiés</p><p className="mt-1 text-xl font-black text-emerald-300">{verifiedCount}</p></div>
           </div>
         </div>

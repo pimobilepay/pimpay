@@ -1589,6 +1589,8 @@ export default function SystemSettings() {
                     <FeeRow icon={<Landmark size={15} />} label="Paiement Marchand" sub="Paiements aux commerçants" value={config.merchantPaymentFee} onChange={v => setConfig({ ...config, merchantPaymentFee: v })} accent="emerald" />
                     <FeeRow icon={<Zap size={15} />} label="Paiement Factures" sub="Électricité, eau, internet..." value={config.billPaymentFee} onChange={v => setConfig({ ...config, billPaymentFee: v })} accent="amber" />
                     <FeeRow icon={<Eye size={15} />} label="Paiement QR Code" sub="Scan et paiement QR" value={config.qrPaymentFee} onChange={v => setConfig({ ...config, qrPaymentFee: v })} accent="cyan" />
+                    <FeeRow icon={<Users size={15} />} label="Part agent / plateforme" sub="Part conservée par l'agent sur les opérations terrain" value={config.agentFeeShare} onChange={v => setConfig({ ...config, agentFeeShare: v })} accent="blue" />
+                    <FeeRow icon={<Users size={15} />} label="Part agent / plateforme" sub="Part conservée par l'agent sur les opérations terrain" value={config.agentFeeShare} onChange={v => setConfig({ ...config, agentFeeShare: v })} accent="blue" />
                     <FeeSummary items={[
                       { label: 'Carte', value: config.cardPaymentFee, color: 'pink' },
                       { label: 'Marchand', value: config.merchantPaymentFee, color: 'emerald' },
@@ -3335,7 +3337,7 @@ export default function SystemSettings() {
         </Modal>
       )}
 
-      {/* ════════════════════════════════════════════════════════ */}
+      {/* ═════════���══════════════════════════════════════════════ */}
       {/* MODAL: SYSTEM OPTIMIZER                                 */}
       {/* ════════════════════════════════════════════════════════ */}
       {optimizerModal && (

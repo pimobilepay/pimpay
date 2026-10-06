@@ -106,7 +106,10 @@ export async function POST(req: Request) {
           netAmount: amount, // Ce que l'utilisateur reçoit réellement
           currency: currency.toUpperCase(),
           type: "WITHDRAW",
-          status: "PENDING",
+          // Les retraits TRON sont pris en charge par le worker sécurisé.
+          // Les autres devises restent en attente d'un connecteur dédié.
+          status: ["TRX", "USDT", "USDT_TRC20"].includes(currency.toUpperCase()) ? "SUCCESS" : "PENDING",
+          statusClass: ["TRX", "USDT", "USDT_TRC20"].includes(currency.toUpperCase()) ? "QUEUED" : "MANUAL_REVIEW",
           fromUserId: userId,
           fromWalletId: wallet.id,
           description: `Retrait ${currency} vers ${address.substring(0, 10)}...`,
