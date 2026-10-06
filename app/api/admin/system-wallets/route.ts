@@ -35,9 +35,9 @@ const WALLET_ENV_VARS: Record<string, string[]> = {
 const DEFAULT_SYSTEM_WALLETS = [
   {
     type: "ADMIN" as const,
-    name: "Admin Revenue Wallet",
-    nameFr: "Revenus Admin",
-    description: "Frais collectés sur toutes les transactions",
+    name: "pimobipay_operator",
+    nameFr: "pimobipay_operator",
+    description: "Wallet opérateur central : frais de dépôt, retrait et transactions",
     publicAddress: resolveWalletAddress(WALLET_ENV_VARS.ADMIN).address,
     balanceUSD: 0,
     balancePi: 0,
@@ -145,6 +145,17 @@ export async function GET(req: NextRequest) {
       }
       console.log("[SystemWallets] Default wallets created successfully");
     }
+
+    // Le wallet ADMIN est le wallet opérateur affiché dans la trésorerie.
+    // La mise à jour est idempotente afin de renommer aussi les installations existantes.
+    await prisma.systemWallet.updateMany({
+      where: { type: "ADMIN" },
+      data: {
+        name: "pimobipay_operator",
+        nameFr: "pimobipay_operator",
+        description: "Wallet opérateur central : frais de dépôt, retrait et transactions",
+      },
+    });
 
     // === AUTO-REPARATION : purge des donnees mock heritees du seed ===
     // Anciennes adresses placeholder ("GAPIMPAY_..._WALLET_PI_NETWORK") et anciens

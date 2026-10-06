@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
+import { creditOperatorFee } from "@/lib/operator-wallet";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   checkDeposit,
@@ -192,8 +193,24 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    // Auto-conversion des frais en Pi (non bloquant)
+    // Encaissement comptable idempotent sur le wallet opérateur de la devise
+    // du dépôt. Le wallet est créé automatiquement s'il n'existe pas encore.
     if (transaction.fee && transaction.fee > 0) {
+      const feeResult = await creditOperatorFee({
+        amount: transaction.fee,
+        currency: transaction.currency,
+        sourceTransactionId: transaction.id,
+        sourceReference: transaction.reference,
+        feeType: "deposit_mobile",
+        description: `Frais dépôt Mobile Money ${transaction.reference}`,
+        metadata: { provider: "PawaPay", depositId },
+      });
+      if (!feeResult.success) {
+        console.error("[PAWAPAY_DEPOSIT_WEBHOOK] Fee collection:", feeResult.error);
+      }
+
+      // Conservation de la conversion historique vers PI, sans remplacer
+      // l'encaissement dans la devise d'origine.
       autoConvertFeeToPi(
         transaction.fee,
         "USD",
