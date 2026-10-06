@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import useSWR from "swr";
 import { ArrowLeft, Car, CheckCircle2, Clock3, Loader2, MapPin, Navigation, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -11,10 +12,33 @@ const rideOptions = [
   { id: "xl", name: "Taxi XL", detail: "6 places · idéal pour les groupes", price: 10, accent: "from-emerald-500 to-teal-500" },
 ];
 
+type AddressSuggestion = { id: string; label: string; latitude: number; longitude: number; type: string };
+const fetcher = (url: string) => fetch(url).then((response) => response.json());
+
+function AddressSuggestions({ query, onSelect }: { query: string; onSelect: (suggestion: AddressSuggestion) => void }) {
+  const searchKey = query.trim().length >= 3 ? `/api/mpay/geocode?q=${encodeURIComponent(query.trim())}` : null;
+  const { data, isLoading } = useSWR<{ suggestions: AddressSuggestion[] }>(searchKey, fetcher, { keepPreviousData: false });
+  const suggestions = data?.suggestions ?? [];
+
+  if (!query.trim() || query.trim().length < 3 || (!isLoading && suggestions.length === 0)) return null;
+
+  return (
+    <div className="absolute inset-x-0 top-full z-10 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/40">
+      {isLoading ? <p className="px-4 py-3 text-xs text-slate-500">Recherche d&apos;adresses...</p> : suggestions.map((suggestion) => (
+        <button type="button" key={suggestion.id} onClick={() => onSelect(suggestion)} className="flex w-full items-start gap-3 border-b border-white/5 px-4 py-3 text-left transition last:border-0 hover:bg-white/10">
+          <MapPin className="mt-0.5 shrink-0 text-amber-400" size={16} />
+          <span className="text-xs leading-relaxed text-slate-200">{suggestion.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function TaxiPaymentPage() {
   const router = useRouter();
   const [pickup, setPickup] = useState("");
   const [destination, setDestination] = useState("");
+  const [activeAddress, setActiveAddress] = useState<"pickup" | "destination" | null>(null);
   const [selectedRide, setSelectedRide] = useState("standard");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paidReference, setPaidReference] = useState<string | null>(null);
@@ -89,9 +113,15 @@ export default function TaxiPaymentPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 sm:p-6">
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 focus-within:border-amber-400/50"><MapPin className="text-amber-400" size={18} /><span className="sr-only">Lieu de départ</span><input value={pickup} onChange={(event) => setPickup(event.target.value)} placeholder="Lieu de départ" className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-600" required /></label>
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 focus-within:border-amber-400/50"><Navigation className="text-emerald-400" size={18} /><span className="sr-only">Destination</span><input value={destination} onChange={(event) => setDestination(event.target.value)} placeholder="Destination" className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-600" required /></label>
+            <div className="flex flex-col gap-3">
+              <div className="relative">
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 focus-within:border-amber-400/50"><MapPin className="text-amber-400" size={18} /><span className="sr-only">Lieu de départ</span><input value={pickup} onFocus={() => setActiveAddress("pickup")} onChange={(event) => { setPickup(event.target.value); setActiveAddress("pickup"); }} placeholder="Lieu de départ" className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-600" required /></label>
+                {activeAddress === "pickup" && <AddressSuggestions query={pickup} onSelect={(suggestion) => { setPickup(suggestion.label); setActiveAddress(null); }} />}
+              </div>
+              <div className="relative">
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 focus-within:border-amber-400/50"><Navigation className="text-emerald-400" size={18} /><span className="sr-only">Destination</span><input value={destination} onFocus={() => setActiveAddress("destination")} onChange={(event) => { setDestination(event.target.value); setActiveAddress("destination"); }} placeholder="Destination" className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-600" required /></label>
+                {activeAddress === "destination" && <AddressSuggestions query={destination} onSelect={(suggestion) => { setDestination(suggestion.label); setActiveAddress(null); }} />}
+              </div>
             </div>
           </section>
 
