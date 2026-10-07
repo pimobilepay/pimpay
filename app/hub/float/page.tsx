@@ -53,7 +53,7 @@ const fetcher = async (url: string) => {
 };
 
 const USD_RATE = 600; // 1 USD ~ 600 XAF (indicatif)
-const FLOAT_CURRENCIES = ["XAF", "XOF", "PI"] as const;
+const FLOAT_CURRENCIES = ["XAF", "XOF", "PI", "USD"] as const;
 type FloatCurrency = (typeof FLOAT_CURRENCIES)[number];
 
 interface FloatMovement {

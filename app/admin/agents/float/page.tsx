@@ -82,7 +82,7 @@ type Payload = {
   };
 };
 
-const FLOAT_CURRENCIES = ["XAF", "XOF", "PI"] as const;
+const FLOAT_CURRENCIES = ["XAF", "XOF", "PI", "USD"] as const;
 const QUICK_AMOUNTS = [50_000, 100_000, 250_000, 500_000, 1_000_000];
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
