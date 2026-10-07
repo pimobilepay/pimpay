@@ -11,6 +11,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { GUIDE_SECTIONS } from "@/lib/agent-guide";
+import { GuideReader } from "@/components/hub/GuideReader";
 import {
   BookOpen,
   Download,
@@ -23,48 +25,6 @@ import {
   ShieldCheck,
   Eye,
 } from "lucide-react";
-
-interface GuideSection {
-  title: string;
-  points: string[];
-}
-
-const GUIDE: GuideSection[] = [
-  {
-    title: "1. Accueillir et guider un client",
-    points: [
-      "Saluez le client et demandez s'il souhaite un depot (cash-in) ou un retrait (cash-out).",
-      "Verifiez que le client possede un compte PIMOBIPAY actif. Sinon, aidez-le a s'inscrire avec votre code parrain.",
-      "Utilisez le scanner QR pour identifier rapidement le client.",
-    ],
-  },
-  {
-    title: "2. Expliquer les depots (Cash-In)",
-    points: [
-      "Le client vous remet l'argent liquide.",
-      "Saisissez le montant exact dans l'application, puis confirmez.",
-      "Le client doit valider la transaction avec son code de securite (MFA).",
-      "Remettez un recu et verifiez que le solde du client a bien ete credite.",
-    ],
-  },
-  {
-    title: "3. Expliquer les retraits (Cash-Out)",
-    points: [
-      "Verifiez votre solde Float avant de servir un retrait.",
-      "Saisissez le montant, le client confirme la transaction.",
-      "Remettez le montant en liquide une fois la confirmation recue.",
-    ],
-  },
-  {
-    title: "4. Politiques de securite",
-    points: [
-      "Ne demandez JAMAIS le code PIN ou le mot de passe d'un client.",
-      "Verifiez toujours l'identite (KYC) pour les montants eleves.",
-      "En cas de doute ou de fraude suspectee, activez le Safe Mode et contactez le support.",
-      "Conservez toujours une trace ecrite des operations importantes.",
-    ],
-  },
-];
 
 const FLYERS = [
   { id: "flyer-1", title: "Affiche Point Agent", format: "A4 - PNG" },
@@ -80,46 +40,12 @@ export default function AgentToolkitPage() {
   const handleDownloadGuide = async () => {
     try {
       setDownloadingGuide(true);
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF({ unit: "mm", format: "a4" });
-      const marginX = 15;
-      let y = 20;
-
-      pdf.setFontSize(20);
-      pdf.setTextColor(16, 185, 129);
-      pdf.text("PIMOBIPAY", marginX, y);
-      pdf.setFontSize(13);
-      pdf.setTextColor(30, 41, 59);
-      y += 8;
-      pdf.text("Guide de Demarrage Rapide - Agent Terrain", marginX, y);
-      y += 10;
-
-      GUIDE.forEach((section) => {
-        if (y > 265) {
-          pdf.addPage();
-          y = 20;
-        }
-        pdf.setFontSize(12);
-        pdf.setTextColor(16, 185, 129);
-        pdf.text(section.title, marginX, y);
-        y += 7;
-        pdf.setFontSize(10);
-        pdf.setTextColor(51, 65, 85);
-        section.points.forEach((p) => {
-          const lines = pdf.splitTextToSize(`- ${p}`, 180) as string[];
-          lines.forEach((line) => {
-            if (y > 280) {
-              pdf.addPage();
-              y = 20;
-            }
-            pdf.text(line, marginX, y);
-            y += 5.5;
-          });
-        });
-        y += 4;
+      const { buildAgentGuidePdf, browserImageLoader } = await import("@/lib/agent-guide-pdf");
+      const pdf = await buildAgentGuidePdf({
+        origin: window.location.origin,
+        loadImage: browserImageLoader,
       });
-
-      pdf.save("guide-agent-pimobipay.pdf");
+      pdf.save("guide-demarrage-rapide-agent-pimobipay.pdf");
     } catch (e) {
       console.error("[Toolkit] Guide PDF failed", e);
     } finally {
@@ -150,7 +76,7 @@ export default function AgentToolkitPage() {
               Guide de Demarrage Rapide
             </CardTitle>
             <CardDescription className="text-slate-400">
-              FAQ terrain : guider un client, depots / retraits, securite.
+              Manuel complet avec captures d&apos;écran : accueil client, dépôts, retraits, Float, sécurité, FAQ et liens de référence.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col sm:flex-row gap-3">
@@ -265,7 +191,7 @@ export default function AgentToolkitPage() {
 
       {/* In-app Guide Reader */}
       <Dialog open={guideOpen} onOpenChange={setGuideOpen}>
-        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="bg-slate-900 border-white/10 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-emerald-500" />
@@ -275,21 +201,7 @@ export default function AgentToolkitPage() {
               Tout ce qu&apos;il faut savoir pour operer sur le terrain.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-5 mt-2">
-            {GUIDE.map((section) => (
-              <div key={section.title}>
-                <p className="font-bold text-emerald-400 mb-2">{section.title}</p>
-                <ul className="space-y-2">
-                  {section.points.map((p, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-slate-300">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+          <GuideReader sections={GUIDE_SECTIONS} />
           <Button
             onClick={handleDownloadGuide}
             disabled={downloadingGuide}
