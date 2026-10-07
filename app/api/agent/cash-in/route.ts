@@ -202,6 +202,8 @@ export async function POST(req: NextRequest) {
       transaction: result.transaction,
       transactionId: result.transaction.id,
       newFloatBalance: result.newAgentBalance,
+      commission: agentCommission,
+      currency,
       // Un depot n'est jamais mis en attente de confirmation client.
       pendingConfirmation: false
     });

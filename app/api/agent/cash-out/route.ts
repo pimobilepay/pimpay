@@ -237,6 +237,8 @@ export async function POST(req: NextRequest) {
       transaction: result.transaction,
       transactionId: result.transaction.id,
       newFloatBalance: result.newAgentBalance,
+      commission: agentCommission,
+      currency,
       pendingConfirmation: result.pendingConfirmation
     });
 

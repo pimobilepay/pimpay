@@ -230,6 +230,79 @@ export async function listAgentFloats(
   });
 }
 
+/** Marqueur pose sur les provisionnements ecrits directement dans AgentFloat. */
+export const FLOAT_ACCOUNT_MARKER = "AGENT_FLOAT";
+
+/**
+ * Rattrapage des anciens provisionnements admin : ils creditaient par erreur le
+ * wallet personnel de l'agent au lieu de sa caisse. On transfere le net de ces
+ * mouvements (dans la limite du solde wallet encore present) vers AgentFloat,
+ * puis on les marque pour ne jamais les rejouer.
+ */
+export async function migrateLegacyWalletFloat(
+  prisma: Db,
+  userId: string,
+  purpose: string
+): Promise<void> {
+  const movements: {
+    id: string;
+    amount: number;
+    currency: string;
+    toUserId: string | null;
+    fromUserId: string | null;
+    metadata: any;
+  }[] = await prisma.transaction.findMany({
+    where: {
+      purpose,
+      status: "SUCCESS",
+      OR: [{ toUserId: userId }, { fromUserId: userId }],
+    },
+    select: { id: true, amount: true, currency: true, toUserId: true, fromUserId: true, metadata: true },
+  });
+
+  const legacy = movements.filter((m) => {
+    const meta = (m.metadata || {}) as Record<string, unknown>;
+    return meta.floatAccount !== FLOAT_ACCOUNT_MARKER && !meta.migratedToFloat;
+  });
+  if (legacy.length === 0) return;
+
+  const netByCurrency = new Map<string, number>();
+  for (const m of legacy) {
+    const sign = m.toUserId === userId ? 1 : -1;
+    netByCurrency.set(m.currency, (netByCurrency.get(m.currency) ?? 0) + sign * m.amount);
+  }
+
+  await prisma.$transaction(async (tx: Db) => {
+    for (const [currency, net] of netByCurrency) {
+      if (!(net > 0)) continue;
+      const wallet = await tx.wallet.findUnique({
+        where: { userId_currency: { userId, currency } },
+        select: { id: true, balance: true },
+      });
+      const movable = round2(Math.min(net, Math.max(wallet?.balance ?? 0, 0)));
+      if (!wallet || !(movable > 0)) continue;
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: { decrement: movable } },
+      });
+      await creditAgentFloat(tx, userId, movable, currency);
+    }
+
+    for (const m of legacy) {
+      await tx.transaction.update({
+        where: { id: m.id },
+        data: {
+          metadata: {
+            ...((m.metadata as Record<string, unknown>) || {}),
+            migratedToFloat: true,
+            floatAccount: FLOAT_ACCOUNT_MARKER,
+          },
+        },
+      });
+    }
+  }, { maxWait: 10000, timeout: 30000 });
+}
+
 /** Devise de caisse valide, avec repli sur la devise par defaut. */
 export function normalizeFloatCurrency(value: unknown): FloatCurrency {
   return (FLOAT_CURRENCIES as readonly string[]).includes(String(value))
