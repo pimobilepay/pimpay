@@ -132,8 +132,10 @@ interface DashboardData {
     kycStatus: string
     agentRole?: string | null
   }
+  currency?: string
   floatBalance: number
   piBalance: number
+  floats?: { currency: string; available: number; reserved: number }[]
   dailyEarnings: {
     pi: number
     xaf: number
@@ -1159,8 +1161,11 @@ export default function PimPayHub() {
   const [kycProcessing, setKycProcessing] = React.useState(false)
 
   // Fetch dashboard data
+  const [selectedFloatCurrency, setSelectedFloatCurrency] = React.useState<string | null>(null)
   const { data, error, isLoading, mutate: refreshDashboard } = useSWR<DashboardData>(
-    '/api/agent/dashboard',
+    selectedFloatCurrency
+      ? `/api/agent/dashboard?currency=${encodeURIComponent(selectedFloatCurrency)}`
+      : '/api/agent/dashboard',
     fetcher,
     { 
       refreshInterval: 5000, // Rafraichissement live toutes les 5 secondes
@@ -1171,6 +1176,7 @@ export default function PimPayHub() {
 
   const activeCurrency = data?.currency || 'XAF'
   const floatBalance = data?.floatBalance ?? 0
+  const agentFloats = data?.floats ?? []
   const dailyEarnings = data?.dailyEarnings || { pi: 0, xaf: 0 }
   const liquidityHealth = data?.liquidityHealth || 0
   const commissionData = data?.commissionData || []
@@ -1302,7 +1308,7 @@ export default function PimPayHub() {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 min-w-0 overflow-x-hidden lg:ml-[var(--hub-sidebar-w,16rem)] transition-[margin] duration-300">
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
           {/* Ambient Background Effects */}
           <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -1311,7 +1317,7 @@ export default function PimPayHub() {
             <div className="absolute -bottom-40 right-1/4 w-80 h-80 bg-violet-400/10 rounded-full blur-3xl" />
           </div>
 
-          <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 space-y-6">
+          <div className="relative z-10 w-full max-w-3xl mx-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6">
             {/* Mobile Header */}
             <div className="flex items-center justify-between lg:hidden mb-4">
               <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 dark:bg-slate-800/50 text-slate-400">
@@ -1377,7 +1383,7 @@ export default function PimPayHub() {
             <GlassCard className="p-5">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm text-muted-foreground font-medium">Float Balance</p>
+                  <p className="text-sm text-muted-foreground font-medium">Solde caisse agent</p>
                   <motion.p
                     key={safeMode ? 'hidden' : 'visible'}
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -1404,6 +1410,33 @@ export default function PimPayHub() {
                   <LiquidityHealthIndicator health={liquidityHealth} />
                 </div>
               </div>
+
+              {agentFloats.length > 0 && (
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Devise de la caisse agent">
+                  {agentFloats.map((f) => {
+                    const active = f.currency === activeCurrency
+                    return (
+                      <button
+                        key={f.currency}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setSelectedFloatCurrency(f.currency)}
+                        className={cn(
+                          'rounded-xl border px-3 py-1.5 text-left transition-colors',
+                          active
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <span className="block text-[10px] font-bold uppercase tracking-wider">{f.currency}</span>
+                        <span className="block text-xs font-semibold tabular-nums">
+                          {safeMode ? '***' : f.available.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
 
               <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent my-4" />
 
@@ -1512,7 +1545,7 @@ export default function PimPayHub() {
               todayTransactionsCount={data?.todayTransactionsCount || 0}
               dailyVolume={data?.dailyVolume || 0}
               safeMode={safeMode}
-              currency="XAF"
+              currency={activeCurrency}
               formatCurrency={formatCurrency}
               onQuickCashIn={handleQuickCashIn}
               onQuickCashOut={handleQuickCashOut}

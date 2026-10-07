@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -66,6 +66,12 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
       ]
     : navItems;
 
+  // Le contenu principal suit la largeur reelle de la barre laterale (deployee ou repliee)
+  useEffect(() => {
+    if (isMobile) return;
+    document.documentElement.style.setProperty("--hub-sidebar-w", collapsed ? "72px" : "16rem");
+  }, [collapsed, isMobile]);
+
   // For mobile, we don't want the fixed positioning or collapse functionality
   if (isMobile) {
     return (
@@ -117,8 +123,8 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
           <div className="rounded-2xl bg-slate-900/50 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Float Balance</p>
-                <p className="text-lg font-black text-white">{dashboard?.floatBalance?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"} {dashboard?.currency ?? "USD"}</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Solde caisse agent</p>
+                <p className="text-lg font-black text-white">{dashboard?.floatBalance?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"} {dashboard?.currency ?? ""}</p>
               </div>
               <Wallet className="h-5 w-5 text-emerald-500" />
             </div>
@@ -213,8 +219,8 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
           <div className="rounded-2xl bg-slate-900/50 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Float Balance</p>
-                <p className="text-lg font-black text-white">{dashboard?.floatBalance?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"} {dashboard?.currency ?? "USD"}</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Solde caisse agent</p>
+                <p className="text-lg font-black text-white">{dashboard?.floatBalance?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"} {dashboard?.currency ?? ""}</p>
               </div>
               <Wallet className="h-5 w-5 text-emerald-500" />
             </div>

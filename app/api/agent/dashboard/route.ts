@@ -67,11 +67,17 @@ export async function GET(req: NextRequest) {
     // 4. Soldes de CAISSE (AgentFloat) — jamais les wallets personnels.
     // La devise active est choisie par l'agent depuis le modal de selection
     // des soldes (?currency=), avec repli sur la devise de caisse par defaut.
-    const AGENT_CURRENCY = normalizeFloatCurrency(
-      new URL(req.url).searchParams.get('currency') ?? DEFAULT_FLOAT_CURRENCY
-    );
-
     const floats = await listAgentFloats(prisma, authUser.id);
+
+    // Sans devise explicite, on affiche la caisse reellement approvisionnee
+    // (sinon un agent alimente en USD verrait 0 XAF par defaut).
+    const requestedCurrency = new URL(req.url).searchParams.get('currency');
+    const fundedFloat = floats.find(
+      (f) => f.currency === DEFAULT_FLOAT_CURRENCY && f.balance > 0
+    ) ?? [...floats].filter((f) => f.balance > 0).sort((a, b) => b.balance - a.balance)[0];
+    const AGENT_CURRENCY = normalizeFloatCurrency(
+      requestedCurrency ?? fundedFloat?.currency ?? DEFAULT_FLOAT_CURRENCY
+    );
     const activeFloat = floats.find((f) => f.currency === AGENT_CURRENCY);
     const floatBalance = activeFloat?.available ?? 0;
     const piBalance = floats.find((f) => f.currency === 'PI')?.available ?? 0;
@@ -264,6 +270,8 @@ export async function GET(req: NextRequest) {
       },
       floatBalance,
       piBalance,
+      // Toutes les caisses agent (AgentFloat), jamais le wallet personnel
+      floats: floats.map((f) => ({ currency: f.currency, available: f.available, reserved: f.reserved })),
       dailyEarnings: {
         pi: dailyCommissionPi,
         // Montant dans la devise du float de l'agent

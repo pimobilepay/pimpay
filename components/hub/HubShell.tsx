@@ -47,7 +47,7 @@ export function HubShell({ title, description, actions, children }: HubShellProp
       )}
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <main className="flex-1 min-w-0 lg:ml-[var(--hub-sidebar-w,16rem)] transition-[margin] duration-300 p-4 lg:p-8">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button

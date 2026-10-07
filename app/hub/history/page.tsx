@@ -270,7 +270,7 @@ export default function AgentHistoryPage() {
       </Dialog>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 px-4 py-3 sm:p-4 lg:p-8 min-w-0 overflow-x-hidden">
+      <main className="flex-1 min-w-0 lg:ml-[var(--hub-sidebar-w,16rem)] transition-[margin] duration-300 px-4 py-3 sm:p-4 lg:p-8 min-w-0 overflow-x-hidden">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">

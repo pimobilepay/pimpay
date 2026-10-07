@@ -248,7 +248,7 @@ export default function AgentFloatPage() {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <main className="flex-1 min-w-0 lg:ml-[var(--hub-sidebar-w,16rem)] transition-[margin] duration-300 p-4 lg:p-8">
         {/* Mobile Header */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400" aria-label="Ouvrir le menu">
