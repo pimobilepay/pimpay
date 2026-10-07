@@ -243,7 +243,7 @@ export default function AgentReportsPage() {
         </div>
       )}
 
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <main className="flex-1 min-w-0 lg:ml-[var(--hub-sidebar-w,16rem)] transition-[margin] duration-300 p-4 lg:p-8">
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/5 text-slate-400">
             <Menu className="h-5 w-5" />
