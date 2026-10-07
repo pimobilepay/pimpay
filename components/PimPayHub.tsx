@@ -62,18 +62,44 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { QRScanner } from '@/components/qr-scanner'
+import { HubTransactionDetailModal, type HubTransactionDetail } from '@/components/hub/HubTransactionDetailModal'
+
+function CustomerAvatar({ src, name, size = 'h-10 w-10', verified }: { src?: string | null; name: string; size?: string; verified?: boolean }) {
+  return (
+    <div className={cn('relative shrink-0', size)}>
+      <div className="h-full w-full rounded-full bg-background flex items-center justify-center overflow-hidden ring-2 ring-emerald-500/20">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <User className="h-1/2 w-1/2 text-muted-foreground" />
+        )}
+      </div>
+      {verified && (
+        <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-background">
+          <ShieldCheck className="h-3 w-3 text-white" aria-label="Client verifie" />
+        </span>
+      )}
+    </div>
+  )
+}
+
+function resultToastDescription(
+  data: { commission?: number; newFloatBalance?: number; currency?: string },
+  fallbackCurrency: string
+) {
+  const cur = data.currency || fallbackCurrency
+  const fmt = (n: number) => `${Number(n || 0).toLocaleString('fr-FR', { maximumFractionDigits: cur === 'PI' ? 4 : 2 })} ${cur}`
+  const parts: string[] = []
+  if (typeof data.commission === 'number') parts.push(`Commission gagnee : ${fmt(data.commission)}`)
+  if (typeof data.newFloatBalance === 'number') parts.push(`Solde caisse ${cur} : ${fmt(data.newFloatBalance)}`)
+  return parts.join(' - ')
+}
 import { toast } from 'sonner'
 
 // Types
-interface Transaction {
-  id: string
-  type: 'cash-in' | 'cash-out' | 'transfer'
-  amount: number
-  currency: string
+interface Transaction extends HubTransactionDetail {
   status: 'success' | 'pending' | 'issue'
-  customer: string
-  timestamp: string
-  reference: string
 }
 
 interface CommissionData {
@@ -396,7 +422,7 @@ function TransactionModal({
         toast.success('Depot effectue', {
           description: `${amountNum.toLocaleString('fr-FR')} ${currency} credites sur le compte de ${
             selectedCustomer.name || selectedCustomer.username
-          }.`,
+          }. ${resultToastDescription(data, currency)}`,
         })
         onSuccess()
         handleClose()
@@ -532,12 +558,22 @@ function TransactionModal({
           <div className="space-y-4">
             {selectedCustomer && (
               <div className="flex items-center gap-3 p-3 rounded-xl bg-muted">
-                <div className="h-10 w-10 rounded-full bg-background flex items-center justify-center">
-                  <User className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{selectedCustomer.name || selectedCustomer.username}</p>
-                  <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>
+                <CustomerAvatar
+                  src={selectedCustomer.avatar}
+                  name={selectedCustomer.name || selectedCustomer.username}
+                  size="h-14 w-14"
+                  verified={selectedCustomer.kycStatus === 'APPROVED' || selectedCustomer.kycStatus === 'VERIFIED'}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    {selectedCustomer.kycStatus === 'APPROVED' || selectedCustomer.kycStatus === 'VERIFIED'
+                      ? 'Client verifie - compte actif'
+                      : 'Compte actif'}
+                  </p>
+                  <p className="font-medium truncate">{selectedCustomer.name || selectedCustomer.username}</p>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {selectedCustomer.username ? `@${selectedCustomer.username}` : selectedCustomer.phone}
+                  </p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setStep('search')}>
                   <X className="h-4 w-4" />
@@ -788,7 +824,7 @@ function QRScannerModal({
           description: `${amountNum.toLocaleString('fr-FR')} ${currency} credites sur le compte de ${displayFullName(
             customer,
             'Client'
-          )}.`,
+          )}. ${resultToastDescription(data, currency)}`,
         })
         onSuccess()
         handleClose()
@@ -927,19 +963,18 @@ function QRScannerModal({
             <div className="space-y-4">
               <div className="rounded-2xl border bg-muted/50 p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-full bg-background flex items-center justify-center overflow-hidden">
-                    {customer.avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={customer.avatar || "/placeholder.svg"}
-                        alt={fullName}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <User className="h-6 w-6 text-muted-foreground" />
-                    )}
-                  </div>
+                  <CustomerAvatar
+                    src={customer.avatar}
+                    name={fullName}
+                    size="h-16 w-16"
+                    verified={customer.kycStatus === 'APPROVED' || customer.kycStatus === 'VERIFIED'}
+                  />
                   <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      {customer.kycStatus === 'APPROVED' || customer.kycStatus === 'VERIFIED'
+                        ? 'Client verifie - compte actif'
+                        : 'Compte actif'}
+                    </p>
                     <p className="font-semibold text-foreground truncate">{fullName}</p>
                     {customer.username && (
                       <p className="text-sm text-muted-foreground truncate">@{customer.username}</p>
@@ -1737,14 +1772,27 @@ export default function PimPayHub() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        onClick={() => setSelectedTransaction(selectedTransaction === tx.id ? null : tx.id)}
+                        onClick={() => setSelectedTransaction(tx.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setSelectedTransaction(tx.id)
+                          }
+                        }}
+                        aria-label={`Voir les details de la transaction ${tx.reference}`}
                         className={cn(
                           'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all',
                           'hover:bg-slate-100/50 dark:hover:bg-slate-800/50',
                           selectedTransaction === tx.id && 'bg-slate-100/80 dark:bg-slate-800/80'
                         )}
                       >
-                        <TransactionIcon type={tx.type} />
+                        {tx.avatar ? (
+                          <CustomerAvatar src={tx.avatar} name={tx.customer} />
+                        ) : (
+                          <TransactionIcon type={tx.type} />
+                        )}
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
@@ -1855,6 +1903,11 @@ export default function PimPayHub() {
       </main>
 
       {/* Modals */}
+      <HubTransactionDetailModal
+        transaction={recentTransactions.find((t) => t.id === selectedTransaction) ?? null}
+        onClose={() => setSelectedTransaction(null)}
+        formatCurrency={(amount, currency) => formatCurrency(amount, currency)}
+      />
       <TransactionModal
         isOpen={cashInModalOpen}
         onClose={() => { setCashInModalOpen(false); setPrefillCustomer(null) }}

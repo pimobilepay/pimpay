@@ -5,8 +5,13 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { getAgentFeeShare, getPiPrice } from '@/lib/fees';
 import { agentCommissionOf, frozenAgentFeeShareOf } from '@/lib/agent-pending';
-import { listAgentFloats, normalizeFloatCurrency } from '@/lib/agent-float-account';
-import { DEFAULT_FLOAT_CURRENCY } from '@/lib/agent-float';
+import {
+  listAgentFloats,
+  migrateLegacyWalletFloat,
+  normalizeFloatCurrency,
+} from '@/lib/agent-float-account';
+import { AGENT_FLOAT_PURPOSE, DEFAULT_FLOAT_CURRENCY } from '@/lib/agent-float';
+import { DEFAULT_CRYPTO_PRICES, FIAT_RATES, convert } from '@/lib/exchange';
 
 /**
  * GET /api/agent/dashboard
@@ -44,14 +49,14 @@ export async function GET(req: NextRequest) {
           orderBy: { createdAt: 'desc' },
           take: 20,
           include: {
-            toUser: { select: { name: true, username: true } }
+            toUser: { select: { name: true, username: true, avatar: true } }
           }
         },
         transactionsTo: {
           orderBy: { createdAt: 'desc' },
           take: 20,
           include: {
-            fromUser: { select: { name: true, username: true } }
+            fromUser: { select: { name: true, username: true, avatar: true } }
           }
         }
       }
@@ -67,6 +72,11 @@ export async function GET(req: NextRequest) {
     // 4. Soldes de CAISSE (AgentFloat) — jamais les wallets personnels.
     // La devise active est choisie par l'agent depuis le modal de selection
     // des soldes (?currency=), avec repli sur la devise de caisse par defaut.
+    // Les anciens provisionnements admin (dont Pi) creditaient le wallet perso :
+    // on les rapatrie dans la caisse pour que tous les soldes s'affichent.
+    await migrateLegacyWalletFloat(prisma, authUser.id, AGENT_FLOAT_PURPOSE).catch((e) =>
+      console.error('[AGENT_DASHBOARD] Legacy float migration failed:', e.message)
+    );
     const floats = await listAgentFloats(prisma, authUser.id);
 
     // Sans devise explicite, on affiche la caisse reellement approvisionnee
@@ -106,19 +116,48 @@ export async function GET(req: NextRequest) {
      * transaction si present, sinon le taux courant. L'historique reste ainsi
      * coherent avec ce qui a reellement ete credite.
      */
-    const commissionOf = (tx: { fee: number | null; metadata?: unknown }) =>
-      agentCommissionOf(
-        tx.fee,
-        frozenAgentFeeShareOf(tx.metadata) ?? currentAgentFeeShare
-      );
+    const piPrice = await getPiPrice();
+    const prices = { ...DEFAULT_CRYPTO_PRICES, ...FIAT_RATES, PI: piPrice };
+    const toActive = (amount: number, currency: string | null) => {
+      const from = (currency || DEFAULT_FLOAT_CURRENCY).toUpperCase();
+      if (from === AGENT_CURRENCY) return amount;
+      return convert(from, AGENT_CURRENCY, amount, prices);
+    };
 
-    // Calcul des commissions journalières (basé sur les frais des transactions)
+    // Seules les operations de guichet de l'agent (cash-in qu'il emet, cash-out
+    // qu'il recoit) lui rapportent une commission. Ses transferts personnels
+    // ou les provisionnements de caisse n'en generent pas.
+    const isAgentOperation = (tx: { type: string; fromUserId: string | null; toUserId: string | null; purpose?: string | null }) =>
+      tx.purpose !== AGENT_FLOAT_PURPOSE &&
+      ((tx.type === 'DEPOSIT' && tx.fromUserId === authUser.id) ||
+        (tx.type === 'WITHDRAW' && tx.toUserId === authUser.id));
+
+    const commissionNative = (tx: any) =>
+      isAgentOperation(tx)
+        ? agentCommissionOf(tx.fee, frozenAgentFeeShareOf(tx.metadata) ?? currentAgentFeeShare)
+        : 0;
+    // Commission convertie dans la devise active (les frais sont dans la devise
+    // de chaque transaction : on ne peut pas additionner XAF et PI tels quels).
+    const commissionOf = (tx: any) => toActive(commissionNative(tx), tx.currency);
+
     const dailyCommission = todayTransactions.reduce(
       (sum, tx) => sum + commissionOf(tx),
       0
     );
+    const dailyCommissionPi =
+      piPrice > 0
+        ? Math.round(
+            todayTransactions.reduce(
+              (sum, tx) => sum + convert((tx.currency || DEFAULT_FLOAT_CURRENCY).toUpperCase(), 'PI', commissionNative(tx), prices),
+              0
+            ) * 10000
+          ) / 10000
+        : 0;
 
-    const dailyVolume = todayTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const agentOpsToday = todayTransactions.filter(isAgentOperation);
+    const dailyVolume = Math.round(
+      agentOpsToday.reduce((sum, tx) => sum + toActive(tx.amount, tx.currency), 0) * 100
+    ) / 100;
 
     // 6. Calculer la santé de liquidité (basée sur le ratio float/volume journalier)
     const avgDailyVolume = dailyVolume || 100000; // Valeur par défaut
@@ -161,7 +200,7 @@ export async function GET(req: NextRequest) {
 
     const commissionData = Object.entries(commissionByDay).map(([day, data]) => ({
       day,
-      commission: Math.round(data.commission),
+      commission: Math.round(data.commission * 100) / 100,
       transactions: data.transactions
     }));
 
@@ -188,10 +227,11 @@ export async function GET(req: NextRequest) {
       const h = new Date(tx.createdAt).getHours();
       const bucket = flowByHour[h];
       if (!bucket) return;
+      const value = toActive(tx.amount, tx.currency);
       if (classifyDirection(tx) === 'in') {
-        bucket.entrant += tx.amount;
+        bucket.entrant += value;
       } else {
-        bucket.sortant += tx.amount;
+        bucket.sortant += value;
       }
       bucket.count += 1;
     });
@@ -230,12 +270,16 @@ export async function GET(req: NextRequest) {
         type = 'cash-in';
       }
 
-      const customer = isOutgoing 
-        ? (tx as any).toUser?.name || (tx as any).toUser?.username || 'Client'
-        : (tx as any).fromUser?.name || (tx as any).fromUser?.username || 'Client';
+      const counterpart = isOutgoing ? (tx as any).toUser : (tx as any).fromUser;
+      const isFloatMovement = tx.purpose === AGENT_FLOAT_PURPOSE;
+      const customer = isFloatMovement
+        ? 'PimPay Tresorerie'
+        : counterpart?.name || counterpart?.username || 'Client';
 
       return {
         id: tx.id,
+        avatar: isFloatMovement ? null : counterpart?.avatar ?? null,
+        commission: commissionNative(tx),
         type,
         amount: tx.amount,
         currency: tx.currency || 'XAF',
@@ -247,14 +291,19 @@ export async function GET(req: NextRequest) {
         }),
         reference: tx.reference.slice(-8).toUpperCase(),
         source: (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAW') ? 'hub' : 'app',
-        createdAt: tx.createdAt
+        createdAt: tx.createdAt,
+        fullReference: tx.reference,
+        customerFullName: customer,
+        customerUsername: isFloatMovement ? null : counterpart?.username ?? null,
+        rawType: tx.type,
+        rawStatus: tx.status,
+        fee: tx.fee ?? 0,
+        netAmount: tx.netAmount ?? tx.amount,
+        description: tx.description ?? null,
+        direction: isOutgoing ? 'out' : 'in',
+        isFloatMovement
       };
     });
-
-    // 9. Conversion de la commission du jour en Pi au prix admin en vigueur
-    const piPrice = await getPiPrice();
-    const dailyCommissionPi =
-      piPrice > 0 ? Math.round((dailyCommission / piPrice) * 100) / 100 : 0;
 
     // 10. Retourner toutes les données
     return NextResponse.json({
@@ -275,8 +324,8 @@ export async function GET(req: NextRequest) {
       dailyEarnings: {
         pi: dailyCommissionPi,
         // Montant dans la devise du float de l'agent
-        amount: Math.round(dailyCommission),
-        xaf: Math.round(dailyCommission)
+        amount: Math.round(dailyCommission * 100) / 100,
+        xaf: Math.round(convert(AGENT_CURRENCY, 'XAF', dailyCommission, prices))
       },
       liquidityHealth,
       dailyVolume,

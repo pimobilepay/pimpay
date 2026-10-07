@@ -2,8 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { WalletType } from "@prisma/client";
 import { requirePermission, PERMISSIONS } from "@/lib/permissions";
+import {
+  FLOAT_ACCOUNT_MARKER,
+  creditAgentFloat,
+  debitAgentFloat,
+  migrateLegacyWalletFloat,
+} from "@/lib/agent-float-account";
 import { logAdminAction } from "@/lib/adminAudit";
 import {
   AGENT_FLOAT_PURPOSE,
@@ -29,12 +34,8 @@ const AGENT_SELECT = {
   kycStatus: true,
   country: true,
   city: true,
-  wallets: { select: { currency: true, balance: true } },
+  agentFloats: { select: { currency: true, balance: true, reserved: true } },
 } as const;
-
-function walletTypeFor(currency: string): WalletType {
-  return currency === "PI" ? WalletType.PI : WalletType.FIAT;
-}
 
 /**
  * GET /api/admin/agents/float
@@ -47,6 +48,23 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q")?.trim();
+
+    const settled = await prisma.transaction.findMany({
+      where: { purpose: AGENT_FLOAT_PURPOSE, status: "SUCCESS" },
+      select: { toUserId: true, fromUserId: true, metadata: true },
+    });
+    const legacyAgentIds = new Set<string>();
+    for (const m of settled) {
+      const meta = (m.metadata || {}) as Record<string, unknown>;
+      if (meta.floatAccount === FLOAT_ACCOUNT_MARKER || meta.migratedToFloat) continue;
+      const agentId = m.toUserId ?? m.fromUserId;
+      if (agentId) legacyAgentIds.add(agentId);
+    }
+    for (const agentId of legacyAgentIds) {
+      await migrateLegacyWalletFloat(prisma, agentId, AGENT_FLOAT_PURPOSE).catch((e) =>
+        console.error("[ADMIN_AGENT_FLOAT_MIGRATE]", agentId, e.message)
+      );
+    }
 
     const [agents, pending, history, liquidityWallet] = await Promise.all([
       prisma.user.findMany({
@@ -125,7 +143,17 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const totalFloat = agents.reduce(
+    // `wallets` expose ici les soldes de CAISSE (AgentFloat) disponibles,
+    // pas les wallets personnels : c'est ce que l'admin provisionne.
+    const agentsWithFloat = agents.map(({ agentFloats, ...a }) => ({
+      ...a,
+      wallets: agentFloats.map((f) => ({
+        currency: f.currency,
+        balance: Math.round((f.balance - f.reserved) * 100) / 100,
+      })),
+    }));
+
+    const totalFloat = agentsWithFloat.reduce(
       (sum, a) => sum + (a.wallets.find((w) => w.currency === DEFAULT_FLOAT_CURRENCY)?.balance || 0),
       0
     );
@@ -133,7 +161,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       canManage: ctx.isSuperAdmin || ctx.permissions.includes(PERMISSIONS.TREASURY_MANAGE),
-      agents,
+      agents: agentsWithFloat,
       pending: pending.map(map),
       history: history.map(map),
       stats: {
@@ -279,29 +307,29 @@ export async function POST(req: NextRequest) {
     const adminName = ctx.payload.name || ctx.payload.email || "Admin";
     const signedAmount = isDebit ? -amount : amount;
 
+    // Rattrape d'eventuels anciens provisionnements ecrits dans le wallet perso.
+    await migrateLegacyWalletFloat(prisma, agentUserId, AGENT_FLOAT_PURPOSE);
+
     const result = await prisma.$transaction(async (tx) => {
-      const wallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId: agentUserId as string, currency } },
-        update: {},
-        create: {
-          userId: agentUserId as string,
-          currency,
-          balance: 0,
-          type: walletTypeFor(currency),
-        },
-      });
-
-      if (isDebit && wallet.balance < amount) {
-        throw new Error("Float agent insuffisant pour cette reprise");
+      // Le float vit dans la CAISSE agent (AgentFloat), jamais dans le wallet
+      // personnel : c'est elle que lit le Hub et que debitent les cash-in.
+      if (isDebit) {
+        await debitAgentFloat(tx, agentUserId as string, amount as number, currency);
+      } else {
+        await creditAgentFloat(tx, agentUserId as string, amount as number, currency);
       }
-
-      const updatedWallet = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { increment: signedAmount } },
+      const updatedFloat = await tx.agentFloat.findUnique({
+        where: { userId_currency: { userId: agentUserId as string, currency } },
       });
+      const updatedWallet = {
+        id: null as string | null,
+        balance: Math.round(((updatedFloat?.balance ?? 0) - (updatedFloat?.reserved ?? 0)) * 100) / 100,
+      };
 
       const metadata = {
         ...((requestRecord?.metadata as Record<string, any>) || {}),
+        floatAccount: FLOAT_ACCOUNT_MARKER,
+        agentFloatId: updatedFloat?.id ?? null,
         kind: AGENT_FLOAT_PURPOSE,
         source: isApprove ? "AGENT_REQUEST" : isDebit ? "ADMIN_DEBIT" : "ADMIN_DIRECT",
         note: note || null,
@@ -319,7 +347,6 @@ export async function POST(req: NextRequest) {
             status: "SUCCESS",
             amount,
             netAmount: amount,
-            toWalletId: updatedWallet.id,
             description: `Recharge float validee - ${amount.toLocaleString("fr-FR")} ${currency}`,
             note: note || null,
             metadata,
@@ -337,8 +364,6 @@ export async function POST(req: NextRequest) {
             purpose: AGENT_FLOAT_PURPOSE,
             toUserId: isDebit ? null : agentUserId,
             fromUserId: isDebit ? agentUserId : null,
-            toWalletId: isDebit ? null : updatedWallet.id,
-            fromWalletId: isDebit ? updatedWallet.id : null,
             description: isDebit
               ? `Reprise de float - ${amount.toLocaleString("fr-FR")} ${currency}`
               : `Provisionnement float par ${adminName} - ${amount.toLocaleString("fr-FR")} ${currency}`,
