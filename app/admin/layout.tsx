@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
+import { AdminShell } from "@/components/admin/AdminShell";
 import AdminGlobalCallReceiver from "@/components/AdminGlobalCallReceiver";
 import AdminGlobalKycNotifier from "@/components/AdminGlobalKycNotifier";
 
@@ -23,10 +23,9 @@ export default function AdminLayout({
       */}
       <AdminGlobalCallReceiver />
       <AdminGlobalKycNotifier />
-      <div className="flex flex-col">
+      <AdminShell>
         {children}
-      </div>
-      <AdminBottomNav />
+      </AdminShell>
     </div>
   );
 }
