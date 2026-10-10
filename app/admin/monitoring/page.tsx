@@ -58,6 +58,7 @@ type MonitoringData = {
 export default function MonitoringPage() {
   const [now, setNow] = useState(new Date());
   const [desktopMode, setDesktopMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "services" | "live">("live");
   const [telemetry, setTelemetry] = useState<MonitoringData | null>(null);
   const [events, setEvents] = useState(initialEvents);
 
@@ -109,6 +110,26 @@ export default function MonitoringPage() {
           </div>
         </header>
 
+        <nav aria-label="Vues du monitoring" className="flex items-center gap-1 rounded-2xl border border-white/8 bg-[#0a101c]/80 p-1">
+          {[
+            ["overview", "Vue générale"],
+            ["services", "Services"],
+            ["live", "Live"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id as "overview" | "services" | "live")}
+              aria-current={activeTab === id ? "page" : undefined}
+              className={`flex-1 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors ${activeTab === id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-500 hover:bg-white/5 hover:text-white"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {activeTab === "live" ? (
+          <>
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Indicateurs temps réel">
           {[
             ["Utilisateurs en ligne", liveUsers, "+12.8%", Users, "blue"],
@@ -129,6 +150,15 @@ export default function MonitoringPage() {
         <section className="grid gap-5 lg:grid-cols-3"><div className="rounded-2xl border border-white/8 bg-[#0a101c]/80 p-5 lg:col-span-2"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-black">Débit réseau</h2><p className="mt-1 text-xs text-slate-500">Requêtes traitées sur les 60 dernières minutes</p></div><Globe2 className="h-5 w-5 text-blue-400" /></div><div className="flex h-32 items-end gap-1.5">{[38,48,42,65,58,72,61,78,69,83,75,92,80,88,95,82,98,90,100,94,86,97,91,100,96,100,92,99,94,100].map((height, i) => <div key={i} className="group relative flex-1"><div className="absolute -top-5 left-1/2 hidden -translate-x-1/2 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-white group-hover:block">{height}%</div><div className={`h-full rounded-t-sm ${i > 25 ? "bg-blue-400" : "bg-blue-500/40"}`} style={{ height: `${height}%` }} /></div>)}</div><div className="mt-3 flex justify-between text-[10px] text-slate-600"><span>Il y a 60 min</span><span>Maintenant</span></div></div><div className="rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] p-5"><div className="flex items-center gap-2 text-amber-300"><AlertTriangle className="h-4 w-4" /><h2 className="font-black">Incidents & alertes</h2></div><div className="mt-6 flex items-center gap-3"><div className="text-4xl font-black">0</div><p className="text-xs leading-5 text-slate-500">incident critique<br />au cours des dernières 24h</p></div><div className="mt-6 flex items-center gap-2 border-t border-white/8 pt-4 text-[10px] text-emerald-400"><ShieldCheck className="h-3.5 w-3.5" /> Tous les contrôles sont passés</div></div></section>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4 text-[10px] text-slate-600"><span className="flex items-center gap-2"><Clock3 className="h-3.5 w-3.5" /> Rafraîchissement automatique actif</span><span className="flex items-center gap-2"><KeyRound className="h-3.5 w-3.5" /> Console sécurisée · accès administrateur</span><span className="flex items-center gap-2"><ArrowDownRight className="h-3.5 w-3.5" /> Latence API stable</span></footer>
+          </>
+        ) : (
+          <section className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-white/8 bg-[#0a101c]/80 p-8 text-center">
+            <Server className="mb-4 h-8 w-8 text-blue-400" />
+            <h2 className="text-lg font-black">{activeTab === "services" ? "Services de la plateforme" : "Vue générale"}</h2>
+            <p className="mt-2 max-w-md text-sm text-slate-500">Sélectionnez l&apos;onglet Live pour afficher le monitoring temps réel complet de la plateforme.</p>
+            <button type="button" onClick={() => setActiveTab("live")} className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-blue-500">Ouvrir Live</button>
+          </section>
+        )}
       </div>
     </main>
   );
