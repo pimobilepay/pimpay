@@ -45,19 +45,53 @@ const colorStyles: Record<string, string> = {
   cyan: "border-cyan-400/15 bg-cyan-400/10 text-cyan-300",
 };
 
+type MonitoringData = {
+  generatedAt?: string;
+  health?: { status?: string; healthyCount?: number; totalServices?: number };
+  platform?: { liveSessions?: number; throughputMinute?: number; volume24h?: number; totalUsers?: number };
+  database?: { latency?: string };
+  reliability?: { apiLatency?: string; errorRate?: number };
+  services?: Array<{ name?: string; label?: string; status?: string; severity?: string; value?: string; latency?: string }>;
+  activityFeed?: Array<{ createdAt?: string; timestamp?: string; title?: string; event?: string; description?: string; detail?: string; severity?: string }>;
+};
+
 export default function MonitoringPage() {
   const [now, setNow] = useState(new Date());
+  const [desktopMode, setDesktopMode] = useState(false);
+  const [telemetry, setTelemetry] = useState<MonitoringData | null>(null);
   const [events, setEvents] = useState(initialEvents);
 
   useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const syncMode = () => setDesktopMode(media.matches);
+    syncMode();
+    media.addEventListener("change", syncMode);
     const timer = window.setInterval(() => setNow(new Date()), 1000);
-    const activity = window.setInterval(() => {
-      setEvents((current) => [[new Date().toLocaleTimeString("fr-FR"), "Activité plateforme détectée", "Canal sécurisé · temps réel", "cyan"], ...current].slice(0, 6));
-    }, 9000);
-    return () => { window.clearInterval(timer); window.clearInterval(activity); };
+    const loadTelemetry = async () => {
+      if (!media.matches) return;
+      try {
+        const response = await fetch("/api/admin/monitoring", { cache: "no-store" });
+        if (!response.ok) return;
+        setTelemetry(await response.json());
+      } catch {
+        // Le mode mobile conserve sa vue locale si l'API n'est pas disponible.
+      }
+    };
+    loadTelemetry();
+    const refresh = window.setInterval(loadTelemetry, 10000);
+    return () => {
+      media.removeEventListener("change", syncMode);
+      window.clearInterval(timer);
+      window.clearInterval(refresh);
+    };
   }, []);
 
   const formattedTime = useMemo(() => now.toLocaleTimeString("fr-FR"), [now]);
+  const liveUsers = desktopMode && telemetry?.platform?.liveSessions != null ? telemetry.platform.liveSessions.toLocaleString("fr-FR") : "8,492";
+  const liveTransactions = desktopMode && telemetry?.platform?.throughputMinute != null ? telemetry.platform.throughputMinute.toLocaleString("fr-FR") : "1,248";
+  const liveVolume = desktopMode && telemetry?.platform?.volume24h != null ? `$${Number(telemetry.platform.volume24h).toLocaleString("fr-FR")}` : "$284,920";
+  const liveLatency = desktopMode && (telemetry?.database?.latency || telemetry?.reliability?.apiLatency) ? (telemetry.database?.latency || telemetry.reliability?.apiLatency) : "184 ms";
+  const liveServices = desktopMode && telemetry?.services?.length ? telemetry.services : services;
 
   return (
     <main className="min-h-screen bg-[#02040a] px-4 pb-24 pt-24 text-white sm:px-6 lg:px-8 lg:pt-8">
@@ -70,17 +104,17 @@ export default function MonitoringPage() {
           </div>
           <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3">
             <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
-            <div><p className="text-xs font-black text-emerald-300">Système opérationnel</p><p className="text-[10px] text-slate-500">Dernière synchro {formattedTime}</p></div>
+            <div><p className="text-xs font-black text-emerald-300">{desktopMode && telemetry?.health?.status ? telemetry.health.status : "Système opérationnel"}</p><p className="text-[10px] text-slate-500">{desktopMode && telemetry?.generatedAt ? `API synchronisée ${new Date(telemetry.generatedAt).toLocaleTimeString("fr-FR")}` : `Dernière synchro ${formattedTime}`}</p></div>
             <RefreshCw className="ml-2 h-4 w-4 text-emerald-400" />
           </div>
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Indicateurs temps réel">
           {[
-            ["Utilisateurs en ligne", "8,492", "+12.8%", Users, "blue"],
-            ["Transactions / minute", "1,248", "+8.4%", Activity, "emerald"],
-            ["Volume traité aujourd'hui", "$284,920", "+18.2%", CircleDollarSign, "violet"],
-            ["Latence moyenne", "184 ms", "-6.1%", Gauge, "amber"],
+            ["Utilisateurs en ligne", liveUsers, "+12.8%", Users, "blue"],
+            ["Transactions / minute", liveTransactions, "+8.4%", Activity, "emerald"],
+            ["Volume traité aujourd'hui", liveVolume, "+18.2%", CircleDollarSign, "violet"],
+            ["Latence moyenne", liveLatency, "-6.1%", Gauge, "amber"],
           ].map(([label, value, trend, Icon, color]) => (
             <div key={String(label)} className="rounded-2xl border border-white/8 bg-[#0a101c]/80 p-4 shadow-xl shadow-black/10"><div className={`mb-4 flex h-9 w-9 items-center justify-center rounded-xl ${colorStyles[String(color)]}`}><Icon className="h-4 w-4" /></div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p><div className="mt-1 flex items-end justify-between gap-2"><p className="text-xl font-black tracking-tight">{value}</p><span className="flex items-center text-[10px] font-bold text-emerald-400"><ArrowUpRight className="h-3 w-3" />{trend}</span></div></div>
           ))}
