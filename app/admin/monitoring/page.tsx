@@ -128,7 +128,7 @@ export default function MonitoringPage() {
           ))}
         </nav>
 
-        {activeTab === "live" ? (
+        {activeTab === "overview" || activeTab === "live" ? (
           <>
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Indicateurs temps réel">
           {[
