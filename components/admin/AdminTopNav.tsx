@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Bell, ArrowLeft, RefreshCw, X } from "lucide-react";
+import { Bell, ArrowLeft, RefreshCw, X, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 
 interface NotificationCounts {
@@ -220,6 +220,9 @@ export function AdminTopNav({
           </div>
           
           <div className="flex items-center gap-2">
+            <button onClick={() => router.push('/admin/messages')} aria-label="Messages" className="relative p-2.5 bg-white/5 rounded-2xl text-white active:scale-95 transition-transform">
+              <MessageSquare size={18} />
+            </button>
             {/* Notifications Button */}
             <button 
               onClick={() => setShowPreview(!showPreview)}

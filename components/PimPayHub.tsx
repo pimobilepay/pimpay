@@ -64,6 +64,7 @@ import {
 import { QRScanner } from '@/components/qr-scanner'
 import { HubTransactionDetailModal, type HubTransactionDetail } from '@/components/hub/HubTransactionDetailModal'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { AgentMessageComposer } from '@/components/hub/AgentMessageComposer'
 
 function CustomerAvatar({ src, name, size = 'h-10 w-10', verified }: { src?: string | null; name: string; size?: string; verified?: boolean }) {
   return (
@@ -1391,11 +1392,12 @@ export default function PimPayHub() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-              <NotificationBell
-                buttonClassName="inline-flex size-10 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
-                badgeClassName="absolute -right-1 -top-1 min-w-5 h-5 rounded-full bg-blue-500 px-1 text-[10px] font-black text-white flex items-center justify-center"
-                iconSize={19}
-              />
+<AgentMessageComposer />
+  <NotificationBell
+  buttonClassName="inline-flex size-10 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
+  badgeClassName="absolute -right-1 -top-1 min-w-5 h-5 rounded-full bg-blue-500 px-1 text-[10px] font-black text-white flex items-center justify-center"
+  iconSize={19}
+  />
               <Button
                 variant="ghost"
                 size="icon"

@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
   try {
     const identity = await resolveIdentity();
     const body = await req.json();
-    const { ticketId, message, subject } = body;
+    const { ticketId, message, subject, destination } = body;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Message vide" }, { status: 400 });
@@ -196,14 +196,14 @@ export async function POST(req: NextRequest) {
     // une notification persistante dans la cloche admin, en plus du toast côté UI.
     if (isAdmin && identity.userId) {
       const admins = await prisma.user.findMany({
-        where: { role: "ADMIN" },
+        where: destination === "AGENT" ? { role: "AGENT" } : { role: "ADMIN" },
         select: { id: true },
       });
       if (admins.length) {
         await prisma.notification.createMany({
           data: admins.map((admin) => ({
             userId: admin.id,
-            title: "Nouveau message agent",
+            title: subject ? `Message agent : ${String(subject).slice(0, 80)}` : "Nouveau message agent",
             message: sanitizedMessage.slice(0, 180),
             type: "AGENT_MESSAGE",
             read: false,
