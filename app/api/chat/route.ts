@@ -192,6 +192,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Les agents utilisent le même canal que le support : chaque message crée
+    // une notification persistante dans la cloche admin, en plus du toast côté UI.
+    if (isAdmin && identity.userId) {
+      const admins = await prisma.user.findMany({
+        where: { role: "ADMIN" },
+        select: { id: true },
+      });
+      if (admins.length) {
+        await prisma.notification.createMany({
+          data: admins.map((admin) => ({
+            userId: admin.id,
+            title: "Nouveau message agent",
+            message: sanitizedMessage.slice(0, 180),
+            type: "AGENT_MESSAGE",
+            read: false,
+            metadata: { ticketId: ticket.id, agentId: identity.userId, canReply: true },
+          })),
+        });
+      }
+    }
+
     // ---- Réponse automatique d'Elara (jamais pour un message d'agent) ----
     if (!isAdmin) {
       let elaraReply: string;

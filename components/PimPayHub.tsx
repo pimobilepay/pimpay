@@ -63,6 +63,7 @@ import {
 } from '@/components/ui/dialog'
 import { QRScanner } from '@/components/qr-scanner'
 import { HubTransactionDetailModal, type HubTransactionDetail } from '@/components/hub/HubTransactionDetailModal'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 function CustomerAvatar({ src, name, size = 'h-10 w-10', verified }: { src?: string | null; name: string; size?: string; verified?: boolean }) {
   return (
@@ -1390,6 +1391,11 @@ export default function PimPayHub() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+              <NotificationBell
+                buttonClassName="inline-flex size-10 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
+                badgeClassName="absolute -right-1 -top-1 min-w-5 h-5 rounded-full bg-blue-500 px-1 text-[10px] font-black text-white flex items-center justify-center"
+                iconSize={19}
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -1571,6 +1577,21 @@ export default function PimPayHub() {
                   </motion.div>
                 </Link>
               </div>
+
+              <Link href="/chat" className="block">
+                <GlassCard className="group flex items-center justify-between gap-4 border-blue-500/20 bg-blue-500/[0.04] p-4 transition-colors hover:border-blue-500/40 hover:bg-blue-500/[0.08]">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="rounded-xl bg-blue-500/10 p-2.5">
+                      <Headphones className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground">Contacter l&apos;administration</p>
+                      <p className="text-xs text-muted-foreground">Chat direct, pièces jointes et suivi des réponses</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                </GlassCard>
+              </Link>
             </div>
 
             {/* Agent Workspace : outils pour travailler dans les meilleures conditions */}
