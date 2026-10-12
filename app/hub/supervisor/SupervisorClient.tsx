@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import ImageLightbox from "@/components/ImageLightbox";
 import {
   Users,
   UserCheck,
@@ -42,8 +43,16 @@ type KycUser = {
   phone?: string | null;
   city?: string | null;
   country?: string | null;
+  address?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  occupation?: string | null;
+  idCountry?: string | null;
   idType?: string | null;
   idNumber?: string | null;
+  idDeliveryDate?: string | null;
+  idExpiryDate?: string | null;
   kycFrontUrl?: string | null;
   kycBackUrl?: string | null;
   kycSelfieUrl?: string | null;
@@ -78,6 +87,7 @@ export default function SupervisorClient() {
   const [kycReason, setKycReason] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedKyc, setSelectedKyc] = useState<KycUser | null>(null);
+  const [viewer, setViewer] = useState<{ url: string; label: string } | null>(null);
 
   const { data, error, isLoading, mutate } = useSWR("/api/agent/supervisor", fetcher, {
     refreshInterval: 30000,
@@ -542,19 +552,22 @@ export default function SupervisorClient() {
 
                             {isOpen && (
                               <div className="border-t border-white/5 p-4 bg-slate-900/40">
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-xs">
-                                  <div>
-                                    <p className="text-slate-500 uppercase font-bold text-[9px]">Type de pièce</p>
-                                    <p className="text-white font-semibold">{u.idType || "-"}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-slate-500 uppercase font-bold text-[9px]">N° pièce</p>
-                                    <p className="text-white font-semibold">{u.idNumber || "-"}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-slate-500 uppercase font-bold text-[9px]">Email</p>
-                                    <p className="text-white font-semibold truncate">{u.email || "-"}</p>
-                                  </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-xs">
+                                  {[
+                                    ["Type de pièce", u.idType],
+                                    ["N° pièce", u.idNumber],
+                                    ["Pays du document", u.idCountry],
+                                    ["Expiration", u.idExpiryDate ? new Date(u.idExpiryDate).toLocaleDateString("fr-FR") : null],
+                                    ["Email", u.email],
+                                    ["Date de naissance", u.birthDate ? new Date(u.birthDate).toLocaleDateString("fr-FR") : null],
+                                    ["Nationalité", u.nationality],
+                                    ["Adresse", u.address],
+                                  ].map(([label, value]) => (
+                                    <div key={label}>
+                                      <p className="text-slate-500 uppercase font-bold text-[9px]">{label}</p>
+                                      <p className="text-white font-semibold truncate">{value || "-"}</p>
+                                    </div>
+                                  ))}
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -569,11 +582,18 @@ export default function SupervisorClient() {
                                       </p>
                                       {doc.url ? (
                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                          src={doc.url || "/placeholder.svg"}
-                                          alt={`Document ${doc.label}`}
-                                          className="w-full h-32 object-cover mt-1"
-                                        />
+                                        <button
+                                          type="button"
+                                          className="block w-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                                          onClick={() => setViewer({ url: doc.url as string, label: `Document ${doc.label}` })}
+                                          aria-label={`Visualiser ${doc.label} en détail`}
+                                        >
+                                          <img
+                                            src={doc.url || "/placeholder.svg"}
+                                            alt={`Document ${doc.label}`}
+                                            className="w-full h-32 object-cover mt-1 transition-transform hover:scale-[1.02]"
+                                          />
+                                        </button>
                                       ) : (
                                         <div className="w-full h-32 flex items-center justify-center text-slate-600">
                                           <AlertCircle className="h-6 w-6" />
@@ -628,6 +648,11 @@ export default function SupervisorClient() {
           </>
         )}
       </main>
+      <ImageLightbox
+        url={viewer?.url ?? null}
+        alt={viewer?.label ?? "Document KYC"}
+        onClose={() => setViewer(null)}
+      />
     </div>
   );
 }
