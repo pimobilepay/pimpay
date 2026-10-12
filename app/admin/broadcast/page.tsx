@@ -302,7 +302,6 @@ export default function AdminBroadcastPage() {
       setBroadcasts((prev) =>
         prev.map((b) => (b.id === row.id ? { ...b, active: !b.active } : b))
       );
-      toast.success(row.active ? "Bannière masquée" : "Bannière réaffichée");
     } catch {
       toast.error("Action impossible");
     }
