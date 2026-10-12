@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { AgentSidebar } from "@/components/hub/AgentSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -88,6 +88,38 @@ export default function SupervisorClient() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedKyc, setSelectedKyc] = useState<KycUser | null>(null);
   const [viewer, setViewer] = useState<{ url: string; label: string } | null>(null);
+  const [documentHidden, setDocumentHidden] = useState(false);
+
+  useEffect(() => {
+    if (!viewer) return;
+
+    const blockDocumentActions = (event: Event) => event.preventDefault();
+    const blockCaptureShortcuts = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const blocked =
+        event.key === "PrintScreen" ||
+        (event.ctrlKey && (key === "s" || key === "u" || key === "p")) ||
+        (event.metaKey && (key === "s" || key === "u" || key === "p")) ||
+        (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key));
+
+      if (blocked) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const handleVisibility = () => setDocumentHidden(document.hidden);
+
+    document.addEventListener("contextmenu", blockDocumentActions);
+    document.addEventListener("dragstart", blockDocumentActions);
+    document.addEventListener("keydown", blockCaptureShortcuts, true);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("contextmenu", blockDocumentActions);
+      document.removeEventListener("dragstart", blockDocumentActions);
+      document.removeEventListener("keydown", blockCaptureShortcuts, true);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [viewer]);
 
   const { data, error, isLoading, mutate } = useSWR("/api/agent/supervisor", fetcher, {
     refreshInterval: 30000,
@@ -651,8 +683,28 @@ export default function SupervisorClient() {
       <ImageLightbox
         url={viewer?.url ?? null}
         alt={viewer?.label ?? "Document KYC"}
-        onClose={() => setViewer(null)}
+        onClose={() => {
+          setViewer(null);
+          setDocumentHidden(false);
+        }}
       />
+      {viewer && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none fixed inset-0 z-[60] select-none overflow-hidden transition-opacity",
+            documentHidden ? "opacity-100" : "opacity-25",
+          )}
+        >
+          <div className="grid h-full w-full rotate-[-18deg] grid-cols-2 content-center gap-24 px-8 text-center">
+            {Array.from({ length: 8 }, (_, index) => (
+              <span key={index} className="text-xs font-bold tracking-[0.3em] text-white/70">
+                PIMOBIPAY · CONSULTATION SÉCURISÉE
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
