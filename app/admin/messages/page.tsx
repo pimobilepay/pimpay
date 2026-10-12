@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
+import { NormalMessageInbox } from "@/components/admin/NormalMessageInbox";
 import { toast } from "sonner";
 import {
   ArrowLeft, Send, Users, UserCog, Search, X, Check, CheckCircle2,
@@ -336,8 +337,9 @@ export default function AdminMessagesPage() {
         <StepIndicator currentStep={step} steps={["Destinataires", "Template", "Contenu"]} />
       </div>
 
-      <div className="px-6 py-6 space-y-6 max-w-2xl mx-auto">
-
+<div className="px-6 py-6 space-y-6 max-w-2xl mx-auto">
+  <NormalMessageInbox />
+  
         {/* =================== STEP 0 : RECIPIENTS =================== */}
         {step === 0 && (
           <div className="space-y-5">

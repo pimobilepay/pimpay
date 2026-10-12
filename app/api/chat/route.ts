@@ -192,22 +192,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Les agents utilisent le même canal que le support : chaque message crée
-    // une notification persistante dans la cloche admin, en plus du toast côté UI.
+    // Un message normal du Hub reste dans la boîte de réception (SupportTicket),
+    // mais crée aussi une notification persistante chez les destinataires.
     if (isAdmin && identity.userId) {
-      const admins = await prisma.user.findMany({
-        where: destination === "AGENT" ? { role: "AGENT" } : { role: "ADMIN" },
+      const currentUser = await prisma.user.findUnique({ where: { id: identity.userId }, select: { role: true } });
+      const targetRole = destination === "AGENT" ? "AGENT" : "ADMIN";
+      const recipients = await prisma.user.findMany({
+        where: { role: targetRole, ...(targetRole === "AGENT" ? { id: { not: identity.userId } } : {}) },
         select: { id: true },
       });
-      if (admins.length) {
+      if (recipients.length) {
         await prisma.notification.createMany({
-          data: admins.map((admin) => ({
-            userId: admin.id,
-            title: subject ? `Message agent : ${String(subject).slice(0, 80)}` : "Nouveau message agent",
+          data: recipients.map((recipient) => ({
+            userId: recipient.id,
+            title: subject ? `Message ${currentUser?.role === "AGENT" ? "agent" : "admin"} : ${String(subject).slice(0, 80)}` : "Nouveau message normal",
             message: sanitizedMessage.slice(0, 180),
             type: "AGENT_MESSAGE",
             read: false,
-            metadata: { ticketId: ticket.id, agentId: identity.userId, canReply: true },
+            metadata: { ticketId: ticket.id, senderId: identity.userId, destination: targetRole, canReply: true },
           })),
         });
       }
