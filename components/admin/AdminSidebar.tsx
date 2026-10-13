@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   BarChart3,
+  Mail,
   ChevronRight,
   Coins,
   LayoutDashboard,
@@ -20,6 +22,7 @@ const navGroups = [
     items: [
       { label: "Dashboard", icon: LayoutDashboard, path: "/admin" },
       { label: "Monitoring", icon: Activity, path: "/admin/monitoring" },
+      { label: "Messages", icon: Mail, path: "/admin/messages" },
     ],
   },
   {
@@ -40,8 +43,12 @@ const navGroups = [
   },
 ];
 
+const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((res) => res.json());
+
 export function AdminSidebar({ desktopMode }: { desktopMode: boolean }) {
   const pathname = usePathname();
+  const { data: messageData } = useSWR("/api/admin/message-count", fetcher, { refreshInterval: 15000 });
+  const messageCount = messageData?.count ?? 0;
   const router = useRouter();
   const activeGroup = navGroups.find((group) =>
     group.items.some((item) => item.path === "/admin" ? pathname === "/admin" : pathname.startsWith(item.path)),
@@ -101,6 +108,7 @@ export function AdminSidebar({ desktopMode }: { desktopMode: boolean }) {
                         >
                           <Icon className="h-4 w-4 shrink-0" />
                           <span className="flex-1">{item.label}</span>
+                          {item.path === "/admin/messages" && messageCount > 0 && <span className="min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[10px] font-black text-white">{messageCount > 99 ? "99+" : messageCount}</span>}
                           {isActive && <ChevronRight className="h-4 w-4" />}
                         </button>
                       );
