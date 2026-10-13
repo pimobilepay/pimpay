@@ -18,6 +18,7 @@ import {
   IdCard,
   QrCode,
   Headphones,
+  Mail,
   History,
   UserCheck,
   PiggyBank,
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/hub/history", label: "Historique", icon: History },
   { href: "/hub/reports", label: "Rapports", icon: FileText },
   { href: "/hub/support", label: "Support", icon: Headphones },
+  { href: "/hub/support", label: "Messages", icon: Mail },
   { href: "/hub/settings", label: "Parametres", icon: Settings },
 ];
 
@@ -55,6 +57,8 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
   const { data: dashboard } = useSWR("/api/agent/dashboard", fetcher, {
     revalidateOnFocus: false,
   });
+  const { data: messageData } = useSWR("/api/admin/message-count", fetcher, { refreshInterval: 15000 });
+  const messageCount = messageData?.count ?? 0;
   const isSupervisor = dashboard?.agent?.agentRole === "SUPERVISOR";
 
   // Insère le lien "Supervision" juste après "Clients" pour les superviseurs
@@ -112,7 +116,8 @@ export function AgentSidebar({ isMobile = false }: AgentSidebarProps) {
                 )}
               >
                 <item.icon className="h-5 w-5 shrink-0" />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/hub/support" && messageCount > 0 && <span className="min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[10px] font-black text-white">{messageCount > 99 ? "99+" : messageCount}</span>}
               </Link>
             );
           })}

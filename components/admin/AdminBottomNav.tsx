@@ -2,11 +2,12 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutGrid, Users, Settings, BarChart3, Landmark, Coins
+  LayoutGrid, Users, Settings, BarChart3, Landmark, Coins, Mail
 } from "lucide-react";
 
 const navItems = [
   { label: "Accueil", icon: LayoutGrid, path: "/admin" },
+  { label: "Messages", icon: Mail, path: "/admin/messages" },
   { label: "Users", icon: Users, path: "/admin/users" },
   { label: "Tresorerie", icon: Landmark, path: "/admin/treasury" },
   { label: "Staking", icon: Coins, path: "/admin/staking" },
