@@ -266,11 +266,11 @@ export default function PaymentRequestPage() {
           </p>
         </div>
         <div
-          className="w-11 h-11 rounded-2xl flex items-center justify-center border border-emerald-500/30 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 overflow-hidden"
+          className="w-11 h-11 rounded-[14px] flex items-center justify-center border border-emerald-500/30 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 overflow-hidden"
           title={userName || undefined}
         >
           {userAvatar ? (
-            <img src={userAvatar || "/placeholder.svg"} alt={userName || "avatar"} className="w-full h-full object-cover" />
+            <img src={userAvatar || "/placeholder.svg"} alt={userName || "avatar"} className="w-full h-full rounded-[10px] object-cover" />
           ) : userName ? (
             <span className="text-xs font-black text-emerald-400">
               {userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
@@ -334,7 +334,18 @@ export default function PaymentRequestPage() {
                   </div>
                 ) : (
                   <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-500/20">
-                    <QRCodeSVG value={shareUrl} size={176} level="H" includeMargin={false} />
+                    <QRCodeSVG
+                      value={shareUrl}
+                      size={176}
+                      level="H"
+                      includeMargin={false}
+                      imageSettings={userAvatar ? {
+                        src: userAvatar,
+                        height: 38,
+                        width: 38,
+                        excavate: true,
+                      } : undefined}
+                    />
                   </div>
                 )}
 

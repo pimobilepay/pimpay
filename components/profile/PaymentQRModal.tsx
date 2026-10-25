@@ -17,6 +17,7 @@ interface PaymentQRUser {
   email?: string;
   role?: string;
   agentId?: string;
+  avatar?: string;
 }
 
 interface PaymentQRModalProps {
@@ -84,7 +85,18 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
         {/* QR */}
         <div className="flex flex-col items-center gap-5">
           <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-blue-500/20">
-            <QRCodeSVG value={qrValue} size={210} level="M" includeMargin />
+            <QRCodeSVG
+              value={qrValue}
+              size={210}
+              level="M"
+              includeMargin
+              imageSettings={user.avatar ? {
+                src: user.avatar,
+                height: 46,
+                width: 46,
+                excavate: true,
+              } : undefined}
+            />
           </div>
 
           {/* Nom + identifiant */}
