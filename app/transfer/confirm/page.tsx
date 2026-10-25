@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, ShieldCheck, Zap, Loader2, Lock, X, Wallet
+  ArrowLeft, ShieldCheck, Zap, Loader2, Lock, X, Wallet, Delete
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/LanguageContext";
@@ -231,38 +231,51 @@ function ConfirmContent() {
 
       {/* PIN MODAL */}
       {isPinModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-[#020617]/95 backdrop-blur-xl flex flex-col justify-end animate-in slide-in-from-bottom duration-300">
-          <div className="p-8 pb-12 bg-slate-900/95 rounded-t-[40px] border-t border-emerald-500/20 shadow-[0_-20px_80px_rgba(16,185,129,0.16)]">
-            <div className="flex justify-between items-center mb-10">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="transfer-pin-title"
+        >
+          <div className="w-full max-w-sm overflow-hidden rounded-[32px] border border-emerald-500/20 bg-slate-900/95 p-6 shadow-[0_20px_80px_rgba(16,185,129,0.16)] sm:p-8">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-white">Validation PIN</h2>
+                <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                <h2 id="transfer-pin-title" className="text-sm font-black uppercase tracking-widest text-white">Validation PIN</h2>
               </div>
               <button
+                type="button"
+                aria-label="Fermer la saisie du PIN"
                 onClick={() => { setIsPinModalOpen(false); setPin(""); }}
-                className="p-2 bg-white/5 rounded-full hover:bg-white/10"
+                className="rounded-full bg-white/5 p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="flex justify-center gap-4 mb-12">
+            <p className="mt-3 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              Entrez votre code secret pour confirmer
+            </p>
+
+            <div className="my-8 flex justify-center gap-4" aria-label={`${pin.length} chiffres sur 4 saisis`}>
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-4 h-4 rounded-full border-2 border-emerald-500/30 transition-all duration-300 ${pin.length > i ? "bg-emerald-500 scale-125 shadow-[0_0_20px_rgba(16,185,129,0.6)] border-emerald-400" : ""}`}
+                  className={`h-4 w-4 rounded-full border-2 border-emerald-500/30 transition-all duration-300 ${pin.length > i ? "scale-125 border-emerald-400 bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.6)]" : "bg-transparent"}`}
                 />
               ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-4 max-w-xs mx-auto">
+            <div className="mx-auto grid max-w-xs grid-cols-3 gap-3 sm:gap-4">
               {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "delete"].map((key, i) => (
                 <button
                   key={i}
+                  type="button"
+                  aria-label={key === "delete" ? "Supprimer le dernier chiffre" : key || undefined}
                   onClick={() => key === "delete" ? handleDelete() : key !== "" && handleNumberClick(key)}
-                  className={`h-16 rounded-2xl flex items-center justify-center text-xl font-black transition-all active:bg-emerald-600/40 active:scale-90 ${key === "" ? "invisible" : "bg-white/5 border border-white/5 hover:border-emerald-500/30"}`}
+                  className={`h-14 rounded-2xl flex items-center justify-center text-xl font-black transition-all active:scale-90 active:bg-emerald-600/40 sm:h-16 ${key === "" ? "invisible" : "border border-white/5 bg-white/5 text-white hover:border-emerald-500/30 hover:bg-white/10"}`}
                 >
-                  {key === "delete" ? "\u2190" : key}
+                  {key === "delete" ? <Delete size={22} /> : key}
                 </button>
               ))}
             </div>
