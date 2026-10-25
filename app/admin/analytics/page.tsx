@@ -2749,30 +2749,30 @@ export default function AdminAnalyticsPage() {
                     <CircleDollarSign size={16} className="text-blue-400" />
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Volume Total</p>
                   </div>
-                  <p className="text-2xl font-black text-white">{formatAmount(txHealth?.totalVolume || 0)}</p>
-                  <p className="text-[9px] text-blue-400 mt-1">+{formatAmount(txHealth?.volumeToday || 0)} {"aujourd'hui"}</p>
+                  <p className="text-[clamp(1.05rem,5vw,1.5rem)] font-black text-white tabular-nums whitespace-nowrap leading-none">{formatAmount(txHealth?.totalVolume || 0)}</p>
+                  <p className="text-[9px] text-blue-400 mt-2 tabular-nums whitespace-nowrap">+{formatAmount(txHealth?.volumeToday || 0)} {"aujourd'hui"}</p>
                 </div>
                 <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.02] border border-emerald-500/15 rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Receipt size={16} className="text-emerald-400" />
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Frais Générés</p>
                   </div>
-                  <p className="text-2xl font-black text-white">{formatAmount(txHealth?.totalFees || 0)}</p>
-                  <p className="text-[9px] text-emerald-400 mt-1">+{formatAmount(txHealth?.feesToday || 0)} {"aujourd'hui"}</p>
+                  <p className="text-[clamp(1.05rem,5vw,1.5rem)] font-black text-white tabular-nums whitespace-nowrap leading-none">{formatAmount(txHealth?.totalFees || 0)}</p>
+                  <p className="text-[9px] text-emerald-400 mt-2 tabular-nums whitespace-nowrap">+{formatAmount(txHealth?.feesToday || 0)} {"aujourd'hui"}</p>
                 </div>
                 <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Coins size={16} className="text-violet-400" />
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Montant Moyen</p>
                   </div>
-                  <p className="text-xl font-black text-white">{formatAmount(txHealth?.avgAmount || 0)}</p>
+                  <p className="text-[clamp(1rem,4.5vw,1.25rem)] font-black text-white tabular-nums whitespace-nowrap leading-none">{formatAmount(txHealth?.avgAmount || 0)}</p>
                 </div>
                 <div className="bg-slate-900/60 border border-white/[0.06] rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Percent size={16} className="text-amber-400" />
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-[1.5px]">Frais Moyen</p>
                   </div>
-                  <p className="text-xl font-black text-white">{formatAmount(txHealth?.avgFee || 0)}</p>
+                  <p className="text-[clamp(1rem,4.5vw,1.25rem)] font-black text-white tabular-nums whitespace-nowrap leading-none">{formatAmount(txHealth?.avgFee || 0)}</p>
                 </div>
               </div>
             </div>
@@ -2811,7 +2811,7 @@ export default function AdminAnalyticsPage() {
                             <span className="font-bold text-slate-300">{t.name}</span>
                             <span className="text-slate-600">({t.count})</span>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-end gap-2 sm:gap-3 min-w-0 text-right tabular-nums whitespace-nowrap">
                             <span className="font-black text-white">{formatAmount(t.volume)}</span>
                             <span className="text-emerald-400 text-[9px]">frais {formatAmount(t.fees)}</span>
                           </div>
