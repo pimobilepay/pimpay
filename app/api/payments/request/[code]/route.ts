@@ -30,8 +30,8 @@ export async function GET(
     const request = await prisma.paymentRequest.findUnique({
       where: { code },
       include: {
-        requester: { select: { id: true, username: true, name: true } },
-        payer: { select: { username: true, name: true } },
+        requester: { select: { id: true, username: true, name: true, avatar: true } },
+        payer: { select: { username: true, name: true, avatar: true } },
       },
     });
 

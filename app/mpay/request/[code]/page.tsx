@@ -27,8 +27,8 @@ interface RequestDetails {
   expiresAt: string;
   paidAt: string | null;
   reference: string | null;
-  requester: { id: string; username: string; name: string };
-  payer: { username: string; name: string } | null;
+  requester: { id: string; username: string; name: string; avatar: string | null };
+  payer: { username: string; name: string; avatar: string | null } | null;
   isOwner: boolean;
 }
 
@@ -46,6 +46,8 @@ export default function PayRequestPage({
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Rafraichit le compte a rebours chaque minute
@@ -106,12 +108,17 @@ export default function PayRequestPage({
 
   const handlePay = async () => {
     if (!request) return;
+    if (!/^\d{4}$|^\d{6}$/.test(pin)) {
+      toast.error("Entrez votre code PIN à 4 ou 6 chiffres.");
+      return;
+    }
     setPaying(true);
     try {
       const res = await fetch(`/api/payments/request/${code}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ pin }),
       });
       const data = await res.json();
 
@@ -224,8 +231,12 @@ export default function PayRequestPage({
 
             {/* Demandeur */}
             <div className="flex flex-col items-center gap-2">
-              <div className="w-14 h-14 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-600/25">
-                <User size={26} className="text-white" />
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-600/25 overflow-hidden">
+                {request.requester.avatar ? (
+                  <img src={request.requester.avatar} alt={`Avatar de ${requesterName}`} className="w-full h-full object-cover" />
+                ) : (
+                  <User size={26} className="text-white" />
+                )}
               </div>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
                 {t("mpay.request.requestedBy")}
@@ -291,13 +302,32 @@ export default function PayRequestPage({
         {/* ACTION */}
         {canPay ? (
           <section className="space-y-4">
+            {showPin && (
+              <div className="bg-slate-900/80 border border-emerald-500/20 rounded-[2rem] p-5 space-y-3">
+                <label htmlFor="mpay-request-pin" className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Confirmez avec votre code PIN
+                </label>
+                <input
+                  id="mpay-request-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="••••"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-center text-2xl tracking-[0.5em] outline-none focus:border-emerald-500/60"
+                  aria-label="Code PIN"
+                />
+              </div>
+            )}
             <button
-              onClick={handlePay}
+              onClick={() => (showPin ? handlePay() : setShowPin(true))
               disabled={paying}
               className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 p-6 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm shadow-2xl shadow-emerald-600/40 flex items-center justify-center gap-4 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
             >
               {paying ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} fill="currentColor" />}
-              {paying ? t("mpay.request.paying") : t("mpay.request.payNow")}
+              {paying ? t("mpay.request.paying") : showPin ? "Confirmer le paiement" : t("mpay.request.payNow")}
             </button>
             <div className="flex items-center justify-center gap-2 text-slate-600">
               <ShieldCheck size={12} />

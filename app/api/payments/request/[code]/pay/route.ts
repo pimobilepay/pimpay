@@ -7,8 +7,8 @@ import { verifyJWT } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
-import { enforceTxRateLimit, getClientIp } from "@/lib/tx-rate-limit";
 import { enforcePiPolicy, WithdrawalPolicyError } from "@/lib/withdrawal-limits";
+import bcrypt from "bcryptjs";
 
 function getWalletType(currency: string): WalletType {
   if (currency === "PI") return WalletType.PI;
@@ -37,10 +37,19 @@ export async function POST(
     }
     const payerId = payload.id;
 
-    // Rate limit (meme protection que les transferts).
-    const ip = getClientIp(req);
-    const limited = await enforceTxRateLimit({ userId: payerId, ip, action: "send" });
-    if (limited) return limited;
+    const body = await req.json().catch(() => ({}));
+    const pin = typeof body.pin === "string" ? body.pin.trim() : "";
+    if (!/^\d{4}$|^\d{6}$/.test(pin)) {
+      return NextResponse.json({ error: "Code PIN requis pour confirmer le paiement.", code: "PIN_REQUIRED" }, { status: 400 });
+    }
+
+    const payerSecurity = await prisma.user.findUnique({
+      where: { id: payerId },
+      select: { pin: true },
+    });
+    if (!payerSecurity?.pin || !(await bcrypt.compare(pin, payerSecurity.pin))) {
+      return NextResponse.json({ error: "Code PIN incorrect.", code: "INVALID_PIN" }, { status: 401 });
+    }
 
     const { code } = await params;
 
