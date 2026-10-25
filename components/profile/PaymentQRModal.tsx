@@ -84,7 +84,7 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
 
         {/* QR */}
         <div className="flex flex-col items-center gap-5">
-          <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-blue-500/20">
+          <div className="relative p-4 bg-white rounded-3xl shadow-2xl shadow-blue-500/20">
             <QRCodeSVG
               value={qrValue}
               size={210}
@@ -92,11 +92,23 @@ export function PaymentQRModal({ user, onClose }: PaymentQRModalProps) {
               includeMargin
               imageSettings={user.avatar ? {
                 src: user.avatar,
-                height: 46,
-                width: 46,
+                height: 52,
+                width: 52,
                 excavate: true,
               } : undefined}
             />
+            {user.avatar && (
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[46px] w-[46px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border-4 border-white bg-white p-0.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={user.avatar}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full rounded-lg object-cover"
+                  crossOrigin="anonymous"
+                />
+              </div>
+            )}
           </div>
 
           {/* Nom + identifiant */}

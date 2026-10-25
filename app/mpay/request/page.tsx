@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ArrowDownLeft, Check, Copy, Clock, Loader2, Plus,
   Share2, ShieldCheck, Trash2, HandCoins, Hourglass, ChevronRight,
-  Radio, CheckCircle2, User,
+  Radio, CheckCircle2,
 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePaymentRequestWatch, type WatchedRequest } from "@/hooks/usePaymentRequestWatch";
@@ -40,9 +40,8 @@ export default function PaymentRequestPage() {
   const { t, locale } = useLanguage();
   const dateLocale = locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "fr-FR";
 
-  // Profil de l'utilisateur (avatar affiche dans l'en-tete)
+  // Avatar de l'utilisateur, intégré au QR code de partage
   const [userAvatar, setUserAvatar] = useState("");
-  const [userName, setUserName] = useState("");
 
   // Formulaire
   const [amount, setAmount] = useState("");
@@ -95,7 +94,6 @@ export default function PaymentRequestPage() {
       .then((data) => {
         if (data.success && data.user) {
           setUserAvatar(data.user.avatar || "");
-          setUserName(data.user.name || data.user.username || "");
         }
       })
       .catch(() => {});
@@ -265,20 +263,7 @@ export default function PaymentRequestPage() {
             {t("mpay.request.subtitle")}
           </p>
         </div>
-        <div
-          className="w-11 h-11 rounded-[14px] flex items-center justify-center border border-emerald-500/30 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 overflow-hidden"
-          title={userName || undefined}
-        >
-          {userAvatar ? (
-            <img src={userAvatar || "/placeholder.svg"} alt={userName || "avatar"} className="w-full h-full rounded-[10px] object-cover" />
-          ) : userName ? (
-            <span className="text-xs font-black text-emerald-400">
-              {userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-            </span>
-          ) : (
-            <User size={18} className="text-emerald-400" />
-          )}
-        </div>
+        <div className="w-11" aria-hidden="true" />
       </header>
 
       <main className="px-6 pt-6 pb-24 space-y-8">
@@ -333,7 +318,7 @@ export default function PaymentRequestPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-500/20">
+                  <div className="relative p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-500/20">
                     <QRCodeSVG
                       value={shareUrl}
                       size={176}
@@ -341,11 +326,23 @@ export default function PaymentRequestPage() {
                       includeMargin={false}
                       imageSettings={userAvatar ? {
                         src: userAvatar,
-                        height: 38,
-                        width: 38,
+                        height: 44,
+                        width: 44,
                         excavate: true,
                       } : undefined}
                     />
+                    {userAvatar && (
+                      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[38px] w-[38px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border-4 border-white bg-white p-0.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={userAvatar}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-full w-full rounded-lg object-cover"
+                          crossOrigin="anonymous"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
