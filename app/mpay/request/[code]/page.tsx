@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowUpRight, Check, Copy, Hourglass, Loader2,
-  ShieldCheck, Share2, TriangleAlert, User, Zap,
+  ReceiptText, ShieldCheck, Share2, TriangleAlert, User, Zap,
 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import {
@@ -295,6 +295,27 @@ export default function PayRequestPage({
               <p className="text-[9px] font-mono font-bold text-slate-600 break-all text-center">
                 {request.reference}
               </p>
+            )}
+
+            {request.status === "PAID" && request.reference && (
+              <button
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams({
+                    amount: String(request.amount),
+                    currency: request.currency,
+                    to: `@${request.requester.username}`,
+                    txid: request.reference || request.code,
+                    date: request.paidAt || request.expiresAt,
+                    method: "mpay",
+                  });
+                  router.push(`/mpay/details?${params.toString()}`);
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3.5 text-[10px] font-black uppercase tracking-wider text-emerald-300 transition-all hover:bg-emerald-500/20 active:scale-95"
+              >
+                <ReceiptText data-icon="inline-start" />
+                Reçu de transaction
+              </button>
             )}
           </div>
         </section>

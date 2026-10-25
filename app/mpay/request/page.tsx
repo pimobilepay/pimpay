@@ -48,7 +48,7 @@ export default function PaymentRequestPage() {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("PI");
   const [note, setNote] = useState("");
-  const [duration, setDuration] = useState<string>("7d");
+  const [duration, setDuration] = useState<string>("10m");
   const [creating, setCreating] = useState(false);
 
   // Demande fraichement creee (ecran de partage)
@@ -526,7 +526,7 @@ export default function PaymentRequestPage() {
                     <Clock size={11} />
                     {t("mpay.request.duration")}
                   </span>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {REQUEST_DURATIONS.map((d) => (
                       <button
                         key={d.value}
