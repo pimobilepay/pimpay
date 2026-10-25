@@ -332,7 +332,7 @@ export default function PaymentRequestPage() {
                       } : undefined}
                     />
                     {userAvatar && (
-                      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[38px] w-[38px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border-4 border-white bg-white p-0.5">
+                      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[40px] w-[40px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border-[3px] border-black bg-black p-0.5 ring-2 ring-white">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={userAvatar}
