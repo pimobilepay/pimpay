@@ -87,21 +87,21 @@ function ConfirmContent() {
   }, [currency]);
 
   const handleNumberClick = (num: string) => {
-    if (pin.length < 4) setPin(prev => prev + num);
+    if (pin.length >= 4 || isLoading) return;
+
+    const nextPin = `${pin}${num}`;
+    setPin(nextPin);
+
+    if (nextPin.length === 4) {
+      executeTransaction(nextPin);
+    }
   };
 
   const handleDelete = () => {
     setPin(prev => prev.slice(0, -1));
   };
 
-  // Execute transaction once PIN is complete
-  useEffect(() => {
-    if (pin.length === 4) {
-      executeTransaction();
-    }
-  }, [pin]);
-
-  const executeTransaction = async () => {
+  const executeTransaction = async (transactionPin: string) => {
     setIsPinModalOpen(false);
     setIsLoading(true);
 
@@ -115,7 +115,7 @@ function ConfirmContent() {
           amount: amount,
           currency: currency,
           description: description,
-          pin,
+          pin: transactionPin,
         }),
       });
 
