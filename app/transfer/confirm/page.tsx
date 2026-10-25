@@ -115,6 +115,7 @@ function ConfirmContent() {
           amount: amount,
           currency: currency,
           description: description,
+          pin,
         }),
       });
 

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { verifyJWT } from "@/lib/auth";
@@ -150,6 +151,26 @@ export async function POST(req: NextRequest) {
       ""
     ).trim();
     const description = body.description || "";
+    const pin = typeof body.pin === "string" ? body.pin.trim() : "";
+
+    if (!/^\d{4,6}$/.test(pin)) {
+      return NextResponse.json(
+        { error: "Code PIN requis pour confirmer la transaction.", code: "PIN_REQUIRED" },
+        { status: 400 }
+      );
+    }
+
+    const senderWithPin = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { pin: true },
+    });
+    const pinIsValid = Boolean(senderWithPin?.pin && await bcrypt.compare(pin, senderWithPin.pin));
+    if (!pinIsValid) {
+      return NextResponse.json(
+        { error: "Code PIN incorrect.", code: "INVALID_PIN" },
+        { status: 401 }
+      );
+    }
 
     if (!recipientInput) {
       return NextResponse.json({ error: "Destinataire requis" }, { status: 400 });
