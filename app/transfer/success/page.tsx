@@ -244,7 +244,7 @@ function SuccessContent() {
                 isPiPending ? "text-amber-400" : "text-emerald-400"
               }`}
             >
-              {isPiPending ? "En Attente" : "Transaction Confirmee"}
+              {isPiPending ? "En Attente" : "Transaction Confirmée"}
             </span>
           </div>
           <button
@@ -320,7 +320,7 @@ function SuccessContent() {
             ) : isExternalMode ? (
               <>Retrait <span className="text-emerald-400">Enregistre</span></>
             ) : (
-              <>Transfert <span className="text-emerald-400">Reussi</span></>
+              <>Transfert <span className="text-emerald-400">Réussi</span></>
             )}
           </h1>
           <p className="text-xs text-slate-400 font-medium">

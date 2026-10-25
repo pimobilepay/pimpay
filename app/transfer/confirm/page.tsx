@@ -216,7 +216,7 @@ function ConfirmContent() {
         className={`w-full py-6 rounded-[28px] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl ${
           isInsufficient || walletBalance === null
             ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-            : "bg-blue-600 text-white shadow-blue-600/20"
+            : "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-600/30"
         }`}
       >
         {isLoading ? <Loader2 className="animate-spin" /> : (
@@ -232,10 +232,10 @@ function ConfirmContent() {
       {/* PIN MODAL */}
       {isPinModalOpen && (
         <div className="fixed inset-0 z-[100] bg-[#020617]/95 backdrop-blur-xl flex flex-col justify-end animate-in slide-in-from-bottom duration-300">
-          <div className="p-8 pb-12 bg-slate-900/90 rounded-t-[40px] border-t border-white/10 shadow-[0_-20px_80px_rgba(0,0,0,0.8)]">
+          <div className="p-8 pb-12 bg-slate-900/95 rounded-t-[40px] border-t border-emerald-500/20 shadow-[0_-20px_80px_rgba(16,185,129,0.16)]">
             <div className="flex justify-between items-center mb-10">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 <h2 className="text-sm font-black uppercase tracking-widest text-white">Validation PIN</h2>
               </div>
               <button
@@ -250,7 +250,7 @@ function ConfirmContent() {
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-4 h-4 rounded-full border-2 border-blue-500/30 transition-all duration-300 ${pin.length > i ? "bg-blue-500 scale-125 shadow-[0_0_20px_rgba(59,130,246,0.6)] border-blue-400" : ""}`}
+                  className={`w-4 h-4 rounded-full border-2 border-emerald-500/30 transition-all duration-300 ${pin.length > i ? "bg-emerald-500 scale-125 shadow-[0_0_20px_rgba(16,185,129,0.6)] border-emerald-400" : ""}`}
                 />
               ))}
             </div>
@@ -260,7 +260,7 @@ function ConfirmContent() {
                 <button
                   key={i}
                   onClick={() => key === "delete" ? handleDelete() : key !== "" && handleNumberClick(key)}
-                  className={`h-16 rounded-2xl flex items-center justify-center text-xl font-black transition-all active:bg-blue-600/40 active:scale-90 ${key === "" ? "invisible" : "bg-white/5 border border-white/5 hover:border-white/20"}`}
+                  className={`h-16 rounded-2xl flex items-center justify-center text-xl font-black transition-all active:bg-emerald-600/40 active:scale-90 ${key === "" ? "invisible" : "bg-white/5 border border-white/5 hover:border-emerald-500/30"}`}
                 >
                   {key === "delete" ? "\u2190" : key}
                 </button>
