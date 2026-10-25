@@ -10,9 +10,10 @@ import { sendNotification } from "@/lib/notifications";
 
 // Durees d'expiration autorisees (au choix de l'utilisateur).
 const DURATION_MS: Record<string, number> = {
-  "24h": 24 * 60 * 60 * 1000,
-  "7d": 7 * 24 * 60 * 60 * 1000,
-  "30d": 30 * 24 * 60 * 60 * 1000,
+  "1m": 1 * 60 * 1000,
+  "5m": 5 * 60 * 1000,
+  "10m": 10 * 60 * 1000,
+  "30m": 30 * 60 * 1000,
 };
 
 const ALLOWED_CURRENCIES = [
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const currency = (body.currency || "PI").toUpperCase().trim();
     const note = typeof body.note === "string" ? body.note.slice(0, 200) : "";
-    const duration = String(body.duration || "7d");
+    const duration = String(body.duration || "10m");
 
     if (!ALLOWED_CURRENCIES.includes(currency)) {
       return NextResponse.json({ error: "Devise non supportee." }, { status: 400 });

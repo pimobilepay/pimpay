@@ -7,9 +7,10 @@ export type PaymentRequestStatus = "PENDING" | "PAID" | "CANCELLED" | "EXPIRED";
 
 /** Durees d'expiration proposees a l'utilisateur (cles attendues par l'API). */
 export const REQUEST_DURATIONS = [
-  { value: "24h", labelKey: "mpay.request.duration24h" },
-  { value: "7d", labelKey: "mpay.request.duration7d" },
-  { value: "30d", labelKey: "mpay.request.duration30d" },
+  { value: "1m", labelKey: "mpay.request.duration1m" },
+  { value: "5m", labelKey: "mpay.request.duration5m" },
+  { value: "10m", labelKey: "mpay.request.duration10m" },
+  { value: "30m", labelKey: "mpay.request.duration30m" },
 ] as const;
 
 /** Devises acceptees par l'API (ALLOWED_CURRENCIES). */

@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowUpRight, Check, Copy, Hourglass, Loader2,
-  ShieldCheck, Share2, TriangleAlert, User, Zap,
+  ReceiptText, ShieldCheck, Share2, TriangleAlert, User, Zap,
 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import {
@@ -233,7 +233,7 @@ export default function PayRequestPage({
             <div className="flex flex-col items-center gap-2">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-600/25 overflow-hidden">
                 {request.requester.avatar ? (
-                  <img src={request.requester.avatar} alt={`Avatar de ${requesterName}`} className="w-full h-full object-cover" />
+                  <img src={request.requester.avatar} alt={`Avatar de ${requesterName}`} className="w-full h-full rounded-[14px] object-cover" />
                 ) : (
                   <User size={26} className="text-white" />
                 )}
@@ -296,6 +296,27 @@ export default function PayRequestPage({
                 {request.reference}
               </p>
             )}
+
+            {request.status === "PAID" && request.reference && (
+              <button
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams({
+                    amount: String(request.amount),
+                    currency: request.currency,
+                    to: `@${request.requester.username}`,
+                    txid: request.reference || request.code,
+                    date: request.paidAt || request.expiresAt,
+                    method: "mpay",
+                  });
+                  router.push(`/mpay/details?${params.toString()}`);
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3.5 text-[10px] font-black uppercase tracking-wider text-emerald-300 transition-all hover:bg-emerald-500/20 active:scale-95"
+              >
+                <ReceiptText data-icon="inline-start" />
+                Reçu de transaction
+              </button>
+            )}
           </div>
         </section>
 
@@ -347,7 +368,18 @@ export default function PayRequestPage({
                 </span>
               </div>
               <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-500/20">
-                <QRCodeSVG value={shareUrl} size={164} level="H" includeMargin={false} />
+                <QRCodeSVG
+                  value={shareUrl}
+                  size={164}
+                  level="H"
+                  includeMargin={false}
+                  imageSettings={request.requester.avatar ? {
+                    src: request.requester.avatar,
+                    height: 36,
+                    width: 36,
+                    excavate: true,
+                  } : undefined}
+                />
               </div>
               <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-3">
                 <p className="text-[10px] font-mono font-bold text-emerald-400 break-all leading-relaxed">

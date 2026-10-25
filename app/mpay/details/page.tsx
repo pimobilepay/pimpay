@@ -28,7 +28,8 @@ export default function PaymentDetailsPage() {
   const to = searchParams.get("to") || "Utilisateur PIMOBIPAY";
   const txid = searchParams.get("txid") || "TX-PI-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const method = searchParams.get("method") || "wallet";
-  const date = new Date().toLocaleString("fr-FR", {
+  const dateValue = searchParams.get("date");
+  const date = new Date(dateValue || Date.now()).toLocaleString("fr-FR", {
     day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
   });
 
@@ -43,7 +44,8 @@ export default function PaymentDetailsPage() {
     wallet: "Pi Wallet",
     usd: "Solde USD",
     card: "Visa PIMOBIPAY",
-    external: "Pi Browser"
+    external: "Pi Browser",
+    mpay: "Demande mPay"
   };
 
   return (

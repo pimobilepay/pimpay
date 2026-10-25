@@ -394,6 +394,7 @@ export default function ProfilePage() {
             email: user.email,
             role: user.agentRole || user.role,
             agentId: user.agentId,
+            avatar: user.avatar,
           }}
           onClose={() => setShowPaymentQR(false)}
         />
