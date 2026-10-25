@@ -322,7 +322,7 @@ export default function PayRequestPage({
               </div>
             )}
             <button
-              onClick={() => (showPin ? handlePay() : setShowPin(true))
+              onClick={() => (showPin ? handlePay() : setShowPin(true))}
               disabled={paying}
               className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 p-6 rounded-[2rem] font-black uppercase tracking-[0.15em] text-sm shadow-2xl shadow-emerald-600/40 flex items-center justify-center gap-4 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
             >
