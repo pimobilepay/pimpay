@@ -18,6 +18,8 @@ import {
   FileText,
   Lock,
   Banknote,
+  X,
+  Delete,
 } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { usePiPrice } from "@/hooks/usePiPrice";
@@ -130,6 +132,8 @@ function SummaryContent() {
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pin, setPin] = useState("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [feeConfig, setFeeConfig] = useState<{
@@ -258,10 +262,25 @@ const data = useMemo(() => {
     !!data.recipientId &&
     data.amount >= 0.00000001 &&
     !!data.currency;
-  const handleConfirm = async () => {
-    if (!canConfirm) {
-      if (!data.recipientId) toast.error("Destinataire manquant.");
-      else if (data.amount < 0.00000001) toast.error("Montant minimum: 0.00000001");
+  const handleNumberClick = (digit: string) => {
+    if (pin.length >= 4 || isLoading) return;
+    const nextPin = `${pin}${digit}`;
+    setPin(nextPin);
+    if (nextPin.length === 4) handleConfirm(nextPin);
+  };
+
+  const handleConfirm = async (transactionPin?: string) => {
+    if (!transactionPin) {
+      if (!canConfirm) {
+        if (!data.recipientId) toast.error("Destinataire manquant.");
+        else if (data.amount < 0.00000001) toast.error("Montant minimum: 0.00000001");
+        return;
+      }
+      if (walletBalance !== null && walletBalance < totalRequired) {
+        toast.error(`Solde ${data.currency} insuffisant.`);
+        return;
+      }
+      setIsPinModalOpen(true);
       return;
     }
     if (walletBalance !== null && walletBalance < totalRequired) {
@@ -283,6 +302,7 @@ const data = useMemo(() => {
             destination: data.recipientId,
             amount: data.amount,
             memo: data.description || `Retrait PIMOBIPAY`,
+            pin: transactionPin,
           }),
         });
         const result = await response.json().catch(() => ({}));
@@ -326,6 +346,7 @@ const data = useMemo(() => {
           amount: data.amount,
           currency: data.currency,
           description: data.description,
+          pin: transactionPin,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -362,6 +383,8 @@ const data = useMemo(() => {
       router.push("/transfer/failed?error=Erreur de connexion au serveur");
     } finally {
       setIsLoading(false);
+      setIsPinModalOpen(false);
+      setPin("");
     }
   };
   if (!mounted || balanceLoading) {
@@ -598,7 +621,7 @@ const data = useMemo(() => {
       <div className="fixed bottom-20 inset-x-0 px-6 z-40">
         <div className="max-w-md mx-auto rounded-[1.5rem] bg-[#020617]/80 backdrop-blur-xl border border-white/10 p-2 shadow-2xl">
           <button
-            onClick={handleConfirm}
+            onClick={() => handleConfirm()}
             disabled={!canConfirm}
             className={`w-full h-15 py-4 rounded-[1.1rem] font-black uppercase text-[12px] tracking-widest transition-all flex items-center justify-center gap-3 ${
               !canConfirm
@@ -621,6 +644,50 @@ const data = useMemo(() => {
           </button>
         </div>
       </div>
+
+      {isPinModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="transfer-summary-pin-title"
+        >
+          <div className="w-full max-w-sm rounded-[2rem] border border-blue-500/20 bg-slate-900 p-6 shadow-2xl sm:p-8">
+            <div className="flex items-center justify-between">
+              <h2 id="transfer-summary-pin-title" className="text-sm font-black uppercase tracking-widest">Validation PIN</h2>
+              <button
+                type="button"
+                aria-label="Fermer la saisie du PIN"
+                onClick={() => { setIsPinModalOpen(false); setPin(""); }}
+                className="rounded-full bg-white/5 p-2 text-slate-300 hover:bg-white/10"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p className="mt-3 text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              Entrez votre code secret pour confirmer
+            </p>
+            <div className="my-8 flex justify-center gap-4" aria-label={`${pin.length} chiffres sur 4 saisis`}>
+              {[0, 1, 2, 3].map((index) => (
+                <div key={index} className={`h-4 w-4 rounded-full border-2 border-blue-500/30 ${pin.length > index ? "bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]" : "bg-transparent"}`} />
+              ))}
+            </div>
+            <div className="mx-auto grid max-w-xs grid-cols-3 gap-3">
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "delete"].map((key, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  aria-label={key === "delete" ? "Supprimer le dernier chiffre" : key || undefined}
+                  onClick={() => key === "delete" ? setPin((current) => current.slice(0, -1)) : key && handleNumberClick(key)}
+                  className={`h-14 rounded-2xl flex items-center justify-center text-xl font-black ${key === "" ? "invisible" : "border border-white/5 bg-white/5 text-white hover:bg-white/10"}`}
+                >
+                  {key === "delete" ? <Delete size={22} /> : key}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav onOpenMenu={() => {}} />
     </div>
