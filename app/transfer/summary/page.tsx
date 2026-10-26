@@ -144,6 +144,7 @@ function SummaryContent() {
     fiatTransferFee: number;
   }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
   const [feeLoading, setFeeLoading] = useState(true);
+  const [minTransferAmount, setMinTransferAmount] = useState(0.00000001);
   const [copied, setCopied] = useState(false);
   // KYC / limites — message professionnel
   const [kycModal, setKycModal] = useState<{ open: boolean; message?: string; code?: string }>({ open: false });
@@ -180,6 +181,13 @@ function SummaryContent() {
       }
     };
     fetchFees();
+    fetch("/api/user/limits?channel=TRANSFER", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((limits) => {
+        const minimum = Number(limits?.minPerTxPi);
+        if (Number.isFinite(minimum) && minimum > 0) setMinTransferAmount(minimum);
+      })
+      .catch(() => undefined);
   }, []);
 const data = useMemo(() => {
   const recipientId = searchParams.get("recipient") || "";
@@ -268,7 +276,7 @@ const data = useMemo(() => {
     !isLoading &&
     !isInsufficient &&
     !!data.recipientId &&
-    data.amount >= 0.00000001 &&
+    data.amount >= minTransferAmount &&
     !!data.currency;
   const handleNumberClick = (digit: string) => {
     if (pin.length >= 6 || isLoading) return;
@@ -308,7 +316,7 @@ const data = useMemo(() => {
     if (!transactionPin) {
       if (!canConfirm) {
         if (!data.recipientId) toast.error("Destinataire manquant.");
-        else if (data.amount < 0.00000001) toast.error("Montant minimum: 0.00000001");
+        else if (data.amount < minTransferAmount) toast.error(`Montant minimum: ${fmtPi(minTransferAmount)}`);
         return;
       }
       if (walletBalance !== null && walletBalance < totalRequired) {
@@ -430,7 +438,7 @@ const data = useMemo(() => {
       </div>
     );
   }
-  if (!data.recipientId || data.amount < 0.00000001) {
+  if (!data.recipientId || data.amount < minTransferAmount) {
     return (
       <div className="min-h-screen bg-[#020617] text-white p-6 flex items-center justify-center">
         <div className="max-w-md w-full bg-slate-900/40 border border-white/10 rounded-3xl p-6">

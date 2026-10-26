@@ -375,7 +375,7 @@ function sortWallets(wallets: WalletData[]): WalletData[] {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE COMPONENT
-// ────────────────────────────────────────────────────────────────────���────────
+// ────────────────────────────────────────────���───────────────────────���────────
 export default function SendPage() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -409,6 +409,7 @@ export default function SendPage() {
     fiatTransferFee: number;
   }>({ transferFee: 0.01, fiatTransferFee: 0.005 });
   const [isLoadingFees, setIsLoadingFees] = useState(true);
+  const [minTransferAmount, setMinTransferAmount] = useState(0.00000001);
 
   // ── Fetch fees from API ─────────────────────────────────────────────────────
   const fetchFees = async () => {
@@ -476,6 +477,13 @@ export default function SendPage() {
     isMountedRef.current = true;
     fetchWallets();
     fetchFees();
+    fetch("/api/user/limits?channel=TRANSFER", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((limits) => {
+        const minimum = Number(limits?.minPerTxPi);
+        if (Number.isFinite(minimum) && minimum > 0) setMinTransferAmount(minimum);
+      })
+      .catch(() => undefined);
 
     const addr = searchParams.get("address");
     const cur = searchParams.get("currency");
@@ -610,8 +618,8 @@ const currentWallet = wallets.find((w) => w.currency === selectedCurrency) ?? {
     }
     const numericAmount = parseFloat(amount);
     // Minimum 0.00000001 pour les cryptos
-    const MIN_CRYPTO_AMOUNT = 0.00000001;
-    if (isNaN(numericAmount) || numericAmount < MIN_CRYPTO_AMOUNT) {
+  const MIN_CRYPTO_AMOUNT = minTransferAmount;
+  if (isNaN(numericAmount) || numericAmount < MIN_CRYPTO_AMOUNT) {
       toast.error(`Montant minimum: ${MIN_CRYPTO_AMOUNT}`);
       return;
     }
