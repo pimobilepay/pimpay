@@ -4,18 +4,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 
-// Adresse du wallet opérateur central Pi Network (Mainnet)
-// Utilise PI_WALLET_PUBLIC_KEY en priorité, puis PI_OPERATOR_ADDRESS comme fallback
-const PI_OPERATOR_ADDRESS =
-  process.env.PI_WALLET_PUBLIC_KEY ||
-  process.env.PI_OPERATOR_ADDRESS ||
-  "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB";
+const DEFAULT_OPERATOR_ADDRESS = "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB";
 
-// Pi Network Horizon APIs (essaie mainnet puis testnet)
-const PI_HORIZON_URLS = [
-  "https://api.mainnet.minepi.com",
-  "https://api.testnet.minepi.com",
-];
+async function getPiRuntime() {
+  let network = process.env.PI_NETWORK === "mainnet" ? "mainnet" : "testnet";
+  try {
+    const config = await prisma.systemConfig.findUnique({
+      where: { id: "GLOBAL_CONFIG" },
+      select: { piNetwork: true } as any,
+    });
+    network = (config as any)?.piNetwork === "mainnet" ? "mainnet" : "testnet";
+  } catch { /* fallback env */ }
+
+  const isMainnet = network === "mainnet";
+  return {
+    network,
+    address: isMainnet
+      ? process.env.PI_MASTER_WALLET_ADDRESS_MAINNET || process.env.PI_WALLET_PUBLIC_KEY_MAINNET || DEFAULT_OPERATOR_ADDRESS
+      : process.env.PI_WALLET_PUBLIC_KEY || process.env.PI_OPERATOR_ADDRESS || DEFAULT_OPERATOR_ADDRESS,
+    horizonUrl: isMainnet
+      ? process.env.PI_HORIZON_URL_MAINNET || "https://api.mainnet.minepi.com"
+      : process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com",
+  };
+}
 
 // Pi Network Explorer
 const PI_EXPLORER = "https://blockexplorer.minepi.com";
@@ -78,33 +89,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 1. Lecture du solde on-chain - essaie mainnet puis testnet
+    const runtime = await getPiRuntime();
+    // 1. Lecture du solde du réseau actuellement sélectionné
     let onChainBalance = 0;
     let onChainError: string | null = null;
-    let network = "mainnet";
+    let network = runtime.network;
 
-    for (const horizonUrl of PI_HORIZON_URLS) {
-      const result = await fetchBalanceFromHorizon(horizonUrl, PI_OPERATOR_ADDRESS);
+    {
+      const result = await fetchBalanceFromHorizon(runtime.horizonUrl, runtime.address);
       network = result.network;
 
       if (result.error === null) {
-        // Succès - on a trouvé le compte
         onChainBalance = result.balance;
         onChainError = null;
-        break;
-      } else if (result.balance > 0) {
-        // Le compte existe mais avec une erreur partielle
+      } else {
         onChainBalance = result.balance;
         onChainError = result.error;
-        break;
-      }
-
-      // Garde la dernière erreur
-      onChainError = result.error;
-      
-      // Si c'est juste un compte non activé sur mainnet, on continue vers testnet
-      if (result.error?.includes("non activé")) {
-        continue;
       }
     }
 
@@ -131,14 +131,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      address: PI_OPERATOR_ADDRESS,
+      address: runtime.address,
       balance: onChainBalance,
       totalUsersPi,
       usersCount,
       coverage,
       network,
       onChainError,
-      explorerUrl: `${PI_EXPLORER}/account/${PI_OPERATOR_ADDRESS}`,
+      explorerUrl: `${PI_EXPLORER}/account/${runtime.address}`,
       lastChecked: new Date().toISOString(),
     });
   } catch (error: any) {

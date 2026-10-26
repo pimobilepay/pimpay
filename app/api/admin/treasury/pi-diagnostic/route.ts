@@ -29,8 +29,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    const masterAddress = process.env.PI_MASTER_WALLET_ADDRESS || null;
-    const masterSecret = process.env.PI_MASTER_WALLET_SECRET || null;
+    let network = process.env.PI_NETWORK === "mainnet" ? "mainnet" : "testnet";
+    try {
+      const config = await prisma.systemConfig.findUnique({
+        where: { id: "GLOBAL_CONFIG" },
+        select: { piNetwork: true } as any,
+      });
+      network = (config as any)?.piNetwork === "mainnet" ? "mainnet" : "testnet";
+    } catch { /* fallback env */ }
+    const isMainnet = network === "mainnet";
+    const masterAddress = (isMainnet ? process.env.PI_MASTER_WALLET_ADDRESS_MAINNET : process.env.PI_MASTER_WALLET_ADDRESS) || null;
+    const masterSecret = (isMainnet ? process.env.PI_MASTER_WALLET_SECRET_MAINNET : process.env.PI_MASTER_WALLET_SECRET) || null;
     const operatorAddress =
       process.env.PI_WALLET_PUBLIC_KEY ||
       process.env.PI_OPERATOR_ADDRESS ||
