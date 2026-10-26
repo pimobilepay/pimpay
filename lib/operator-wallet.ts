@@ -122,9 +122,9 @@ export async function ensureOperatorUser() {
       data: {
         id: OPERATOR_USER_ID,
         username: OPERATOR_USER_ID,
-        name: "pimobipay_operator",
-        firstName: "pimobipay",
-        lastName: "operator",
+        name: "PimPay Operator",
+        firstName: "PimPay",
+        lastName: "Operator",
         role: "ADMIN",
         status: "ACTIVE",
         kycStatus: "VERIFIED",

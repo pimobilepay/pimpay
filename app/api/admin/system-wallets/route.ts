@@ -4,23 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 
-async function getPiNetworkConfig() {
-  let network = process.env.PI_NETWORK === "mainnet" ? "mainnet" : "testnet";
-  try {
-    const config = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" },
-      select: { piNetwork: true } as any,
-    });
-    network = (config as any)?.piNetwork === "mainnet" ? "mainnet" : "testnet";
-  } catch { /* fallback env */ }
-  const isMainnet = network === "mainnet";
-  return {
-    network,
-    horizonUrl: isMainnet
-      ? process.env.PI_HORIZON_URL_MAINNET || "https://api.mainnet.minepi.com"
-      : process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com",
-  };
-}
+const PI_HORIZON_URLS = [
+  "https://api.mainnet.minepi.com",
+  "https://api.testnet.minepi.com",
+];
 
 const XAF_RATE = 603;
 
@@ -40,17 +27,6 @@ const WALLET_ENV_VARS: Record<string, string[]> = {
   LIQUIDITY: ["PI_LIQUIDITY_WALLET_ADDRESS"],
 };
 
-function getActiveWalletEnvVars(type: string, network: string): string[] {
-  if (network !== "mainnet") return WALLET_ENV_VARS[type] || [];
-  const mainnet: Record<string, string[]> = {
-    ADMIN: ["PI_MASTER_WALLET_ADDRESS_MAINNET", "PI_WALLET_PUBLIC_KEY_MAINNET"],
-    TREASURY: ["PI_TREASURY_WALLET_ADDRESS_MAINNET", "PI_COLD_WALLET_ADDRESS_MAINNET"],
-    HOT: ["PI_HOT_WALLET_ADDRESS_MAINNET", "PI_MASTER_WALLET_ADDRESS_MAINNET"],
-    LIQUIDITY: ["PI_LIQUIDITY_WALLET_ADDRESS_MAINNET"],
-  };
-  return mainnet[type] || [];
-}
-
 /**
  * Configuration des wallets systeme.
  * Les soldes sont TOUJOURS a 0 a la creation : ils sont ensuite alimentes par
@@ -59,9 +35,9 @@ function getActiveWalletEnvVars(type: string, network: string): string[] {
 const DEFAULT_SYSTEM_WALLETS = [
   {
     type: "ADMIN" as const,
-    name: "pimobipay_operator",
-    nameFr: "pimobipay_operator",
-    description: "Wallet opérateur central : frais de dépôt, retrait et transactions",
+    name: "Admin Revenue Wallet",
+    nameFr: "Revenus Admin",
+    description: "Frais collectés sur toutes les transactions",
     publicAddress: resolveWalletAddress(WALLET_ENV_VARS.ADMIN).address,
     balanceUSD: 0,
     balancePi: 0,
@@ -117,8 +93,7 @@ async function fetchOnChainPiBalance(
 
   let lastError: string | null = null;
 
-  const runtime = await getPiNetworkConfig();
-  for (const url of [runtime.horizonUrl]) {
+  for (const url of PI_HORIZON_URLS) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8_000);
@@ -170,17 +145,6 @@ export async function GET(req: NextRequest) {
       }
       console.log("[SystemWallets] Default wallets created successfully");
     }
-
-    // Le wallet ADMIN est le wallet opérateur affiché dans la trésorerie.
-    // La mise à jour est idempotente afin de renommer aussi les installations existantes.
-    await prisma.systemWallet.updateMany({
-      where: { type: "ADMIN" },
-      data: {
-        name: "pimobipay_operator",
-        nameFr: "pimobipay_operator",
-        description: "Wallet opérateur central : frais de dépôt, retrait et transactions",
-      },
-    });
 
     // === AUTO-REPARATION : purge des donnees mock heritees du seed ===
     // Anciennes adresses placeholder ("GAPIMPAY_..._WALLET_PI_NETWORK") et anciens
