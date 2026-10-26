@@ -20,6 +20,7 @@ import {
   Banknote,
   X,
   Delete,
+  Fingerprint,
 } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { usePiPrice } from "@/hooks/usePiPrice";
@@ -134,6 +135,8 @@ function SummaryContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pin, setPin] = useState("");
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [feeConfig, setFeeConfig] = useState<{
@@ -149,6 +152,11 @@ function SummaryContent() {
 
   useEffect(() => {
     setMounted(true);
+    setBiometricEnabled(
+      localStorage.getItem("biometric") === "true" ||
+      localStorage.getItem("fingerprint") === "true" ||
+      localStorage.getItem("faceId") === "true"
+    );
     // Fetch fees from API
     const fetchFees = async () => {
       try {
@@ -263,10 +271,37 @@ const data = useMemo(() => {
     data.amount >= 0.00000001 &&
     !!data.currency;
   const handleNumberClick = (digit: string) => {
-    if (pin.length >= 4 || isLoading) return;
+    if (pin.length >= 6 || isLoading) return;
     const nextPin = `${pin}${digit}`;
     setPin(nextPin);
-    if (nextPin.length === 4) handleConfirm(nextPin);
+    if (nextPin.length === 6) handleConfirm(nextPin);
+  };
+
+  const handleBiometricConfirm = async () => {
+    if (!window.PublicKeyCredential) {
+      toast.error("La biométrie n'est pas disponible sur cet appareil.");
+      return;
+    }
+    setIsBiometricAuthenticating(true);
+    try {
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) throw new Error("Biométrie indisponible");
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+      await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          timeout: 60000,
+          userVerification: "required",
+          rpId: window.location.hostname,
+        },
+      });
+      toast.success("Biométrie vérifiée. Saisissez votre PIN à 6 chiffres pour confirmer.");
+    } catch {
+      toast.error("Échec de la vérification biométrique.");
+    } finally {
+      setIsBiometricAuthenticating(false);
+    }
   };
 
   const handleConfirm = async (transactionPin?: string) => {
@@ -667,11 +702,22 @@ const data = useMemo(() => {
             <p className="mt-3 text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
               Entrez votre code secret pour confirmer
             </p>
-            <div className="my-8 flex justify-center gap-4" aria-label={`${pin.length} chiffres sur 4 saisis`}>
-              {[0, 1, 2, 3].map((index) => (
+            <div className="my-8 flex justify-center gap-3" aria-label={`${pin.length} chiffres sur 6 saisis`}>
+              {[0, 1, 2, 3, 4, 5].map((index) => (
                 <div key={index} className={`h-4 w-4 rounded-full border-2 border-blue-500/30 ${pin.length > index ? "bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]" : "bg-transparent"}`} />
               ))}
             </div>
+            {biometricEnabled && (
+              <button
+                type="button"
+                onClick={handleBiometricConfirm}
+                disabled={isBiometricAuthenticating || isLoading}
+                className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-500/10 py-3 text-[10px] font-black uppercase tracking-widest text-blue-300 hover:bg-blue-500/20 disabled:opacity-50"
+              >
+                <Fingerprint size={16} />
+                {isBiometricAuthenticating ? "Vérification..." : "Confirmer avec la biométrie"}
+              </button>
+            )}
             <div className="mx-auto grid max-w-xs grid-cols-3 gap-3">
               {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "delete"].map((key, index) => (
                 <button
