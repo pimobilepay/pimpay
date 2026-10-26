@@ -4,23 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
 
-async function getPiNetworkConfig() {
-  let network = process.env.PI_NETWORK === "mainnet" ? "mainnet" : "testnet";
-  try {
-    const config = await prisma.systemConfig.findUnique({
-      where: { id: "GLOBAL_CONFIG" },
-      select: { piNetwork: true } as any,
-    });
-    network = (config as any)?.piNetwork === "mainnet" ? "mainnet" : "testnet";
-  } catch { /* fallback env */ }
-  const isMainnet = network === "mainnet";
-  return {
-    network,
-    horizonUrl: isMainnet
-      ? process.env.PI_HORIZON_URL_MAINNET || "https://api.mainnet.minepi.com"
-      : process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com",
-  };
-}
+const PI_HORIZON_URLS = [
+  "https://api.mainnet.minepi.com",
+  "https://api.testnet.minepi.com",
+];
 
 const XAF_RATE = 603;
 
@@ -39,17 +26,6 @@ const WALLET_ENV_VARS: Record<string, string[]> = {
   HOT: ["PI_HOT_WALLET_ADDRESS", "PI_MASTER_WALLET_ADDRESS"],
   LIQUIDITY: ["PI_LIQUIDITY_WALLET_ADDRESS"],
 };
-
-function getActiveWalletEnvVars(type: string, network: string): string[] {
-  if (network !== "mainnet") return WALLET_ENV_VARS[type] || [];
-  const mainnet: Record<string, string[]> = {
-    ADMIN: ["PI_MASTER_WALLET_ADDRESS_MAINNET", "PI_WALLET_PUBLIC_KEY_MAINNET"],
-    TREASURY: ["PI_TREASURY_WALLET_ADDRESS_MAINNET", "PI_COLD_WALLET_ADDRESS_MAINNET"],
-    HOT: ["PI_HOT_WALLET_ADDRESS_MAINNET", "PI_MASTER_WALLET_ADDRESS_MAINNET"],
-    LIQUIDITY: ["PI_LIQUIDITY_WALLET_ADDRESS_MAINNET"],
-  };
-  return mainnet[type] || [];
-}
 
 /**
  * Configuration des wallets systeme.
@@ -117,8 +93,7 @@ async function fetchOnChainPiBalance(
 
   let lastError: string | null = null;
 
-  const runtime = await getPiNetworkConfig();
-  for (const url of [runtime.horizonUrl]) {
+  for (const url of PI_HORIZON_URLS) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8_000);
