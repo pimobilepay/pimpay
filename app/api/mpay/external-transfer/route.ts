@@ -18,14 +18,12 @@ import { guardRequest } from '@/lib/defenseGuard';
  *   - Mode Direct: adresse G... fournie => blockchain broadcast direct
  *
  * Configuration requise (variables d'environnement):
- *   PI_API_KEY              - Cle API Pi Developer Portal (Authorization: Key <PI_API_KEY>)
- *   PI_MASTER_WALLET_ADDRESS - Adresse publique G... du wallet source
- *   PI_MASTER_WALLET_SECRET  - Cle secrete S... du wallet source (NE PAS exposer cote client)
+ *   Testnet (variables existantes): PI_API_KEY, PI_MASTER_WALLET_ADDRESS,
+ *     PI_MASTER_WALLET_SECRET, PI_HORIZON_URL, PI_NETWORK_PASSPHRASE
+ *   Mainnet (variables dédiées): PI_API_KEY_MAINNET,
+ *     PI_MASTER_WALLET_ADDRESS_MAINNET, PI_MASTER_WALLET_SECRET_MAINNET,
+ *     PI_HORIZON_URL_MAINNET, PI_NETWORK_PASSPHRASE_MAINNET
  *   PI_NETWORK              - "testnet" (defaut) ou "mainnet"
- *   PI_HORIZON_URL          - (optionnel) detecte auto selon PI_NETWORK
- *                             testnet:  https://api.testnet.minepi.com
- *                             mainnet:  https://api.mainnet.minepi.com
- *   PI_NETWORK_PASSPHRASE   - (optionnel) detecte auto: "Pi Testnet" | "Pi Network"
  */
 
 const PI_API_URL          = "https://api.minepi.com";
@@ -37,28 +35,32 @@ const PI_API_URL          = "https://api.minepi.com";
 // sans redéploiement.
 function getPiEnv() {
   const env = (process.env.PI_NETWORK || "testnet").toLowerCase();
+  const isMainnet = env === "mainnet";
+
   return {
-    isMainnet: env === "mainnet",
-    horizonUrl:
-      process.env.PI_HORIZON_URL ||
-      (env === "mainnet"
-        ? "https://api.mainnet.minepi.com"
-        : "https://api.testnet.minepi.com"),
-    passphrase:
-      process.env.PI_NETWORK_PASSPHRASE ||
-      (env === "mainnet" ? "Pi Network" : "Pi Testnet"),
+    isMainnet,
+    apiKey: isMainnet ? process.env.PI_API_KEY_MAINNET : process.env.PI_API_KEY,
+    masterAddress: isMainnet
+      ? process.env.PI_MASTER_WALLET_ADDRESS_MAINNET
+      : process.env.PI_MASTER_WALLET_ADDRESS,
+    masterSecret: isMainnet
+      ? process.env.PI_MASTER_WALLET_SECRET_MAINNET
+      : process.env.PI_MASTER_WALLET_SECRET,
+    horizonUrl: isMainnet
+      ? process.env.PI_HORIZON_URL_MAINNET || "https://api.mainnet.minepi.com"
+      : process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com",
+    passphrase: isMainnet
+      ? process.env.PI_NETWORK_PASSPHRASE_MAINNET || "Pi Network"
+      : process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet",
   };
 }
-
-const PI_API_KEY           = process.env.PI_API_KEY;
-const PI_MASTER_ADDRESS    = process.env.PI_MASTER_WALLET_ADDRESS;
-const PI_MASTER_SECRET     = process.env.PI_MASTER_WALLET_SECRET;
 
 // ---------------------------------------------------------------------------
 // Helper: appel API Pi Platform
 // ---------------------------------------------------------------------------
 async function piApi(endpoint: string, method: string, body?: unknown, requestId?: string) {
-  if (!PI_API_KEY) throw new Error("PI_API_KEY non configure");
+  const { apiKey } = getPiEnv();
+  if (!apiKey) throw new Error("PI_API_KEY non configure pour le reseau Pi actif");
 
   const startTime = Date.now();
   
@@ -74,7 +76,7 @@ async function piApi(endpoint: string, method: string, body?: unknown, requestId
   const res = await fetch(`${PI_API_URL}${endpoint}`, {
     method,
     headers: {
-      "Authorization": `Key ${PI_API_KEY}`,
+      "Authorization": `Key ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -156,8 +158,8 @@ async function broadcastPi(
   a2uPaymentId?: string   // si A2U, le memo DOIT être le paymentIdentifier (doc Pi officielle)
 ): Promise<string> {
   const startTime = Date.now();
-  // Lire le réseau à chaque appel pour refléter le basculement admin immédiatement
-  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE } = getPiEnv();
+  // Lire le réseau et ses identifiants à chaque appel pour isoler testnet et mainnet.
+  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE, masterAddress: PI_MASTER_ADDRESS, masterSecret: PI_MASTER_SECRET } = getPiEnv();
   
   await logSystemEvent({
     level: "INFO",
@@ -481,8 +483,15 @@ export async function POST(req: NextRequest) {
   const { destination, amount, memo, uid } = body;
   const senderId = session.id;
 
-  // Lire la configuration réseau Pi (testnet vs mainnet) pour cette requête
-  const { horizonUrl: _horizonUrl, passphrase: PI_NETWORK_PASSPHRASE } = getPiEnv();
+  // Lire la configuration réseau et les identifiants correspondants pour cette requête.
+  // Les variables historiques restent dédiées au testnet; le mainnet utilise ses propres clés.
+  const {
+    horizonUrl: _horizonUrl,
+    passphrase: PI_NETWORK_PASSPHRASE,
+    apiKey: PI_API_KEY,
+    masterAddress: PI_MASTER_ADDRESS,
+    masterSecret: PI_MASTER_SECRET,
+  } = getPiEnv();
 
   // Log initial de la requete
   await logSystemEvent({
@@ -1108,7 +1117,7 @@ export async function POST(req: NextRequest) {
 // GET: statut du service de retrait
 // ---------------------------------------------------------------------------
 export async function GET() {
-  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE } = getPiEnv();
+  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE, apiKey: PI_API_KEY, masterAddress: PI_MASTER_ADDRESS, masterSecret: PI_MASTER_SECRET } = getPiEnv();
   const configured = !!PI_API_KEY && !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET;
   let masterBalance: string | null = null;
 
