@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Loader2, QrCode, ShieldCheck, Store, X } from "lucide-react";
 import { toast } from "sonner";
 import { QRScanner } from "@/components/qr-scanner";
 import { parseUserQRValue } from "@/lib/agent-qr";
 
-type Merchant = { value: string; label: string };
+type Merchant = { value: string; label: string; avatar?: string | null; category?: string; verified?: boolean; userId?: string; username?: string | null };
+
+type MerchantLookup = { merchant?: { id: string; name: string; category: string; avatar?: string | null; verified: boolean; userId?: string; username?: string | null } };
 
 export default function PosPaymentPage() {
   const router = useRouter();
@@ -17,6 +19,34 @@ export default function PosPaymentPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [lookupState, setLookupState] = useState<"idle" | "loading" | "not-found" | "error">("idle");
+
+  useEffect(() => {
+    const query = merchantInput.trim();
+    if (query.length < 2) {
+      setLookupState("idle");
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setLookupState("loading");
+      try {
+        const response = await fetch(`/api/mpay/merchant-lookup?q=${encodeURIComponent(query)}`);
+        const data = (await response.json()) as MerchantLookup;
+        if (!response.ok || !data.merchant) {
+          setMerchant(null);
+          setLookupState(response.status === 404 ? "not-found" : "error");
+          return;
+        }
+        const found = data.merchant;
+        setMerchant({ value: found.userId || found.username || found.id, label: found.name, avatar: found.avatar, category: found.category, verified: found.verified, userId: found.userId, username: found.username });
+        setLookupState("idle");
+      } catch {
+        setMerchant(null);
+        setLookupState("error");
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [merchantInput]);
 
   const selectMerchant = (raw: string) => {
     const parsed = parseUserQRValue(raw);
@@ -77,10 +107,19 @@ export default function PosPaymentPage() {
             <div className="space-y-3 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Commerçant / Merchant ID</label>
               <div className="flex gap-2">
-                <input value={merchantInput} onChange={(e) => { setMerchantInput(e.target.value); setMerchant(e.target.value.trim() ? { value: e.target.value.trim(), label: e.target.value.trim() } : null); }} placeholder="PIMOBIPAY-... ou username" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs font-bold text-white outline-none focus:border-indigo-400" />
+                <input value={merchantInput} onChange={(e) => { setMerchantInput(e.target.value); if (!e.target.value.trim()) setMerchant(null); }} placeholder="PIMOBIPAY-... ou username" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs font-bold text-white outline-none focus:border-indigo-400" />
                 <button onClick={() => setScannerOpen(true)} className="rounded-2xl bg-indigo-600 px-4" aria-label="Scanner le QR du commerçant"><QrCode size={19} /></button>
               </div>
-              {merchant && <p className="text-[10px] font-bold text-emerald-400">Commerçant sélectionné : {merchant.label}</p>}
+              {lookupState === "loading" && <p className="text-[10px] font-bold text-indigo-300">Recherche du marchand...</p>}
+              {lookupState === "not-found" && <p className="text-[10px] font-bold text-amber-300">Aucun marchand trouvé avec cet identifiant.</p>}
+              {lookupState === "error" && <p className="text-[10px] font-bold text-rose-300">La recherche a échoué. Vérifiez l&apos;identifiant.</p>}
+              {merchant && (
+                <div className="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3" role="status">
+                  {merchant.avatar ? <img src={merchant.avatar} alt="" className="h-12 w-12 rounded-full object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-lg font-black">{merchant.label.slice(0, 1).toUpperCase()}</div>}
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-black">{merchant.label}</p><p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{merchant.username ? `@${merchant.username} · ` : ""}{merchant.category || "Marchand"}</p></div>
+                  {merchant.verified && <span className="text-[9px] font-black uppercase text-emerald-300">Vérifié</span>}
+                </div>
+              )}
             </div>
 
             <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5">

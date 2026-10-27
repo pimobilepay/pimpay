@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
     const payment = await createPayment({
       amount,
       currency: "XOF",
-      paymentMethod: "card",
+      // Omettre payment_method pour obtenir le checkout hébergé GeniusPay.
+      // La valeur "card" peut initier un paiement sans retourner checkout_url.
       description: "Dépôt MPay par carte bancaire",
       customer: { name: user.name || user.username || undefined, email, country: "CI" },
       successUrl: `${baseUrl}/mpay?card_deposit=success`,
