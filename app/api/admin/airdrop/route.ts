@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 import { logAdminAction } from "@/lib/adminAudit";
+import { CRYPTO_ASSETS } from "@/lib/crypto-config";
 
 const PROGRAM_ID = "GLOBAL_REFERRAL";
 
@@ -213,10 +214,16 @@ export async function POST(req: NextRequest) {
     /* ── 2. Airdrop individuel ───────────────────────────────── */
     if (action === "sendIndividualAirdrop") {
       const userId = typeof body.userId === "string" ? body.userId.trim() : "";
-      const currency = typeof body.currency === "string" && body.currency ? body.currency.toUpperCase() : "PI";
+      const currency = typeof body.currency === "string" && body.currency ? body.currency.trim().toUpperCase() : "PI";
+      const asset = CRYPTO_ASSETS[currency];
       const amount = Number(body.amount);
       const note = typeof body.note === "string" ? body.note.slice(0, 200) : "Airdrop individuel";
-      if (!userId || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return NextResponse.json({ error: "Utilisateur ou montant invalide" }, { status: 400 });
+      if (!asset) return NextResponse.json({ error: `Actif non supporté : ${currency}` }, { status: 400 });
+      const decimals = asset.decimals;
+      const decimalPlaces = (amount.toString().split(".")[1] || "").length;
+      if (!userId || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000 || decimalPlaces > decimals) {
+        return NextResponse.json({ error: `Utilisateur ou montant invalide pour ${currency} (maximum ${decimals} décimales)` }, { status: 400 });
+      }
       const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
       if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
       const reference = ref("AD");
