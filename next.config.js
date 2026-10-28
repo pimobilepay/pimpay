@@ -104,6 +104,13 @@ const nextConfig = {
     webpackBuildWorker: true,
   },
 
+  // tiny-secp256k1 charge ce fichier WASM à l'exécution côté serveur.
+  // Sans cette inclusion explicite, le bundler Next/Vercel le laisse hors du
+  // output standalone et /api/wallet/sync-all échoue avec ENOENT.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+  },
+
   // 6. Moteur Webpack (Maintenu pour la Crypto/WASM)
   webpack: (config, { isServer, dev }) => {
     config.experiments = {
