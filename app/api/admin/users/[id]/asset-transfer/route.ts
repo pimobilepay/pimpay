@@ -53,6 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           destinationAddress: address,
           network: currency,
           isBlockchainWithdraw: true,
+          adminExternalTransfer: true,
           initiatedByAdmin: ctx.payload.id,
           queuedAt: new Date().toISOString(),
         },
@@ -60,7 +61,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return transaction;
     });
     await logAdminAction(req, ctx.payload, { action: "ADMIN_EXTERNAL_ASSET_TRANSFER", category: "withdrawals", targetType: "USER", targetId: userId, details: `${result.reference} · ${parsed.value} ${currency} · ${address.slice(0, 12)}…` });
-    return NextResponse.json({ success: true, status: "PENDING", reference: result.reference, message: "Transfert enregistré et placé en file de traitement." });
+
+    // Le débit est atomique avec la création du job. On déclenche ensuite le
+    // worker avec le même secret que le cron afin que la page admin ne laisse
+    // pas un transfert TRX indéfiniment en file sans broadcast.
+    const workerSecret = process.env.WORKER_SECRET;
+    let workerResult: { ok?: boolean; blockchainTx?: string; error?: string } | null = null;
+    if (workerSecret) {
+      try {
+        const workerResponse = await fetch(new URL("/api/worker/withdraw?limit=1", req.url), {
+          method: "POST",
+          headers: { "x-worker-secret": workerSecret },
+          cache: "no-store",
+        });
+        const payload = await workerResponse.json().catch(() => ({}));
+        workerResult = payload?.results?.find((item: { id?: string }) => item.id === result.id) ?? null;
+      } catch (workerError) {
+        console.error("[v0] Admin external transfer worker unavailable", workerError);
+      }
+    }
+
+    if (workerResult?.ok && workerResult.blockchainTx) {
+      return NextResponse.json({ success: true, status: "BROADCASTED", reference: result.reference, blockchainTx: workerResult.blockchainTx, message: "Transfert TRX diffusé sur la blockchain." });
+    }
+
+    return NextResponse.json({ success: true, status: "PENDING", reference: result.reference, message: workerResult?.error || "Transfert enregistré et placé en file de traitement." });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Transfert refusé" }, { status: 400 });
   }

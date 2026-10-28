@@ -494,7 +494,10 @@ export async function POST(req: NextRequest) {
           blockchainTx: txHash,
         });
       } catch (err: any) {
-        const refundOnFail = process.env.REFUND_ON_WITHDRAW_FAIL === "true";
+        const metadata = typeof job.metadata === "object" && job.metadata ? job.metadata : {};
+        // Les transferts créés par l'admin débitent avant le broadcast : un
+        // échec sans hash doit donc recréditer automatiquement le portefeuille.
+        const refundOnFail = process.env.REFUND_ON_WITHDRAW_FAIL === "true" || metadata.adminExternalTransfer === true;
         const errorMsg = err?.message || "Broadcast failed";
 
         // Marque l’échec
