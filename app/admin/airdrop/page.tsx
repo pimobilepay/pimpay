@@ -7,7 +7,7 @@ import {
   Sparkles, History, ShieldAlert, X, Coins,
 } from "lucide-react";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
-import { CRYPTO_ASSETS } from "@/lib/crypto-config";
+import { CRYPTO_ASSETS, WALLET_ASSET_ORDER } from "@/lib/crypto-config";
 
 const ROLES = ["USER", "AGENT", "MERCHANT", "BUSINESS_ADMIN", "BANK_ADMIN", "ADMIN"] as const;
 type Role = (typeof ROLES)[number];
@@ -218,7 +218,7 @@ export default function AdminAirdropPage() {
               </p>
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Actif<select value={selectedCurrency} onChange={(e) => setSelectedCurrency(e.target.value)} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none">{Object.keys(CRYPTO_ASSETS).map((asset) => <option key={asset} value={asset}>{asset} — {CRYPTO_ASSETS[asset].network}</option>)}</select></label>
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Actif<select value={selectedCurrency} onChange={(e) => setSelectedCurrency(e.target.value)} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none">{WALLET_ASSET_ORDER.map((asset) => <option key={asset} value={asset}>{asset} — {CRYPTO_ASSETS[asset].network}</option>)}</select></label>
                 <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3 text-[9px] text-slate-500">Les crédits peuvent être envoyés sur plusieurs actifs supportés.</div>
               </div>
 
