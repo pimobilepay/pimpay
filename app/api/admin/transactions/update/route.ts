@@ -47,11 +47,24 @@ export async function POST(req: NextRequest) {
     }
 
     const isRetry = action === 'retry';
-    if (!isRetry && tx.status !== TransactionStatus.PENDING) {
+    const isCancel = action === 'cancel';
+    const meta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata as any : {};
+
+    // Une transaction déjà confirmée par la blockchain ne peut pas être annulée
+    // depuis l'admin. Seules les opérations encore en file, sans hash, peuvent
+    // être remboursées sans risque de double dépense.
+    if (isCancel) {
+      const isQueued = tx.status === TransactionStatus.PENDING ||
+        (tx.status === TransactionStatus.SUCCESS && tx.statusClass === 'QUEUED');
+      if (!isQueued || tx.blockchainTx) {
+        return NextResponse.json({ error: "Cette transaction a deja ete envoyee ou finalisee sur la blockchain" }, { status: 409 });
+      }
+      if (tx.type !== TransactionType.WITHDRAW || !tx.fromUserId) {
+        return NextResponse.json({ error: "Seuls les retraits blockchain en attente peuvent etre annules" }, { status: 400 });
+      }
+    } else if (!isRetry && tx.status !== TransactionStatus.PENDING) {
       return NextResponse.json({ error: `Deja finalisee (${tx.status})` }, { status: 400 });
     }
-
-    const meta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata as any : {};
 
     if (isRetry) {
       // Les anciens transferts admin peuvent avoir été créés avant l'ajout du
@@ -73,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     const isApprove = action === 'approve';
-    const newStatus = isRetry || isApprove ? TransactionStatus.SUCCESS : TransactionStatus.FAILED;
+    const newStatus = isCancel ? TransactionStatus.CANCELLED : (isRetry || isApprove ? TransactionStatus.SUCCESS : TransactionStatus.FAILED);
 
     // 2. Transaction atomique avec retry automatique (sans Serializable pour eviter les deadlocks)
     const result = await executeWithRetry(() =>
@@ -84,7 +97,9 @@ export async function POST(req: NextRequest) {
           where: { id: transactionId },
         });
 
-        if (!freshTx || (!isRetry && freshTx.status !== TransactionStatus.PENDING) || (isRetry && ![TransactionStatus.PENDING, TransactionStatus.SUCCESS, TransactionStatus.FAILED].includes(freshTx.status))) {
+        const freshMeta = (typeof freshTx?.metadata === 'object' && freshTx.metadata !== null) ? freshTx.metadata as any : {};
+        const freshIsQueued = freshTx && (freshTx.status === TransactionStatus.PENDING || (freshTx.status === TransactionStatus.SUCCESS && freshTx.statusClass === 'QUEUED'));
+        if (!freshTx || (isCancel ? (!freshIsQueued || Boolean(freshTx.blockchainTx) || freshTx.type !== TransactionType.WITHDRAW || !freshTx.fromUserId) : (!isRetry && freshTx.status !== TransactionStatus.PENDING) || (isRetry && ![TransactionStatus.PENDING, TransactionStatus.SUCCESS, TransactionStatus.FAILED].includes(freshTx.status)))) {
           throw new Error('ALREADY_PROCESSED');
         }
 
@@ -136,7 +151,10 @@ export async function POST(req: NextRequest) {
             });
           }
         } else {
-          // Remboursement si Refus (pour Retraits et Transferts)
+          // Remboursement si annulation/refus (pour retraits et transferts).
+          // Le verrou de statut ci-dessus empêche un double recrédit.
+          // Une opération blockchain avec hash est toujours refusée plus haut.
+
           if ((tx.type === TransactionType.WITHDRAW || tx.type === TransactionType.TRANSFER) && tx.fromUserId) {
             const refundAmount = tx.amount + (tx.fee || 0);
             await p.wallet.update({
@@ -158,8 +176,8 @@ export async function POST(req: NextRequest) {
           await p.notification.create({
             data: {
               userId: targetId,
-              title: isApprove ? "Operation validee" : "Operation refusee",
-              message: `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a ete ${isApprove ? 'valide' : 'refuse'}.`,
+              title: isCancel ? "Transfert annule" : isApprove ? "Operation validee" : "Operation refusee",
+              message: `Votre ${tx.type.toLowerCase()} de ${tx.amount} ${tx.currency} a ete ${isCancel ? 'annule et rembourse' : isApprove ? 'valide' : 'refuse'}.`,
               type: isApprove ? "success" : "error",
               metadata: { txRef: tx.reference }
             }
