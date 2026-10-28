@@ -95,8 +95,25 @@ type UserSessionData = {
   currentBrowser: string | null;
   currentOS: string | null;
   currentIP: string | null;
+  currentHost?: string | null;
   sessionStartTime: string | null;
   totalDuration: number;
+  hosts?: { host: string; count: number }[];
+  sessions?: {
+    id: string;
+    ip: string | null;
+    userAgent: string | null;
+    deviceName: string | null;
+    isActive: boolean;
+    lastActiveAt: string;
+    createdAt: string;
+    browser: string | null;
+    city: string | null;
+    country: string | null;
+    lat: number | null;
+    lon: number | null;
+    os: string | null;
+  }[];
   totalPageViews: number;
   totalClicks: number;
   pageVisits: { page: string; count: number }[];
@@ -685,6 +702,51 @@ export default function AdminLogsPage() {
                         <p className="text-[7px] font-bold text-slate-600 uppercase">{userSession.currentBrowser || "N/A"}</p>
                       </div>
                     </div>
+
+                    {/* Toutes les sessions et leurs signaux techniques */}
+                    {userSession.sessions && userSession.sessions.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                            <Monitor size={12} />
+                            Sessions de connexion
+                          </p>
+                          <span className="text-[8px] text-slate-600">{userSession.sessions.length} session(s)</span>
+                        </div>
+                        <div className="space-y-2">
+                          {userSession.sessions.map((session) => (
+                            <div key={session.id} className="rounded-xl border border-white/5 bg-black/30 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`h-2 w-2 rounded-full ${session.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
+                                    <span className="text-[10px] font-black text-white">
+                                      {session.deviceName || "Appareil"}
+                                    </span>
+                                    <span className={`rounded px-1.5 py-0.5 text-[7px] font-black uppercase ${session.isActive ? "bg-emerald-500/10 text-emerald-400" : "bg-white/5 text-slate-500"}`}>
+                                      {session.isActive ? "Active" : "Inactive"}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 break-all text-[8px] text-slate-500">ID: {session.id}</p>
+                                </div>
+                                <span className="shrink-0 text-[8px] text-slate-500">Dernière activité {formatTimeAgo(session.lastActiveAt)}</span>
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-[8px]">
+                                <div><span className="text-slate-600">IP</span><p className="text-slate-300">{session.ip || "Non disponible"}</p></div>
+                                <div><span className="text-slate-600">Localisation</span><p className="text-slate-300">{[session.city, session.country].filter(Boolean).join(", ") || "Non disponible"}</p></div>
+                                <div><span className="text-slate-600">Navigateur</span><p className="text-slate-300">{session.browser || "Non détecté"}</p></div>
+                                <div><span className="text-slate-600">Système</span><p className="text-slate-300">{session.os || "Non détecté"}</p></div>
+                                <div><span className="text-slate-600">Créée le</span><p className="text-slate-300">{formatDate(session.createdAt)}</p></div>
+                                <div><span className="text-slate-600">User-Agent</span><p className="truncate text-slate-300" title={session.userAgent || undefined}>{session.userAgent || "Non disponible"}</p></div>
+                              </div>
+                              {(session.lat !== null || session.lon !== null) && (
+                                <p className="mt-2 text-[8px] text-slate-600">Coordonnées: {session.lat ?? "—"}, {session.lon ?? "—"}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Page Journey Schema */}
                     {userSession.pageJourney.length > 0 && (
