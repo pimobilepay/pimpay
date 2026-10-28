@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { ethers } from 'ethers';
+import { decrypt } from '@/lib/crypto';
 
 const SIDRA_RPC = process.env.SIDRA_RPC || "https://node.sidrachain.com";
 
@@ -87,7 +88,7 @@ export async function transferSidraTokensAtomic(
   try {
     // Verify users exist
     const [fromUser, toUser] = await Promise.all([
-      prisma.user.findUnique({ where: { id: fromUserId }, select: { sidraAddress: true, id: true } }),
+      prisma.user.findUnique({ where: { id: fromUserId }, select: { sidraAddress: true, sidraPrivateKey: true, id: true } }),
       prisma.user.findUnique({ where: { id: toUserId }, select: { sidraAddress: true, id: true } }),
     ]);
 
@@ -126,17 +127,20 @@ export async function transferSidraTokensAtomic(
     transaction.addStep({
       name: "BLOCKCHAIN_TRANSFER",
       execute: async () => {
+        if (!fromUser.sidraPrivateKey) {
+          throw new Error("Clé privée Sidra non configurée");
+        }
         const provider = new ethers.JsonRpcProvider(SIDRA_RPC);
-        // Note: This is a simplified example. Real implementation needs:
-        // - Private key management via encryption
-        // - Gas estimation
-        // - Nonce handling
-        // - Retry logic
-        const tx = await provider.call({
+        const signer = new ethers.Wallet(decrypt(fromUser.sidraPrivateKey), provider);
+        const tx = await signer.sendTransaction({
           to: toUser.sidraAddress,
           value: ethers.parseEther(amount.toString()),
-        } as any);
-        sidraHash = tx;
+        });
+        const receipt = await tx.wait();
+        if (!receipt || receipt.status !== 1) {
+          throw new Error("La transaction Sidra n'a pas été confirmée");
+        }
+        sidraHash = receipt.hash;
       },
       rollback: async () => {
         // Blockchain transfers cannot be rolled back
@@ -149,14 +153,26 @@ export async function transferSidraTokensAtomic(
     transaction.addStep({
       name: "UPDATE_BALANCES",
       execute: async () => {
-        await prisma.wallet.updateMany({
+        const senderWallet = await prisma.wallet.findFirst({
           where: { userId: fromUserId, currency },
+          select: { id: true, balance: true },
+        });
+        if (!senderWallet || senderWallet.balance < amount) {
+          throw new Error("Solde interne insuffisant pour le transfert Sidra");
+        }
+
+        const debited = await prisma.wallet.updateMany({
+          where: { id: senderWallet.id, balance: { gte: amount } },
           data: { balance: { decrement: amount } },
         });
+        if (debited.count !== 1) {
+          throw new Error("Débit sécurisé impossible : solde modifié simultanément");
+        }
 
-        await prisma.wallet.updateMany({
-          where: { userId: toUserId, currency },
-          data: { balance: { increment: amount } },
+        await prisma.wallet.upsert({
+          where: { userId_currency: { userId: toUserId, currency } },
+          update: { balance: { increment: amount } },
+          create: { userId: toUserId, currency, balance: amount, type: "SIDRA" },
         });
       },
       rollback: async () => {
