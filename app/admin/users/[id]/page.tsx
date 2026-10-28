@@ -6,6 +6,7 @@ import { UserDetailHeader } from "./header";
 import { CopyableAddress } from "./CopyableAddress";
 import { DeletePiAddressesButton } from "./DeletePiAddressesButton";
 import { AdminAssetTransfer } from "./AdminAssetTransfer";
+import { PendingTransferAction } from "./PendingTransferAction";
 import { BLOCKCHAIN_EXPLORERS } from "@/lib/blockchain-explorer";
 import {
   User, Mail, Phone, Globe, Calendar, Shield,
@@ -402,6 +403,9 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
                       {tx.type === "DEPOSIT" ? "+" : tx.type === "WITHDRAW" ? "-" : ""}{Number(tx.amount).toLocaleString()} {tx.currency}
                     </p>
                     <p className="text-[8px] text-slate-500">{new Date(tx.createdAt).toLocaleDateString('fr-FR')}</p>
+                    {tx.type === "WITHDRAW" && (tx.status === "PENDING" || tx.status === "FAILED" || tx.statusClass === "QUEUED") && (
+                      <div className="mt-2"><PendingTransferAction transactionId={tx.id} /></div>
+                    )}
                   </div>
                 </div>
               ))}
