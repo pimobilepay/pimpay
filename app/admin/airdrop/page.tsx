@@ -55,7 +55,7 @@ export default function AdminAirdropPage() {
     () => ROLES.reduce((acc, r) => ({ ...acc, [r]: "" }), {} as Record<Role, string>)
   );
   const [note, setNote] = useState("");
-  const [currency, setCurrency] = useState("PI");
+  const [selectedCurrency, setSelectedCurrency] = useState("PI");
   const [individualUser, setIndividualUser] = useState("");
   const [individualAmount, setIndividualAmount] = useState("");
   const [onlyActive, setOnlyActive] = useState(true);
@@ -108,7 +108,7 @@ export default function AdminAirdropPage() {
         body: JSON.stringify({
           action: "distributeAirdrop",
           amounts: ROLES.reduce((acc, r) => ({ ...acc, [r]: Number.parseFloat(amounts[r]) || 0 }), {}),
-          currency,
+          currency: selectedCurrency,
           note,
           onlyActive,
         }),
@@ -218,7 +218,7 @@ export default function AdminAirdropPage() {
               </p>
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Actif<select value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none">{Object.keys(CRYPTO_ASSETS).map((asset) => <option key={asset} value={asset}>{asset} — {CRYPTO_ASSETS[asset].network}</option>)}</select></label>
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Actif<select value={selectedCurrency} onChange={(e) => setSelectedCurrency(e.target.value)} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none">{Object.keys(CRYPTO_ASSETS).map((asset) => <option key={asset} value={asset}>{asset} — {CRYPTO_ASSETS[asset].network}</option>)}</select></label>
                 <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3 text-[9px] text-slate-500">Les crédits peuvent être envoyés sur plusieurs actifs supportés.</div>
               </div>
 
@@ -312,7 +312,7 @@ export default function AdminAirdropPage() {
                 <input value={individualUser} onChange={(e) => setIndividualUser(e.target.value)} placeholder="ID utilisateur" className="rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-mono text-white outline-none focus:border-blue-500" />
                 <input value={individualAmount} onChange={(e) => setIndividualAmount(e.target.value.replace(",", "."))} inputMode="decimal" placeholder={`Montant ${currency}`} className="rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-black text-white outline-none focus:border-blue-500" />
               </div>
-              <button disabled={!individualUser || !individualAmount} onClick={async () => { const response = await fetch("/api/admin/airdrop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sendIndividualAirdrop", userId: individualUser, amount: individualAmount, currency, note }) }); const result = await response.json(); if (!response.ok) { alert(result.error || "Airdrop refusé"); return; } alert(`Airdrop envoyé : ${result.reference}`); setIndividualUser(""); setIndividualAmount(""); }} className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-30 hover:bg-blue-500"><Send size={13} />Envoyer l&apos;airdrop individuel</button>
+              <button disabled={!individualUser || !individualAmount} onClick={async () => { const response = await fetch("/api/admin/airdrop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sendIndividualAirdrop", userId: individualUser, amount: individualAmount, currency: selectedCurrency, note }) }); const result = await response.json(); if (!response.ok) { alert(result.error || "Airdrop refusé"); return; } alert(`Airdrop envoyé : ${result.reference}`); setIndividualUser(""); setIndividualAmount(""); }} className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-30 hover:bg-blue-500"><Send size={13} />Envoyer l&apos;airdrop individuel</button>
             </section>
 
             {/* Historique */}
