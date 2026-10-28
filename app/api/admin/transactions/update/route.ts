@@ -46,12 +46,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
     }
 
-    if (tx.status !== TransactionStatus.PENDING) {
+    const isRetry = action === 'retry';
+    if (!isRetry && tx.status !== TransactionStatus.PENDING) {
       return NextResponse.json({ error: `Deja finalisee (${tx.status})` }, { status: 400 });
     }
 
+    const meta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata as any : {};
+
+    if (isRetry) {
+      if (tx.type !== TransactionType.WITHDRAW || meta.isBlockchainWithdraw !== true) {
+        return NextResponse.json({ error: "Cette transaction ne peut pas être relancée" }, { status: 400 });
+      }
+      if (![TransactionStatus.PENDING, TransactionStatus.SUCCESS, TransactionStatus.FAILED].includes(tx.status)) {
+        return NextResponse.json({ error: `Transaction déjà finalisée (${tx.status})` }, { status: 400 });
+      }
+    }
+
     const isApprove = action === 'approve';
-    const newStatus = isApprove ? TransactionStatus.SUCCESS : TransactionStatus.FAILED;
+    const newStatus = isRetry || isApprove ? TransactionStatus.SUCCESS : TransactionStatus.FAILED;
 
     // 2. Transaction atomique avec retry automatique (sans Serializable pour eviter les deadlocks)
     const result = await executeWithRetry(() =>
@@ -62,7 +74,7 @@ export async function POST(req: NextRequest) {
           where: { id: transactionId },
         });
 
-        if (!freshTx || freshTx.status !== TransactionStatus.PENDING) {
+        if (!freshTx || (!isRetry && freshTx.status !== TransactionStatus.PENDING) || (isRetry && ![TransactionStatus.PENDING, TransactionStatus.SUCCESS, TransactionStatus.FAILED].includes(freshTx.status))) {
           throw new Error('ALREADY_PROCESSED');
         }
 
@@ -77,7 +89,12 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        if (isApprove) {
+        if (isRetry) {
+          await p.transaction.update({
+            where: { id: transactionId },
+            data: { statusClass: 'QUEUED', blockchainTx: null },
+          });
+        } else if (isApprove) {
           // Stats Globales Pi
           if (tx.currency === "PI") {
             await p.systemConfig.update({
