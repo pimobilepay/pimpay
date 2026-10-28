@@ -208,7 +208,6 @@ async function processExternalTransfers() {
         });
         console.log(`[v0] [WORKER] TX ${tx.reference} STATUS updated to SUCCESS with blockchain hash`);
         count++;
-      }
     } catch (err: any) {
       console.error(`[v0] [WORKER] ERREUR sur TX ${tx.reference}:`, err?.message || JSON.stringify(err));
       console.error(`[v0] [WORKER] Stack:`, err?.stack);
