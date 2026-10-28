@@ -5,6 +5,7 @@ import { AdminControlPanel } from "@/components/admin/AdminControlPanel";
 import { UserDetailHeader } from "./header";
 import { CopyableAddress } from "./CopyableAddress";
 import { DeletePiAddressesButton } from "./DeletePiAddressesButton";
+import { AdminAssetTransfer } from "./AdminAssetTransfer";
 import { BLOCKCHAIN_EXPLORERS } from "@/lib/blockchain-explorer";
 import {
   User, Mail, Phone, Globe, Calendar, Shield,
@@ -409,6 +410,8 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
             <p className="text-slate-500 text-[10px] font-bold uppercase text-center py-4">Aucune transaction</p>
           )}
         </Section>
+
+        <AdminAssetTransfer userId={user.id} />
 
         {/* PANNEAU DE CONTROLE ADMIN (Composant Client séparé) */}
         <AdminControlPanel
