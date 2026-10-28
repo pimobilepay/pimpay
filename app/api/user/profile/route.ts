@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { Wallet as EthersWallet } from "ethers";
 import crypto from "crypto";
 import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
+import { hexToBase58 } from "@/lib/tron-utils";
 
 // ─── Génération des identités blockchain (côté serveur uniquement) ──────────
 // Les clés privées générées ici sont STOCKÉES en DB CHIFFRÉES (AES-256-GCM)
@@ -28,7 +29,7 @@ import { encrypt } from "@/lib/crypto"; // ✅ AES-256-GCM centralisé
 const generateBlockchainIdentities = () => {
   const sidraWallet = EthersWallet.createRandom();
   const usdtPrivKey = crypto.randomBytes(32).toString("hex");
-  const usdtAddr = `T${crypto.randomBytes(20).toString("hex").substring(0, 33)}`;
+  const usdtAddr = hexToBase58(`41${crypto.randomBytes(20).toString("hex")}`);
   const piPrivKey = crypto.randomBytes(32).toString("hex");
   const piAddr = `P${crypto.randomBytes(20).toString("hex").toUpperCase()}`;
 
@@ -228,8 +229,10 @@ export async function GET(request: Request) {
       await Promise.all(
         missingWallets.map((mw) =>
           prisma.wallet
-            .create({
-              data: {
+            .upsert({
+              where: { userId_currency: { userId: userId as string, currency: mw.currency } },
+              update: {},
+              create: {
                 userId:   userId as string,
                 currency: mw.currency,
                 balance:  0,
