@@ -51,6 +51,27 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Utilisateur non trouve" }, { status: 404 });
     }
 
+    // Sessions de connexion détaillées. Le token reste strictement côté serveur.
+    const sessions = await prisma.session.findMany({
+      where: { userId },
+      orderBy: { lastActiveAt: "desc" },
+      select: {
+        id: true,
+        ip: true,
+        userAgent: true,
+        deviceName: true,
+        isActive: true,
+        lastActiveAt: true,
+        createdAt: true,
+        browser: true,
+        city: true,
+        country: true,
+        lat: true,
+        lon: true,
+        os: true,
+      },
+    });
+
     // Get recent activities (last 24 hours)
     let activities: Awaited<ReturnType<typeof prisma.userActivity.findMany>> = [];
     let currentSession: Awaited<ReturnType<typeof prisma.userActivity.findFirst>> = null;
@@ -139,6 +160,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       currentOS: currentSession?.os || null,
       currentIP: currentSession?.ip || null,
       currentHost: currentSession?.host || null,
+      sessions,
       sessionStartTime,
       totalDuration,
       totalPageViews: activities.filter(a => a.action === "PAGE_VIEW").length,
