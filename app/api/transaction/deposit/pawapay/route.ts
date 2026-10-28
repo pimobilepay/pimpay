@@ -6,21 +6,15 @@ import { getAuthUserId } from "@/lib/auth";
 import { nanoid } from "nanoid";
 import { convert } from "@/lib/exchange";
 import { getPiPrice } from "@/lib/fees";
-import {
-  createPaymentPageSession,
-  resolveProvider,
-  normalizeMsisdn,
-  newPawaPayId,
-  getAppBaseUrl,
-} from "@/lib/pawapay";
+import { createPayment, normalizePhone } from "@/lib/geniuspay";
+import { resolveProvider } from "@/lib/pawapay-catalog";
 
 /**
  * POST /api/transaction/deposit/pawapay
  *
- * Initie un dépôt Mobile Money via l'agrégateur PawaPay (API PawaPay
- * DIRECTE — pas de proxy via GeniusPay), utilisé pour tout pays/opérateur
- * pris en charge par PawaPay mais PAS par GeniusPay (repli de
- * lib/aggregator.ts).
+ * Initie un dépôt Mobile Money via GeniusPay, qui encapsule le rail PawaPay.
+ * Cette route historique est conservée pour compatibilité avec le frontend,
+ * mais elle ne contacte jamais directement l'API PawaPay.
  *
  * Le client est redirigé vers la Payment Page hébergée par PawaPay
  * (POST /v2/paymentpage -> `redirectUrl`) pour choisir son opérateur et
@@ -110,8 +104,8 @@ export async function POST(req: NextRequest) {
 
     // 5. Créer la transaction PENDING
     const reference = `DEP-${nanoid(10).toUpperCase()}`;
-    const depositId = newPawaPayId();
-    const normalizedPhone = normalizeMsisdn(phone);
+    const depositId = reference;
+    const normalizedPhone = normalizePhone(phone);
 
     const transaction = await prisma.transaction.create({
       data: {
@@ -130,7 +124,9 @@ export async function POST(req: NextRequest) {
         countryCode: countryCode.toUpperCase(),
         fromUserId: userId,
         metadata: {
-          aggregator: "PAWAPAY",
+          aggregator: "GENIUSPAY",
+          paymentMethod: "pawapay",
+          pawapayProvider: resolved.provider,
           pawapayDepositId: depositId,
           provider: resolved.provider,
           phoneNumber: normalizedPhone,
@@ -145,33 +141,27 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 6. Appel PawaPay — création de la session Payment Page (checkout hébergé).
-    //    On redirige le client vers `redirectUrl` pour qu'il finalise son
-    //    paiement chez PawaPay, exactement comme pour le `checkoutUrl` de
-    //    GeniusPay. Le callback/webhook est configuré depuis le dashboard
-    //    PawaPay (le paramètre `callbackUrl` n'est pas accepté dans le corps
-    //    de la requête, cf. lib/pawapay.ts).
-    const appBaseUrl = getAppBaseUrl();
-    const returnUrl = `${appBaseUrl}/deposit/summary?ref=${reference}&method=mobile&amount=${usd}`;
-    const pp = await createPaymentPageSession({
-      depositId,
-      amount: String(localAmount),
+    // 6. GeniusPay orchestre le rail PawaPay. L'application ne contacte
+    //    jamais directement l'API PawaPay et n'a donc besoin d'aucun
+    //    PAWAPAY_API_TOKEN.
+    const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://pimpay.vercel.app").replace(/\/$/, "");
+    const gp = await createPayment({
+      amount: localAmount,
       currency: resolved.currency,
-      returnUrl,
-      phoneNumber: normalizedPhone,
-      country: resolved.alpha3,
-      language: "FR",
-      reason: `Depot PimobiPay ${reference}`,
-      customerMessage: "PimobiPay Depot",
-      metadata: [
-        { reference },
-        { userId, isPII: true },
-      ],
+      paymentMethod: "pawapay",
+      mmoProvider: resolved.provider,
+      description: `PimobiPay depot ${reference}`,
+      customer: { phone: normalizedPhone, country: countryCode.toUpperCase() },
+      successUrl: `${appBaseUrl}/deposit/summary?ref=${reference}&method=mobile&amount=${usd}`,
+      errorUrl: `${appBaseUrl}/deposit/failed?ref=${reference}`,
+      metadata: { reference, userId, kind: "deposit" },
     });
 
-    // 7. Gérer la réponse de l'agrégateur
-    const redirectUrl = pp.data?.redirectUrl || null;
-    const accepted = pp.ok && !!redirectUrl;
+    // 7. Gérer la réponse de GeniusPay
+    const payment = (gp.data as any)?.data || gp.data;
+    const redirectUrl = payment?.payment_url || payment?.checkout_url || null;
+    const geniusPayReference = payment?.reference || null;
+    const accepted = gp.ok && !!geniusPayReference && !!redirectUrl;
 
     if (!accepted) {
       await prisma.transaction.update({
@@ -181,13 +171,15 @@ export async function POST(req: NextRequest) {
           statusClass: "AGGREGATOR_REJECTED",
           metadata: {
             ...(transaction.metadata as any),
-            pawapayResponse: pp.data,
+            geniuspayResponse: gp.data,
           },
         },
       });
       const reason =
-        (pp.data as any)?.errorMessage ||
-        (pp.data as any)?.message ||
+        (payment as any)?.errorMessage ||
+        (payment as any)?.message ||
+        (gp.data as any)?.errorMessage ||
+        (gp.data as any)?.message ||
         "Le dépôt a été refusé par l'agrégateur Mobile Money.";
       return NextResponse.json({ error: reason }, { status: 400 });
     }
@@ -196,8 +188,10 @@ export async function POST(req: NextRequest) {
     await prisma.transaction.update({
       where: { id: transaction.id },
       data: {
+        externalId: geniusPayReference || transaction.externalId,
         metadata: {
           ...(transaction.metadata as any),
+          geniusPayReference,
           checkoutUrl: redirectUrl,
         },
       },
