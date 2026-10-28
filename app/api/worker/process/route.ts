@@ -6,6 +6,7 @@ import { decrypt } from '@/lib/crypto'; // Assurez-vous que cette fonction exist
 import * as xrpl from 'xrpl';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { ethers } from 'ethers'; // Pour Sidra et USDT
+import { TronWeb } from "tronweb";
 import { TransactionStatus, TransactionType } from "@prisma/client";
 
 // Configuration des accès réseaux - Utilise les variables d'environnement pour Pi Network
@@ -68,6 +69,34 @@ export async function GET(req: NextRequest) {
     console.error("[v0] [WORKER] ERREUR:", error.message, error.stack);
     return NextResponse.json({ success: false, error: "Erreur interne du worker" }, { status: 500 });
   }
+}
+
+async function sendTRX(tx: any, destination: string, encryptedPrivateKey: string | null) {
+  if (!encryptedPrivateKey) throw new Error("Clé privée TRON manquante");
+  const sourceAddress = tx.metadata?.sourceAddress;
+  const sender = await prisma.user.findUnique({
+    where: { id: tx.fromUserId },
+    select: { usdtAddress: true },
+  });
+  const fromAddress = sourceAddress || sender?.usdtAddress;
+  if (!fromAddress) throw new Error("Adresse source TRON manquante");
+
+  const privateKey = decrypt(encryptedPrivateKey).replace(/^0x/, "");
+  const tronWeb = new TronWeb({
+    fullHost: process.env.TRON_FULL_HOST || "https://api.trongrid.io",
+    privateKey,
+  });
+  if (!tronWeb.isAddress(fromAddress) || !tronWeb.isAddress(destination)) {
+    throw new Error("Adresse TRON invalide");
+  }
+
+  const amountSun = BigInt(Math.round(Number(tx.amount) * 1_000_000));
+  if (amountSun <= 0n) throw new Error("Montant TRX invalide");
+  const result = await tronWeb.trx.sendTransaction(destination, amountSun.toString());
+  if (!result?.result || !result.txid) {
+    throw new Error("TRON n'a pas confirmé le transfert TRX");
+  }
+  return result.txid;
 }
 
 async function processExternalTransfers() {
@@ -143,7 +172,10 @@ async function processExternalTransfers() {
       if (!sender) throw new Error("Expéditeur introuvable");
 
       // --- ROUTAGE PAR CRYPTO (Basé sur votre Schéma Prisma) ---
-      if (tx.currency === "XRP") {
+      if (tx.currency === "TRX") {
+        hash = await sendTRX(tx, destination, sender.usdtPrivateKey);
+      }
+      else if (tx.currency === "XRP") {
         hash = await sendXRP(tx, destination, sender.xrpPrivateKey);
       } 
       else if (tx.currency === "PI") {
@@ -162,8 +194,11 @@ async function processExternalTransfers() {
         hash = await sendEVM(tx, destination, sender.usdtPrivateKey, RPC_URLS.EVM_DEFAULT);
       }
 
-      if (hash) {
-        console.log(`[v0] [WORKER] TX ${tx.reference} ENVOYEE avec hash:`, hash);
+      if (!hash) {
+        throw new Error(`Aucun hash blockchain retourné pour ${tx.reference}`);
+      }
+
+      console.log(`[v0] [WORKER] TX ${tx.reference} ENVOYEE avec hash:`, hash);
         await prisma.transaction.update({
           where: { id: tx.id },
           data: { 
