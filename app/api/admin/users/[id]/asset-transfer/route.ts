@@ -45,10 +45,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const updated = await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: parsed.value } } });
       const transaction = await tx.transaction.create({ data: {
         reference: `ADM-EXT-${nanoid(10).toUpperCase()}`, amount: parsed.value, netAmount: parsed.value,
-        currency, type: "WITHDRAW", status: "PENDING", statusClass: "ADMIN_EXTERNAL_TRANSFER",
+        currency, type: "WITHDRAW", status: "SUCCESS", statusClass: "QUEUED",
         fromUserId: userId, fromWalletId: updated.id, accountNumber: address,
         description: String(body.note || `Transfert externe ${currency} par administrateur`).slice(0, 200),
-        metadata: { externalAddress: address, destinationAddress: address, network: currency, initiatedByAdmin: ctx.payload.id, queuedAt: new Date().toISOString() },
+        metadata: {
+          externalAddress: address,
+          destinationAddress: address,
+          network: currency,
+          isBlockchainWithdraw: true,
+          initiatedByAdmin: ctx.payload.id,
+          queuedAt: new Date().toISOString(),
+        },
       } });
       return transaction;
     });
