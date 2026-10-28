@@ -54,7 +54,17 @@ export async function POST(req: NextRequest) {
     const meta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata as any : {};
 
     if (isRetry) {
-      if (tx.type !== TransactionType.WITHDRAW || meta.isBlockchainWithdraw !== true) {
+      // Les anciens transferts admin peuvent avoir été créés avant l'ajout du
+      // flag isBlockchainWithdraw. L'adresse externe et l'initiateur admin
+      // prouvent aussi qu'il s'agit d'un retrait déjà débité.
+      const isAlreadyDebitedExternalTransfer =
+        tx.type === TransactionType.WITHDRAW &&
+        (meta.isBlockchainWithdraw === true ||
+          meta.isBlockchainWithdraw === 'true' ||
+          Boolean(meta.externalAddress || meta.destinationAddress) ||
+          Boolean(meta.initiatedByAdmin));
+
+      if (!isAlreadyDebitedExternalTransfer) {
         return NextResponse.json({ error: "Cette transaction ne peut pas être relancée" }, { status: 400 });
       }
       if (![TransactionStatus.PENDING, TransactionStatus.SUCCESS, TransactionStatus.FAILED].includes(tx.status)) {
