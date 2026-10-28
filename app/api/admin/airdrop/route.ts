@@ -210,7 +210,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, batchId, currency, grandTotal, summary });
     }
 
-    /* ── 2. Bonus de parrainage : calcul (simulation) ────────── */
+    /* ── 2. Airdrop individuel ───────────────────────────────── */
+    if (action === "sendIndividualAirdrop") {
+      const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+      const currency = typeof body.currency === "string" && body.currency ? body.currency.toUpperCase() : "PI";
+      const amount = Number(body.amount);
+      const note = typeof body.note === "string" ? body.note.slice(0, 200) : "Airdrop individuel";
+      if (!userId || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return NextResponse.json({ error: "Utilisateur ou montant invalide" }, { status: 400 });
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+      const reference = ref("AD");
+      await prisma.$transaction([
+        prisma.wallet.upsert({ where: { userId_currency: { userId, currency } }, create: { userId, currency, balance: amount, type: currency === "PI" ? "PI" : "CRYPTO" }, update: { balance: { increment: amount } } }),
+        prisma.transaction.create({ data: { reference, type: "AIRDROP", status: "SUCCESS", amount, netAmount: amount, currency, toUserId: userId, description: note, metadata: { kind: "INDIVIDUAL_AIRDROP", adminId: ctx.payload.id } } }),
+        prisma.notification.create({ data: { userId, title: "Airdrop reçu", message: `Vous avez reçu ${amount} ${currency}${note ? ` — ${note}` : ""}.`, type: "AIRDROP", metadata: { amount, currency, reference } } }),
+      ]);
+      await logAdminAction(req, ctx.payload, { action: "AIRDROP_SEND_INDIVIDUAL", category: "airdrop", targetType: "USER", targetId: userId, details: `${amount} ${currency} · ${reference}` });
+      return NextResponse.json({ success: true, reference, currency, amount });
+    }
+
+    /* ── 3. Bonus de parrainage : calcul (simulation) ────────── */
     if (action === "computeReferralBonuses") {
       const program = await getProgram();
       const groups = await prisma.referralEarning.groupBy({
