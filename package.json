@@ -99,7 +99,7 @@
     "leaflet": "^1.9.4",
     "libphonenumber-js": "^1.12.36",
     "lucide-react": "^0.563.0",
-    "multer": "^2.3.0",
+    "multer": "^2.5.0",
     "multer-storage-cloudinary": "^4.0.0",
     "nanoid": "^5.1.16",
     "next": "16.4.0",
