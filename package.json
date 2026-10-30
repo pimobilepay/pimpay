@@ -137,7 +137,7 @@
     "vercel": "^63.1.2",
     "world-countries": "^5.1.0",
     "xrpl": "^4.6.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@swc/core": "^1.7.26",
