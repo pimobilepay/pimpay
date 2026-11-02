@@ -15,7 +15,7 @@ import { USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
  *  x-worker-secret: <WORKER_SECRET>
  */
 function assertWorkerAuth(req: NextRequest) {
-  const secret = process.env.WORKER_SECRET;
+  const secret = process.env.WORKER_SECRET || process.env.CRON_SECRET || process.env.CRON_SECRET_NEXT;
   const header = req.headers.get("x-worker-secret");
   if (!secret || !header || header !== secret) {
     throw new Error("Unauthorized worker");

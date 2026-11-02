@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 import { logAdminAction } from "@/lib/adminAudit";
 import { parseAmount } from "@/lib/amount-guard";
+import { getAssetConfig, isWithdrawSupported } from "@/lib/crypto-config";
+import { calculateFee, getFeeConfig } from "@/lib/fees";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -34,17 +36,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const currency = String(body.currency || "").toUpperCase();
   const address = String(body.address || "").trim();
   const parsed = parseAmount(body.amount);
+  const asset = getAssetConfig(currency);
+  if (!isWithdrawSupported(currency)) return NextResponse.json({ error: `Le retrait on-chain de ${currency} n'est pas encore disponible` }, { status: 400 });
   if (!parsed.ok || parsed.value <= 0) return NextResponse.json({ error: parsed.ok ? "Montant invalide" : parsed.error }, { status: 400 });
+  const decimalDigits = String(body.amount ?? "").replace(/^[+-]?\d+/, "").replace(/^\./, "").length;
+  if (decimalDigits > asset.decimals) return NextResponse.json({ error: `Montant limité à ${asset.decimals} décimales pour ${currency}` }, { status: 400 });
   if (!ADDRESS_PATTERNS[currency] || !ADDRESS_PATTERNS[currency].test(address)) return NextResponse.json({ error: `Adresse ${currency} invalide` }, { status: 400 });
   if (address.length > 200) return NextResponse.json({ error: "Adresse trop longue" }, { status: 400 });
+
+  const feeConfig = await getFeeConfig();
+  const { feeRate, feeAmount, totalDebit } = calculateFee(parsed.value, feeConfig, "withdraw");
 
   try {
     const result = await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({ where: { userId_currency: { userId, currency } } });
-      if (!wallet || wallet.balance < parsed.value) throw new Error(`Solde ${currency} insuffisant`);
-      const updated = await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: parsed.value } } });
+      if (!wallet || wallet.balance < totalDebit) throw new Error(`Solde ${currency} insuffisant: ${parsed.value} + ${feeAmount} de frais requis`);
+      const updated = await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: totalDebit } } });
       const transaction = await tx.transaction.create({ data: {
-        reference: `ADM-EXT-${nanoid(10).toUpperCase()}`, amount: parsed.value, netAmount: parsed.value,
+        reference: `ADM-EXT-${nanoid(10).toUpperCase()}`, amount: parsed.value, fee: feeAmount, netAmount: parsed.value,
         currency, type: "WITHDRAW", status: "SUCCESS", statusClass: "QUEUED",
         fromUserId: userId, fromWalletId: updated.id, accountNumber: address,
         description: String(body.note || `Transfert externe ${currency} par administrateur`).slice(0, 200),
@@ -56,6 +65,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           adminExternalTransfer: true,
           initiatedByAdmin: ctx.payload.id,
           queuedAt: new Date().toISOString(),
+          feeRate,
+          feeAmount,
+          totalDebit,
         },
       } });
       return transaction;
@@ -65,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Le débit est atomique avec la création du job. On déclenche ensuite le
     // worker avec le même secret que le cron afin que la page admin ne laisse
     // pas un transfert TRX indéfiniment en file sans broadcast.
-    const workerSecret = process.env.WORKER_SECRET;
+    const workerSecret = process.env.WORKER_SECRET || process.env.CRON_SECRET || process.env.CRON_SECRET_NEXT;
     let workerResult: { ok?: boolean; blockchainTx?: string; error?: string } | null = null;
     if (workerSecret) {
       try {

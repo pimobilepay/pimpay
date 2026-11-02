@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { AlertTriangle, ArrowUpRight, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
-import { CRYPTO_ASSETS } from "@/lib/crypto-config";
+import { CRYPTO_ASSETS, isWithdrawSupported } from "@/lib/crypto-config";
 
-const ASSETS = ["PI", "SDA", "USDT", "USDC", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "DOGE", "DAI", "BUSD", "EURC", "OUSD"];
+const ASSETS = ["PI", "SDA", "USDT", "USDC", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "DOGE", "DAI", "BUSD", "EURC", "OUSD"].filter(isWithdrawSupported);
 
 export function AdminAssetTransfer({ userId }: { userId: string }) {
   const [currency, setCurrency] = useState("PI");
