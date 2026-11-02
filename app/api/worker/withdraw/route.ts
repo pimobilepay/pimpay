@@ -104,13 +104,24 @@ async function createTronWallet(job: WithdrawJob) {
     throw new Error("Aucun portefeuille TRON configuré pour cet utilisateur");
   }
 
-  const privateKey = decrypt(user.usdtPrivateKey).replace(/^0x/, "");
+  // La clé privée est propre à l'adresse TRON de l'utilisateur. Accepter aussi
+  // les anciennes clés non chiffrées pour les wallets créés avant le chiffrement.
+  const rawPrivateKey = user.usdtPrivateKey.startsWith("v1:") || user.usdtPrivateKey.includes(":")
+    ? decrypt(user.usdtPrivateKey)
+    : user.usdtPrivateKey;
+  const privateKey = rawPrivateKey.replace(/^0x/, "");
   const tronWeb = new TronWeb({
     fullHost: process.env.TRON_FULL_HOST || "https://api.trongrid.io",
     privateKey,
   });
   if (!tronWeb.isAddress(user.usdtAddress)) throw new Error("Adresse source TRON invalide");
-  return { tronWeb, userAddress: user.usdtAddress };
+
+  // Ne jamais signer depuis une adresse différente de celle enregistrée.
+  const signerAddress = tronWeb.address.fromPrivateKey(privateKey);
+  if (!signerAddress || signerAddress !== user.usdtAddress) {
+    throw new Error("La clé privée TRON ne correspond pas à l'adresse TRON de l'utilisateur");
+  }
+  return { tronWeb, userAddress: signerAddress };
 }
 
 async function broadcastTrxWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
@@ -378,10 +389,12 @@ export async function POST(req: NextRequest) {
 
     const url = new URL(req.url);
     const limit = Math.min(parseInt(url.searchParams.get("limit") || "10", 10) || 10, 50);
+    const requestedId = url.searchParams.get("id");
     const dryRun = url.searchParams.get("dryRun") === "true";
 
     const jobs = await prisma.transaction.findMany({
       where: {
+        ...(requestedId ? { id: requestedId } : {}),
         type: TransactionType.WITHDRAW,
         status: { in: [TransactionStatus.SUCCESS, TransactionStatus.PENDING] },  // Les retraits crypto sont créés PENDING
         blockchainTx: null,                // pas encore broadcast

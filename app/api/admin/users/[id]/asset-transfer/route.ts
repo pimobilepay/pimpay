@@ -81,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let workerResult: { ok?: boolean; blockchainTx?: string; error?: string } | null = null;
     if (workerSecret) {
       try {
-        const workerResponse = await fetch(new URL("/api/worker/withdraw?limit=1", req.url), {
+        const workerResponse = await fetch(new URL(`/api/worker/withdraw?id=${encodeURIComponent(result.id)}&limit=1`, req.url), {
           method: "POST",
           headers: { "x-worker-secret": workerSecret },
           cache: "no-store",
