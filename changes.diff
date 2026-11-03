@@ -1,0 +1,650 @@
+--- orig/app/api/admin/users/[id]/asset-transfer/route.ts	2026-11-02 15:34:41.537225398 +0000
++++ pimpay-main/app/api/admin/users/[id]/asset-transfer/route.ts	2026-11-03 07:37:59.943358414 +0000
+@@ -3,29 +3,71 @@
+ import { requirePermission, PERMISSIONS } from "@/lib/permissions";
+ import { logAdminAction } from "@/lib/adminAudit";
+ import { parseAmount } from "@/lib/amount-guard";
++import { getFeeConfig, calculateFee } from "@/lib/fees";
++import { isValidTronAddress } from "@/lib/tron-utils";
++import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
++import {
++  ADMIN_TRANSFER_ASSETS,
++  isAdminTransferAsset,
++  tronGasReserve,
++  round8,
++  type AdminTransferAsset,
++} from "@/lib/admin-transfer";
++import { readStoredPrivateKey } from "@/lib/crypto";
++import { TronWeb } from "tronweb";
+ import { nanoid } from "nanoid";
+ 
+ export const dynamic = "force-dynamic";
+ 
+-const ADDRESS_PATTERNS: Record<string, RegExp> = {
++/** Formats d'adresse des SEULS actifs que le worker sait diffuser. */
++const ADDRESS_PATTERNS: Record<AdminTransferAsset, RegExp> = {
+   PI: /^G[A-Z2-7]{55}$/,
+-  XLM: /^G[A-Z2-7]{55}$/,
+-  SDA: /^0x[a-fA-F0-9]{40}$/,
+-  ETH: /^0x[a-fA-F0-9]{40}$/,
+-  BNB: /^0x[a-fA-F0-9]{40}$/,
+-  USDC: /^0x[a-fA-F0-9]{40}$/,
+-  DAI: /^0x[a-fA-F0-9]{40}$/,
+-  BUSD: /^0x[a-fA-F0-9]{40}$/,
+-  EURC: /^0x[a-fA-F0-9]{40}$/,
+-  OUSD: /^0x[a-fA-F0-9]{40}$/,
+-  USDT: /^T[a-zA-Z0-9]{33}$/,
+-  TRX: /^T[a-zA-Z0-9]{33}$/,
+-  XRP: /^r[a-zA-Z0-9]{24,33}$/,
+-  SOL: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+-  BTC: /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/,
+   DOGE: /^D[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
++  TRX: /^T[1-9A-HJ-NP-Za-km-z]{33}$/,
++  USDT: /^T[1-9A-HJ-NP-Za-km-z]{33}$/,
+ };
+ 
++/** Erreur métier : message affichable tel quel à l'admin (400). */
++class TransferError extends Error {}
++
++/**
++ * Frais du retrait : MÊME source que le retrait utilisateur
++ * (SystemConfig.withdrawFee via lib/fees) — jamais de valeur codée en dur.
++ */
++async function quoteFee(amount: number) {
++  const config = await getFeeConfig();
++  const { feeRate, feeAmount } = calculateFee(amount, config, "withdraw");
++  const fee = round8(feeAmount);
++  return { feeRate, fee, totalDebit: round8(amount + fee) };
++}
++
++/**
++ * GET ?currency=TRX&amount=10 — aperçu des frais et du solde pour l'UI admin.
++ * Lecture seule : aucune écriture.
++ */
++export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
++  const ctx = await requirePermission(req, PERMISSIONS.WITHDRAWALS_MANAGE);
++  if (ctx instanceof NextResponse) return ctx;
++  const { id: userId } = await params;
++  const url = new URL(req.url);
++  const currency = String(url.searchParams.get("currency") || "").toUpperCase();
++  if (!isAdminTransferAsset(currency)) {
++    return NextResponse.json({ error: `Actif ${currency || "?"} non supporté pour le transfert externe` }, { status: 400 });
++  }
++
++  const wallet = await prisma.wallet.findUnique({
++    where: { userId_currency: { userId, currency } },
++    select: { balance: true },
++  });
++  const balance = wallet?.balance ?? 0;
++
++  const parsed = parseAmount(url.searchParams.get("amount"));
++  if (!parsed.ok) return NextResponse.json({ balance, feeRate: null, fee: null, totalDebit: null, sufficient: false });
++
++  const { feeRate, fee, totalDebit } = await quoteFee(parsed.value);
++  return NextResponse.json({ balance, feeRate, fee, totalDebit, sufficient: balance >= totalDebit });
++}
++
+ export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+   const ctx = await requirePermission(req, PERMISSIONS.WITHDRAWALS_MANAGE);
+   if (ctx instanceof NextResponse) return ctx;
+@@ -34,19 +76,117 @@
+   const currency = String(body.currency || "").toUpperCase();
+   const address = String(body.address || "").trim();
+   const parsed = parseAmount(body.amount);
+-  if (!parsed.ok || parsed.value <= 0) return NextResponse.json({ error: parsed.ok ? "Montant invalide" : parsed.error }, { status: 400 });
+-  if (!ADDRESS_PATTERNS[currency] || !ADDRESS_PATTERNS[currency].test(address)) return NextResponse.json({ error: `Adresse ${currency} invalide` }, { status: 400 });
+-  if (address.length > 200) return NextResponse.json({ error: "Adresse trop longue" }, { status: 400 });
+ 
++  // ── 1. Validations (AUCUNE écriture tant qu'elles ne passent pas) ───────────
++  if (!isAdminTransferAsset(currency)) {
++    return NextResponse.json(
++      { error: `Actif ${currency || "?"} non supporté : seuls ${Object.keys(ADMIN_TRANSFER_ASSETS).join(", ")} peuvent être diffusés sur la blockchain.` },
++      { status: 400 }
++    );
++  }
++  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
++  const amount = parsed.value;
++  if (address.length > 200 || !ADDRESS_PATTERNS[currency].test(address)) {
++    return NextResponse.json({ error: `Adresse ${currency} invalide` }, { status: 400 });
++  }
++  const family = ADMIN_TRANSFER_ASSETS[currency].family;
++  if (family === "TRON" && !isValidTronAddress(address)) {
++    return NextResponse.json({ error: "Adresse TRON invalide (checksum incorrect)" }, { status: 400 });
++  }
++
++  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, usdtAddress: true, usdtPrivateKey: true, dogeAddress: true, dogePrivateKey: true } });
++  if (!user) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
++
++  // ── 1b. Clé de signature exploitable (AVANT tout débit) ─────────────────────
++  // Les fonds sont sur les adresses des utilisateurs : le worker signe avec la
++  // clé privée stockée. Une clé absente, illisible ou ne correspondant pas à
++  // l'adresse ferait échouer le broadcast après le débit.
++  try {
++    if (family === "TRON") {
++      if (!user.usdtAddress) throw new TransferError("Aucun portefeuille TRON configuré pour cet utilisateur");
++      const key = readStoredPrivateKey(user.usdtPrivateKey);
++      const derived = TronWeb.address.fromPrivateKey(key);
++      if (!derived || derived !== user.usdtAddress) {
++        throw new TransferError("La clé privée TRON stockée ne correspond pas à l'adresse du portefeuille. Utilisez la réparation des portefeuilles.");
++      }
++    } else if (family === "DOGE") {
++      if (!user.dogeAddress) throw new TransferError("Aucun portefeuille DOGE configuré pour cet utilisateur");
++      readStoredPrivateKey(user.dogePrivateKey);
++    } else if (!process.env.PI_MASTER_WALLET_SECRET || !process.env.PI_MASTER_WALLET_ADDRESS) {
++      throw new TransferError("Wallet maître Pi non configuré (PI_MASTER_WALLET_SECRET / PI_MASTER_WALLET_ADDRESS)");
++    }
++  } catch (keyError: any) {
++    const msg = keyError instanceof TransferError ? keyError.message : "Clé privée de l'utilisateur illisible (ENCRYPTION_KEY ou format invalide). Aucun débit effectué.";
++    return NextResponse.json({ error: msg }, { status: 400 });
++  }
++
++  // ── 2. Frais plateforme (même config que le retrait utilisateur) ─────────────
++  const { feeRate, fee, totalDebit } = await quoteFee(amount);
++
++  // ── 3. Couverture ON-CHAIN (TRON) : montant + frais plateforme + frais réseau ─
++  // Le worker envoie `amount` puis collecte `fee` depuis l'adresse TRON de
++  // l'utilisateur, le tout payé en TRX (bande passante / énergie). Sans ce
++  // contrôle, le débit a lieu puis le broadcast échoue ou la collecte des frais
++  // reste en erreur.
++  if (family === "TRON") {
++    if (!user.usdtAddress) {
++      return NextResponse.json({ error: "Aucun portefeuille TRON configuré pour cet utilisateur" }, { status: 400 });
++    }
++    if (address === user.usdtAddress) {
++      return NextResponse.json({ error: "L'adresse de destination est celle du portefeuille source" }, { status: 400 });
++    }
++    try {
++      const gas = tronGasReserve(currency as "TRX" | "USDT");
++      if (currency === "TRX") {
++        const onChain = await getTrxBalance(user.usdtAddress);
++        const required = round8(totalDebit + gas);
++        if (onChain < required) {
++          return NextResponse.json({
++            error: `Solde TRX on-chain insuffisant : ${onChain} disponible, ${required} requis (montant ${amount} + frais ${fee} + réserve réseau ${gas}).`,
++          }, { status: 400 });
++        }
++      } else {
++        const [usdtOnChain, trxOnChain] = await Promise.all([getUsdtBalance(user.usdtAddress), getTrxBalance(user.usdtAddress)]);
++        if (usdtOnChain < totalDebit) {
++          return NextResponse.json({
++            error: `Solde USDT on-chain insuffisant : ${usdtOnChain} disponible, ${totalDebit} requis (montant ${amount} + frais ${fee}).`,
++          }, { status: 400 });
++        }
++        if (trxOnChain < gas) {
++          return NextResponse.json({
++            error: `TRX insuffisant pour les frais réseau TRON : ${trxOnChain} disponible, ${gas} requis sur l'adresse de l'utilisateur.`,
++          }, { status: 400 });
++        }
++      }
++    } catch (chainError) {
++      console.error("[ADMIN_TRANSFER] Vérification on-chain impossible", chainError);
++      return NextResponse.json({ error: "Impossible de vérifier le solde on-chain pour le moment. Aucun débit effectué, réessayez." }, { status: 503 });
++    }
++  }
++
++  // ── 4. Débit atomique (montant + frais) + transaction + profit plateforme ────
+   try {
+     const result = await prisma.$transaction(async (tx) => {
+       const wallet = await tx.wallet.findUnique({ where: { userId_currency: { userId, currency } } });
+-      if (!wallet || wallet.balance < parsed.value) throw new Error(`Solde ${currency} insuffisant`);
+-      const updated = await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: parsed.value } } });
++      if (!wallet) throw new TransferError(`Aucun portefeuille ${currency} pour cet utilisateur`);
++
++      // Le contrôle du solde est DANS la requête de débit : deux transferts
++      // simultanés ne peuvent plus passer sous le même solde (course critique).
++      const debited = await tx.wallet.updateMany({
++        where: { id: wallet.id, balance: { gte: totalDebit } },
++        data: { balance: { decrement: totalDebit } },
++      });
++      if (debited.count !== 1) {
++        throw new TransferError(`Solde ${currency} insuffisant : ${totalDebit} requis (montant ${amount} + frais ${fee}), ${wallet.balance} disponible.`);
++      }
++
+       const transaction = await tx.transaction.create({ data: {
+-        reference: `ADM-EXT-${nanoid(10).toUpperCase()}`, amount: parsed.value, netAmount: parsed.value,
++        reference: `ADM-EXT-${nanoid(10).toUpperCase()}`,
++        amount,
++        fee,
++        netAmount: amount, // ce que reçoit réellement le destinataire
+         currency, type: "WITHDRAW", status: "SUCCESS", statusClass: "QUEUED",
+-        fromUserId: userId, fromWalletId: updated.id, accountNumber: address,
++        fromUserId: userId, fromWalletId: wallet.id, accountNumber: address,
+         description: String(body.note || `Transfert externe ${currency} par administrateur`).slice(0, 200),
+         metadata: {
+           externalAddress: address,
+@@ -55,38 +195,73 @@
+           isBlockchainWithdraw: true,
+           adminExternalTransfer: true,
+           initiatedByAdmin: ctx.payload.id,
++          feeRate,
++          feeApplied: `${round8(feeRate * 100)}%`,
++          totalDebit,
++          // Indique que `fee` a été ajouté à SystemConfig.totalProfit : il devra
++          // être retranché si le transfert est recrédité (échec / annulation).
++          profitCounted: fee > 0,
+           queuedAt: new Date().toISOString(),
+         },
+       } });
++
++      if (fee > 0) {
++        await tx.systemConfig.updateMany({ where: { id: "GLOBAL_CONFIG" }, data: { totalProfit: { increment: fee } } });
++      }
+       return transaction;
++    }, { maxWait: 10000, timeout: 30000 });
++
++    await logAdminAction(req, ctx.payload, {
++      action: "ADMIN_EXTERNAL_ASSET_TRANSFER", category: "withdrawals", targetType: "USER", targetId: userId,
++      details: `${result.reference} · ${amount} ${currency} + frais ${fee} (total débité ${totalDebit}) · ${address.slice(0, 12)}…`,
+     });
+-    await logAdminAction(req, ctx.payload, { action: "ADMIN_EXTERNAL_ASSET_TRANSFER", category: "withdrawals", targetType: "USER", targetId: userId, details: `${result.reference} · ${parsed.value} ${currency} · ${address.slice(0, 12)}…` });
+ 
+-    // Le débit est atomique avec la création du job. On déclenche ensuite le
+-    // worker avec le même secret que le cron afin que la page admin ne laisse
+-    // pas un transfert TRX indéfiniment en file sans broadcast.
++    // ── 5. Diffusion immédiate de CE transfert précis ─────────────────────────
++    // `jobId` évite que le worker traite un autre retrait plus ancien de la file.
+     const workerSecret = process.env.WORKER_SECRET;
+-    let workerResult: { ok?: boolean; blockchainTx?: string; error?: string } | null = null;
+     if (workerSecret) {
+       try {
+-        const workerResponse = await fetch(new URL("/api/worker/withdraw?limit=1", req.url), {
++        await fetch(new URL(`/api/worker/withdraw?limit=1&jobId=${encodeURIComponent(result.id)}`, req.url), {
+           method: "POST",
+           headers: { "x-worker-secret": workerSecret },
+           cache: "no-store",
+         });
+-        const payload = await workerResponse.json().catch(() => ({}));
+-        workerResult = payload?.results?.find((item: { id?: string }) => item.id === result.id) ?? null;
+       } catch (workerError) {
+-        console.error("[v0] Admin external transfer worker unavailable", workerError);
++        console.error("[ADMIN_TRANSFER] Worker indisponible", workerError);
+       }
+     }
+ 
+-    if (workerResult?.ok && workerResult.blockchainTx) {
+-      return NextResponse.json({ success: true, status: "BROADCASTED", reference: result.reference, blockchainTx: workerResult.blockchainTx, message: "Transfert TRX diffusé sur la blockchain." });
+-    }
++    // L'état réel est relu en base : c'est la source de vérité (et non la
++    // réponse du worker), y compris pour la collecte des frais TRON.
++    const final = await prisma.transaction.findUnique({
++      where: { id: result.id },
++      select: { statusClass: true, blockchainTx: true, metadata: true },
++    });
++    const meta = (final?.metadata && typeof final.metadata === "object" ? final.metadata : {}) as Record<string, any>;
++    const summary = { reference: result.reference, amount, fee, totalDebit, currency };
+ 
+-    return NextResponse.json({ success: true, status: "PENDING", reference: result.reference, message: workerResult?.error || "Transfert enregistré et placé en file de traitement." });
++    if (final?.blockchainTx) {
++      return NextResponse.json({
++        success: true, status: "BROADCASTED", ...summary, blockchainTx: final.blockchainTx,
++        message: `Transfert ${currency} diffusé sur la blockchain.`,
++        warning: meta.feeCollectionError ? `Frais plateforme non collectés on-chain : ${meta.feeCollectionError}` : undefined,
++      });
++    }
++    if (final?.statusClass === "FAILED_BROADCAST") {
++      return NextResponse.json({
++        success: false, status: "FAILED", ...summary,
++        error: `Diffusion ${currency} échouée : ${meta.broadcastError || "erreur inconnue"}. ${
++          meta.refunded ? "Le solde (montant + frais) a été recrédité." : "Le débit est conservé : utilisez « Relancer » ou « Annuler et recréditer »."
++        }`,
++      }, { status: 502 });
++    }
++    return NextResponse.json({
++      success: true, status: "PENDING", ...summary,
++      message: "Transfert enregistré et placé en file de traitement.",
++    });
+   } catch (error: any) {
+-    return NextResponse.json({ error: error.message || "Transfert refusé" }, { status: 400 });
++    if (error instanceof TransferError) return NextResponse.json({ error: error.message }, { status: 400 });
++    console.error("[ADMIN_TRANSFER] Erreur inattendue", error);
++    return NextResponse.json({ error: "Erreur serveur lors du transfert. Vérifiez l'historique avant de réessayer." }, { status: 500 });
+   }
+ }
+--- orig/app/admin/users/[id]/AdminAssetTransfer.tsx	2026-11-02 15:34:41.541125187 +0000
++++ pimpay-main/app/admin/users/[id]/AdminAssetTransfer.tsx	2026-11-03 07:27:49.262369950 +0000
+@@ -1,48 +1,77 @@
+ "use client";
+ 
+-import { useState } from "react";
++import { useEffect, useState } from "react";
+ import { AlertTriangle, ArrowUpRight, Loader2, Send } from "lucide-react";
+ import { toast } from "sonner";
+-import { CRYPTO_ASSETS } from "@/lib/crypto-config";
++import { ADMIN_TRANSFER_ASSETS, type AdminTransferAsset } from "@/lib/admin-transfer";
+ 
+-const ASSETS = ["PI", "SDA", "USDT", "USDC", "BTC", "ETH", "BNB", "SOL", "XRP", "XLM", "TRX", "DOGE", "DAI", "BUSD", "EURC", "OUSD"];
++type Quote = { balance: number; feeRate: number | null; fee: number | null; totalDebit: number | null; sufficient: boolean };
++
++const ASSETS = Object.keys(ADMIN_TRANSFER_ASSETS) as AdminTransferAsset[];
+ 
+ export function AdminAssetTransfer({ userId }: { userId: string }) {
+-  const [currency, setCurrency] = useState("PI");
++  const [currency, setCurrency] = useState<AdminTransferAsset>("TRX");
+   const [amount, setAmount] = useState("");
+   const [address, setAddress] = useState("");
+   const [note, setNote] = useState("");
+   const [submitting, setSubmitting] = useState(false);
++  const [quote, setQuote] = useState<Quote | null>(null);
++
++  // Aperçu serveur (frais + solde), avec anti-rebond. Mêmes frais que ceux
++  // réellement débités : ils viennent de la même config (SystemConfig).
++  useEffect(() => {
++    let cancelled = false;
++    const timer = setTimeout(async () => {
++      try {
++        const res = await fetch(`/api/admin/users/${userId}/asset-transfer?currency=${currency}&amount=${encodeURIComponent(amount)}`);
++        const data = await res.json();
++        if (!cancelled && res.ok) setQuote(data);
++      } catch { if (!cancelled) setQuote(null); }
++    }, 400);
++    return () => { cancelled = true; clearTimeout(timer); };
++  }, [userId, currency, amount]);
++
++  const hasQuote = quote?.fee != null && quote.totalDebit != null;
++  const insufficient = hasQuote && !quote!.sufficient;
+ 
+   async function submit() {
+     if (!amount || !address.trim()) return toast.error("Montant et adresse obligatoires");
+-    if (!window.confirm(`Confirmer le transfert externe de ${amount} ${currency} ? Le solde utilisateur sera débité immédiatement.`)) return;
++    if (insufficient) return toast.error(`Solde ${currency} insuffisant (montant + frais)`);
++    const detail = hasQuote ? ` Frais : ${quote!.fee} ${currency} — total débité : ${quote!.totalDebit} ${currency}.` : "";
++    if (!window.confirm(`Confirmer le transfert externe de ${amount} ${currency} ?${detail} Le solde utilisateur sera débité immédiatement.`)) return;
+     setSubmitting(true);
+     try {
+       const response = await fetch(`/api/admin/users/${userId}/asset-transfer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currency, amount, address, note }) });
+       const data = await response.json();
+       if (!response.ok) throw new Error(data.error || "Transfert refusé");
+-      toast.success(`${data.message} Référence ${data.reference}`);
++      toast.success(`${data.message} Référence ${data.reference} — frais ${data.fee} ${data.currency}`);
++      if (data.warning) toast.warning(data.warning);
+       setAmount(""); setAddress(""); setNote("");
+     } catch (error: any) { toast.error(error.message || "Erreur de transfert"); }
+     finally { setSubmitting(false); }
+   }
+ 
+-  const asset = CRYPTO_ASSETS[currency];
++  const asset = ADMIN_TRANSFER_ASSETS[currency];
+   return (
+     <section className="bg-slate-900/40 border border-amber-500/20 rounded-[2rem] p-5 space-y-4">
+       <div className="flex items-start gap-3">
+         <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400"><Send size={16} /></div>
+-        <div><h3 className="text-[10px] font-black text-white uppercase tracking-widest">Transfert externe administrateur</h3><p className="text-[9px] text-slate-500 mt-1">Débite le portefeuille de cet utilisateur et place le retrait en file de traitement.</p></div>
++        <div><h3 className="text-[10px] font-black text-white uppercase tracking-widest">Transfert externe administrateur</h3><p className="text-[9px] text-slate-500 mt-1">Débite le portefeuille (montant + frais) et diffuse le retrait sur la blockchain.</p></div>
+       </div>
+       <div className="flex items-start gap-2 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-[9px] font-bold text-rose-300"><AlertTriangle size={13} className="shrink-0" />Vérifiez le réseau et l&apos;adresse. Cette opération est auditée et le débit est immédiat.</div>
+       <div className="grid grid-cols-2 gap-3">
+-        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Actif<select value={currency} onChange={e => setCurrency(e.target.value)} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none focus:border-amber-500">{ASSETS.map(code => <option key={code} value={code}>{code} — {CRYPTO_ASSETS[code]?.network || "Réseau"}</option>)}</select></label>
++        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Actif<select value={currency} onChange={e => setCurrency(e.target.value as AdminTransferAsset)} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none focus:border-amber-500">{ASSETS.map(code => <option key={code} value={code}>{code} — {ADMIN_TRANSFER_ASSETS[code].network}</option>)}</select></label>
+         <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Montant<input value={amount} onChange={e => setAmount(e.target.value.replace(",", "."))} inputMode="decimal" placeholder="0.00" className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none focus:border-amber-500" /></label>
+       </div>
+-      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse externe<input value={address} onChange={e => setAddress(e.target.value)} placeholder={`Adresse ${currency} (${asset?.network || "réseau"})`} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-mono text-white outline-none focus:border-amber-500" /></label>
++      <div className="rounded-xl bg-slate-950/60 border border-white/5 p-3 space-y-1 text-[10px] font-bold text-slate-400">
++        <div className="flex justify-between"><span>Solde {currency}</span><span className="text-white">{quote ? quote.balance : "…"}</span></div>
++        <div className="flex justify-between"><span>Frais{quote?.feeRate != null ? ` (${Math.round(quote.feeRate * 10000) / 100}%)` : ""}</span><span className="text-white">{hasQuote ? `${quote!.fee} ${currency}` : "—"}</span></div>
++        <div className="flex justify-between"><span>Total débité</span><span className={insufficient ? "text-rose-400" : "text-amber-400"}>{hasQuote ? `${quote!.totalDebit} ${currency}` : "—"}</span></div>
++        {insufficient && <p className="text-rose-400 pt-1">Solde insuffisant pour couvrir le montant et les frais.</p>}
++      </div>
++      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse externe<input value={address} onChange={e => setAddress(e.target.value)} placeholder={`Adresse ${currency} (${asset.network})`} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-mono text-white outline-none focus:border-amber-500" /></label>
+       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Motif<input value={note} onChange={e => setNote(e.target.value)} maxLength={200} placeholder="Motif interne facultatif" className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-bold text-white outline-none focus:border-amber-500" /></label>
+-      <button onClick={submit} disabled={submitting} className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-950 disabled:opacity-40 hover:bg-amber-400">{submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />} Enregistrer le transfert externe</button>
++      <button onClick={submit} disabled={submitting || !!insufficient} className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-950 disabled:opacity-40 hover:bg-amber-400">{submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />} Enregistrer le transfert externe</button>
+     </section>
+   );
+ }
+--- orig/app/api/worker/withdraw/route.ts	2026-11-02 15:34:41.544383335 +0000
++++ pimpay-main/app/api/worker/withdraw/route.ts	2026-11-03 07:37:59.941954144 +0000
+@@ -5,7 +5,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { TransactionStatus, TransactionType } from "@prisma/client";
+ import * as StellarSdk from "@stellar/stellar-sdk";
+-import { decrypt } from "@/lib/crypto";
++import { readStoredPrivateKey } from "@/lib/crypto";
+ import { sendDoge } from "@/lib/blockchain/dogecoin";
+ import { TronWeb } from "tronweb";
+ import { USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
+@@ -104,7 +104,7 @@
+     throw new Error("Aucun portefeuille TRON configuré pour cet utilisateur");
+   }
+ 
+-  const privateKey = decrypt(user.usdtPrivateKey).replace(/^0x/, "");
++  const privateKey = readStoredPrivateKey(user.usdtPrivateKey);
+   const tronWeb = new TronWeb({
+     fullHost: process.env.TRON_FULL_HOST || "https://api.trongrid.io",
+     privateKey,
+@@ -135,7 +135,7 @@
+   }
+ 
+   const fullHost = process.env.TRON_FULL_HOST || "https://api.trongrid.io";
+-  const privateKey = decrypt(user.usdtPrivateKey).replace(/^0x/, "");
++  const privateKey = readStoredPrivateKey(user.usdtPrivateKey);
+   const tronWeb = new TronWeb({ fullHost, privateKey });
+ 
+   if (!tronWeb.isAddress(user.usdtAddress) || !tronWeb.isAddress(toAddress)) {
+@@ -197,7 +197,7 @@
+     throw new Error("Aucun portefeuille DOGE configuré pour cet utilisateur");
+   }
+ 
+-  const privateKeyWIF = decrypt(user.dogePrivateKey);
++  const privateKeyWIF = readStoredPrivateKey(user.dogePrivateKey);
+   const { txid } = await sendDoge({
+     fromAddress: user.dogeAddress,
+     privateKeyWIF,
+@@ -379,12 +379,15 @@
+     const url = new URL(req.url);
+     const limit = Math.min(parseInt(url.searchParams.get("limit") || "10", 10) || 10, 50);
+     const dryRun = url.searchParams.get("dryRun") === "true";
++    // Cible un job précis (ex: transfert admin) au lieu du plus ancien de la file.
++    const jobId = url.searchParams.get("jobId");
+ 
+     const jobs = await prisma.transaction.findMany({
+       where: {
+         type: TransactionType.WITHDRAW,
+         status: { in: [TransactionStatus.SUCCESS, TransactionStatus.PENDING] },  // Les retraits crypto sont créés PENDING
+         blockchainTx: null,                // pas encore broadcast
++        ...(jobId ? { id: jobId } : {}),
+         AND: [
+           {
+             OR: [
+@@ -526,23 +529,36 @@
+           if (!alreadyRefunded) {
+             const total = (updated.amount || 0) + (updated.fee || 0);
+ 
+-            await prisma.$transaction([
+-              prisma.wallet.update({
+-                where: { id: updated.fromWalletId },
++            const refundMeta = (typeof updated.metadata === "object" && updated.metadata ? updated.metadata : {}) as Record<string, any>;
++            // Les frais ont été comptés dans totalProfit au débit : puisqu'ils
++            // sont rendus à l'utilisateur, on les retranche pour ne pas gonfler
++            // le profit plateforme.
++            const reverseProfit = refundMeta.profitCounted === true && (updated.fee || 0) > 0;
++
++            await prisma.$transaction(async (tx) => {
++              await tx.wallet.update({
++                where: { id: updated.fromWalletId! },
+                 data: { balance: { increment: total } },
+-              }),
+-              prisma.transaction.update({
++              });
++              if (reverseProfit) {
++                await tx.systemConfig.updateMany({
++                  where: { id: "GLOBAL_CONFIG" },
++                  data: { totalProfit: { decrement: updated.fee || 0 } },
++                });
++              }
++              await tx.transaction.update({
+                 where: { id: updated.id },
+                 data: {
+                   metadata: {
+-                    ...(typeof updated.metadata === "object" && updated.metadata ? updated.metadata : {}),
++                    ...refundMeta,
+                     refunded: true,
+                     refundedAt: new Date().toISOString(),
+                     refundedTotal: total,
++                    ...(reverseProfit ? { profitCounted: false } : {}),
+                   },
+                 },
+-              }),
+-            ]);
++              });
++            });
+           }
+         }
+ 
+--- orig/app/api/admin/transactions/update/route.ts	2026-11-02 15:34:41.547383960 +0000
++++ pimpay-main/app/api/admin/transactions/update/route.ts	2026-11-03 07:27:33.027464769 +0000
+@@ -103,6 +103,33 @@
+           throw new Error('ALREADY_PROCESSED');
+         }
+ 
++        // Ajustements de metadata decides plus bas (re-debit, inversion du profit).
++        const metaPatch: Record<string, any> = {};
++        const freshFee = freshTx.fee || 0;
++
++        // RELANCE d'un transfert deja RECREDITE (echec de broadcast) : le solde
++        // a ete rendu a l'utilisateur, mais le worker enverrait quand meme les
++        // fonds on-chain. Il faut donc re-debiter (montant + frais) avant de
++        // remettre en file, sinon le transfert part sans aucun debit.
++        if (isRetry && freshMeta.refunded === true) {
++          if (!freshTx.fromWalletId) throw new Error('NO_SOURCE_WALLET');
++          const total = freshTx.amount + freshFee;
++          const redebited = await p.wallet.updateMany({
++            where: { id: freshTx.fromWalletId, balance: { gte: total } },
++            data: { balance: { decrement: total } },
++          });
++          if (redebited.count !== 1) throw new Error('INSUFFICIENT_BALANCE');
++          if (freshFee > 0 && freshMeta.adminExternalTransfer === true && freshMeta.profitCounted === false) {
++            await p.systemConfig.updateMany({
++              where: { id: 'GLOBAL_CONFIG' },
++              data: { totalProfit: { increment: freshFee } },
++            });
++            metaPatch.profitCounted = true;
++          }
++          metaPatch.refunded = false;
++          metaPatch.redebitedAt = new Date().toISOString();
++        }
++
+         // Mise a jour de la transaction
+         const existingMeta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata : {};
+         const updated = await p.transaction.update({
+@@ -110,7 +137,7 @@
+           data: {
+             status: newStatus,
+             note: `Admin Action: ${action.toUpperCase()} le ${new Date().toLocaleString('fr-FR')}`,
+-            metadata: { ...existingMeta, approvedBy: adminId || 'system' } as any,
++            metadata: { ...existingMeta, ...metaPatch, approvedBy: adminId || 'system' } as any,
+           },
+         });
+ 
+@@ -166,6 +193,19 @@
+               },
+               data: { balance: { increment: refundAmount } }
+             });
++
++            // Frais rendus a l'utilisateur => retires du profit plateforme
++            // (uniquement s'ils y avaient ete comptes au debit).
++            if (freshFee > 0 && freshMeta.profitCounted === true) {
++              await p.systemConfig.updateMany({
++                where: { id: 'GLOBAL_CONFIG' },
++                data: { totalProfit: { decrement: freshFee } },
++              });
++              await p.transaction.update({
++                where: { id: transactionId },
++                data: { metadata: { ...existingMeta, ...metaPatch, approvedBy: adminId || 'system', profitCounted: false } as any },
++              });
++            }
+           }
+         }
+ 
+@@ -211,6 +251,15 @@
+       }, { status: 409 });
+     }
+ 
++    if (error.message === 'INSUFFICIENT_BALANCE') {
++      return NextResponse.json({
++        error: "Relance impossible : le solde de l'utilisateur ne couvre plus le montant + les frais (le transfert avait ete recredite)."
++      }, { status: 409 });
++    }
++    if (error.message === 'NO_SOURCE_WALLET') {
++      return NextResponse.json({ error: "Portefeuille source introuvable pour ce transfert." }, { status: 409 });
++    }
++
+     if (error.code === 'P2024' || (error.message && error.message.includes('Transaction not found'))) {
+       return NextResponse.json({
+         error: "Connexion perdue avec la base de donnees. Veuillez reessayer."
+--- orig/app/admin/users/[id]/PendingTransferAction.tsx	2026-11-02 15:34:41.555081675 +0000
++++ pimpay-main/app/admin/users/[id]/PendingTransferAction.tsx	2026-11-03 07:27:33.028467071 +0000
+@@ -8,7 +8,7 @@
+   const [loading, setLoading] = useState(false);
+ 
+   async function retry() {
+-    if (!window.confirm("Remettre ce transfert dans la file de traitement ? Le solde ne sera pas débité une seconde fois.")) return;
++    if (!window.confirm("Remettre ce transfert dans la file de traitement ? Si le solde avait été recrédité après un échec, il sera débité à nouveau (montant + frais) ; sinon aucun second débit.")) return;
+     setLoading(true);
+     try {
+       const response = await fetch("/api/admin/transactions/update", {
+--- orig-crypto.ts	2026-11-03 07:37:59.895503305 +0000
++++ pimpay-main/lib/crypto.ts	2026-11-03 07:37:59.895503305 +0000
+@@ -130,3 +130,15 @@
+     return false;
+   }
+ }
++
++/**
++ * Lit une clé privée stockée en base, qu'elle soit chiffrée (v1:iv:tag:data ou
++ * iv:data legacy) OU encore en clair (anciens comptes). Même règle que
++ * app/api/user/transfer : un ":" signale une valeur chiffrée.
++ * Retire un éventuel préfixe "0x". Lève une erreur si la valeur est vide.
++ */
++export function readStoredPrivateKey(stored: string | null | undefined): string {
++  if (!stored) throw new Error('[CRYPTO] Clé privée absente');
++  const raw = stored.includes(':') ? decrypt(stored) : stored;
++  return raw.trim().replace(/^0x/, '');
++}
+--- /dev/null	2026-11-03 07:06:30.243747040 +0000
++++ pimpay-main/lib/admin-transfer.ts	2026-11-03 07:37:59.942867075 +0000
+@@ -0,0 +1,45 @@
++/**
++ * lib/admin-transfer.ts — Règles partagées du transfert externe administrateur.
++ *
++ * Fichier SANS dépendance serveur : importé à la fois par la route API
++ * (app/api/admin/users/[id]/asset-transfer) et par le composant client
++ * (AdminAssetTransfer.tsx) afin que l'UI et le serveur n'aient jamais deux
++ * listes d'actifs ou deux formules de frais différentes.
++ */
++
++/**
++ * Actifs réellement diffusables par le worker (app/api/worker/withdraw).
++ * Tout autre actif échouerait au broadcast ("Broadcast non implémenté") APRÈS
++ * le débit : on le refuse donc AVANT toute écriture en base.
++ */
++export const ADMIN_TRANSFER_ASSETS = {
++  PI: { network: "Pi Network", family: "STELLAR" },
++  DOGE: { network: "Dogecoin", family: "DOGE" },
++  TRX: { network: "TRON", family: "TRON" },
++  USDT: { network: "TRON (TRC20)", family: "TRON" },
++} as const;
++
++export type AdminTransferAsset = keyof typeof ADMIN_TRANSFER_ASSETS;
++
++export function isAdminTransferAsset(code: string): code is AdminTransferAsset {
++  return Object.prototype.hasOwnProperty.call(ADMIN_TRANSFER_ASSETS, code);
++}
++
++/**
++ * Réserve de TRX à conserver sur l'adresse TRON de l'utilisateur pour payer les
++ * frais RÉSEAU (bande passante / énergie), distincts des frais plateforme.
++ * Le worker effectue 2 envois : le transfert, puis la collecte des frais.
++ * Surchargeable par variables d'environnement.
++ */
++export function tronGasReserve(currency: "TRX" | "USDT"): number {
++  const fromEnv = Number(
++    currency === "TRX" ? process.env.TRON_MIN_GAS_TRX : process.env.TRON_USDT_MIN_GAS_TRX
++  );
++  if (Number.isFinite(fromEnv) && fromEnv >= 0) return fromEnv;
++  return currency === "TRX" ? 2 : 10;
++}
++
++/** Arrondi à 8 décimales (précision des soldes) pour éviter les résidus flottants. */
++export function round8(value: number): number {
++  return Math.round(value * 1e8) / 1e8;
++}
