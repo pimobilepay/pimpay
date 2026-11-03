@@ -103,6 +103,33 @@ export async function POST(req: NextRequest) {
           throw new Error('ALREADY_PROCESSED');
         }
 
+        // Ajustements de metadata decides plus bas (re-debit, inversion du profit).
+        const metaPatch: Record<string, any> = {};
+        const freshFee = freshTx.fee || 0;
+
+        // RELANCE d'un transfert deja RECREDITE (echec de broadcast) : le solde
+        // a ete rendu a l'utilisateur, mais le worker enverrait quand meme les
+        // fonds on-chain. Il faut donc re-debiter (montant + frais) avant de
+        // remettre en file, sinon le transfert part sans aucun debit.
+        if (isRetry && freshMeta.refunded === true) {
+          if (!freshTx.fromWalletId) throw new Error('NO_SOURCE_WALLET');
+          const total = freshTx.amount + freshFee;
+          const redebited = await p.wallet.updateMany({
+            where: { id: freshTx.fromWalletId, balance: { gte: total } },
+            data: { balance: { decrement: total } },
+          });
+          if (redebited.count !== 1) throw new Error('INSUFFICIENT_BALANCE');
+          if (freshFee > 0 && freshMeta.adminExternalTransfer === true && freshMeta.profitCounted === false) {
+            await p.systemConfig.updateMany({
+              where: { id: 'GLOBAL_CONFIG' },
+              data: { totalProfit: { increment: freshFee } },
+            });
+            metaPatch.profitCounted = true;
+          }
+          metaPatch.refunded = false;
+          metaPatch.redebitedAt = new Date().toISOString();
+        }
+
         // Mise a jour de la transaction
         const existingMeta = (typeof tx.metadata === 'object' && tx.metadata !== null) ? tx.metadata : {};
         const updated = await p.transaction.update({
@@ -110,7 +137,7 @@ export async function POST(req: NextRequest) {
           data: {
             status: newStatus,
             note: `Admin Action: ${action.toUpperCase()} le ${new Date().toLocaleString('fr-FR')}`,
-            metadata: { ...existingMeta, approvedBy: adminId || 'system' } as any,
+            metadata: { ...existingMeta, ...metaPatch, approvedBy: adminId || 'system' } as any,
           },
         });
 
@@ -166,6 +193,19 @@ export async function POST(req: NextRequest) {
               },
               data: { balance: { increment: refundAmount } }
             });
+
+            // Frais rendus a l'utilisateur => retires du profit plateforme
+            // (uniquement s'ils y avaient ete comptes au debit).
+            if (freshFee > 0 && freshMeta.profitCounted === true) {
+              await p.systemConfig.updateMany({
+                where: { id: 'GLOBAL_CONFIG' },
+                data: { totalProfit: { decrement: freshFee } },
+              });
+              await p.transaction.update({
+                where: { id: transactionId },
+                data: { metadata: { ...existingMeta, ...metaPatch, approvedBy: adminId || 'system', profitCounted: false } as any },
+              });
+            }
           }
         }
 
@@ -209,6 +249,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: "Cette transaction a deja ete traitee. Rafraichissez la page."
       }, { status: 409 });
+    }
+
+    if (error.message === 'INSUFFICIENT_BALANCE') {
+      return NextResponse.json({
+        error: "Relance impossible : le solde de l'utilisateur ne couvre plus le montant + les frais (le transfert avait ete recredite)."
+      }, { status: 409 });
+    }
+    if (error.message === 'NO_SOURCE_WALLET') {
+      return NextResponse.json({ error: "Portefeuille source introuvable pour ce transfert." }, { status: 409 });
     }
 
     if (error.code === 'P2024' || (error.message && error.message.includes('Transaction not found'))) {
