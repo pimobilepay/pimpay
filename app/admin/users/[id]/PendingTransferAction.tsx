@@ -8,7 +8,7 @@ export function PendingTransferAction({ transactionId }: { transactionId: string
   const [loading, setLoading] = useState(false);
 
   async function retry() {
-    if (!window.confirm("Remettre ce transfert dans la file de traitement ? Le solde ne sera pas débité une seconde fois.")) return;
+    if (!window.confirm("Remettre ce transfert dans la file de traitement ? Si le solde avait été recrédité après un échec, il sera débité à nouveau (montant + frais) ; sinon aucun second débit.")) return;
     setLoading(true);
     try {
       const response = await fetch("/api/admin/transactions/update", {
