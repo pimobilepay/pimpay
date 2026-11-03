@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus, TransactionType } from "@prisma/client";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { decrypt } from "@/lib/crypto";
+import { readStoredPrivateKey } from "@/lib/crypto";
 import { sendDoge } from "@/lib/blockchain/dogecoin";
 import { TronWeb } from "tronweb";
 import { USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
@@ -15,7 +15,7 @@ import { USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
  *  x-worker-secret: <WORKER_SECRET>
  */
 function assertWorkerAuth(req: NextRequest) {
-  const secret = process.env.WORKER_SECRET || process.env.CRON_SECRET || process.env.CRON_SECRET_NEXT;
+  const secret = process.env.WORKER_SECRET;
   const header = req.headers.get("x-worker-secret");
   if (!secret || !header || header !== secret) {
     throw new Error("Unauthorized worker");
@@ -104,24 +104,13 @@ async function createTronWallet(job: WithdrawJob) {
     throw new Error("Aucun portefeuille TRON configuré pour cet utilisateur");
   }
 
-  // La clé privée est propre à l'adresse TRON de l'utilisateur. Accepter aussi
-  // les anciennes clés non chiffrées pour les wallets créés avant le chiffrement.
-  const rawPrivateKey = user.usdtPrivateKey.startsWith("v1:") || user.usdtPrivateKey.includes(":")
-    ? decrypt(user.usdtPrivateKey)
-    : user.usdtPrivateKey;
-  const privateKey = rawPrivateKey.replace(/^0x/, "");
+  const privateKey = readStoredPrivateKey(user.usdtPrivateKey);
   const tronWeb = new TronWeb({
     fullHost: process.env.TRON_FULL_HOST || "https://api.trongrid.io",
     privateKey,
   });
   if (!tronWeb.isAddress(user.usdtAddress)) throw new Error("Adresse source TRON invalide");
-
-  // Ne jamais signer depuis une adresse différente de celle enregistrée.
-  const signerAddress = tronWeb.address.fromPrivateKey(privateKey);
-  if (!signerAddress || signerAddress !== user.usdtAddress) {
-    throw new Error("La clé privée TRON ne correspond pas à l'adresse TRON de l'utilisateur");
-  }
-  return { tronWeb, userAddress: signerAddress };
+  return { tronWeb, userAddress: user.usdtAddress };
 }
 
 async function broadcastTrxWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
@@ -146,7 +135,7 @@ async function broadcastUsdtTronWithdraw(job: WithdrawJob, toAddress: string): P
   }
 
   const fullHost = process.env.TRON_FULL_HOST || "https://api.trongrid.io";
-  const privateKey = decrypt(user.usdtPrivateKey).replace(/^0x/, "");
+  const privateKey = readStoredPrivateKey(user.usdtPrivateKey);
   const tronWeb = new TronWeb({ fullHost, privateKey });
 
   if (!tronWeb.isAddress(user.usdtAddress) || !tronWeb.isAddress(toAddress)) {
@@ -208,7 +197,7 @@ async function broadcastDogeWithdraw(job: WithdrawJob, toAddress: string): Promi
     throw new Error("Aucun portefeuille DOGE configuré pour cet utilisateur");
   }
 
-  const privateKeyWIF = decrypt(user.dogePrivateKey);
+  const privateKeyWIF = readStoredPrivateKey(user.dogePrivateKey);
   const { txid } = await sendDoge({
     fromAddress: user.dogeAddress,
     privateKeyWIF,
@@ -389,15 +378,16 @@ export async function POST(req: NextRequest) {
 
     const url = new URL(req.url);
     const limit = Math.min(parseInt(url.searchParams.get("limit") || "10", 10) || 10, 50);
-    const requestedId = url.searchParams.get("id");
     const dryRun = url.searchParams.get("dryRun") === "true";
+    // Cible un job précis (ex: transfert admin) au lieu du plus ancien de la file.
+    const jobId = url.searchParams.get("jobId");
 
     const jobs = await prisma.transaction.findMany({
       where: {
-        ...(requestedId ? { id: requestedId } : {}),
         type: TransactionType.WITHDRAW,
         status: { in: [TransactionStatus.SUCCESS, TransactionStatus.PENDING] },  // Les retraits crypto sont créés PENDING
         blockchainTx: null,                // pas encore broadcast
+        ...(jobId ? { id: jobId } : {}),
         AND: [
           {
             OR: [
@@ -539,23 +529,36 @@ export async function POST(req: NextRequest) {
           if (!alreadyRefunded) {
             const total = (updated.amount || 0) + (updated.fee || 0);
 
-            await prisma.$transaction([
-              prisma.wallet.update({
-                where: { id: updated.fromWalletId },
+            const refundMeta = (typeof updated.metadata === "object" && updated.metadata ? updated.metadata : {}) as Record<string, any>;
+            // Les frais ont été comptés dans totalProfit au débit : puisqu'ils
+            // sont rendus à l'utilisateur, on les retranche pour ne pas gonfler
+            // le profit plateforme.
+            const reverseProfit = refundMeta.profitCounted === true && (updated.fee || 0) > 0;
+
+            await prisma.$transaction(async (tx) => {
+              await tx.wallet.update({
+                where: { id: updated.fromWalletId! },
                 data: { balance: { increment: total } },
-              }),
-              prisma.transaction.update({
+              });
+              if (reverseProfit) {
+                await tx.systemConfig.updateMany({
+                  where: { id: "GLOBAL_CONFIG" },
+                  data: { totalProfit: { decrement: updated.fee || 0 } },
+                });
+              }
+              await tx.transaction.update({
                 where: { id: updated.id },
                 data: {
                   metadata: {
-                    ...(typeof updated.metadata === "object" && updated.metadata ? updated.metadata : {}),
+                    ...refundMeta,
                     refunded: true,
                     refundedAt: new Date().toISOString(),
                     refundedTotal: total,
+                    ...(reverseProfit ? { profitCounted: false } : {}),
                   },
                 },
-              }),
-            ]);
+              });
+            });
           }
         }
 
