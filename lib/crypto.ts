@@ -130,3 +130,15 @@ export function safeCompare(a: string, b: string): boolean {
     return false;
   }
 }
+
+/**
+ * Lit une clé privée stockée en base, qu'elle soit chiffrée (v1:iv:tag:data ou
+ * iv:data legacy) OU encore en clair (anciens comptes). Même règle que
+ * app/api/user/transfer : un ":" signale une valeur chiffrée.
+ * Retire un éventuel préfixe "0x". Lève une erreur si la valeur est vide.
+ */
+export function readStoredPrivateKey(stored: string | null | undefined): string {
+  if (!stored) throw new Error('[CRYPTO] Clé privée absente');
+  const raw = stored.includes(':') ? decrypt(stored) : stored;
+  return raw.trim().replace(/^0x/, '');
+}
