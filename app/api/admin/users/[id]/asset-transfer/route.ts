@@ -4,7 +4,7 @@ import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 import { logAdminAction } from "@/lib/adminAudit";
 import { parseAmount } from "@/lib/amount-guard";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
-import { isValidTronAddress } from "@/lib/tron-utils";
+import { isValidTronAddress, hexToBase58 } from "@/lib/tron-utils";
 import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
 import {
   ADMIN_TRANSFER_ASSETS,
@@ -14,7 +14,7 @@ import {
   type AdminTransferAsset,
 } from "@/lib/admin-transfer";
 import { readStoredPrivateKey } from "@/lib/crypto";
-import { TronWeb } from "tronweb";
+import { Wallet as EthWallet } from "ethers";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -101,23 +101,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Les fonds sont sur les adresses des utilisateurs : le worker signe avec la
   // clé privée stockée. Une clé absente, illisible ou ne correspondant pas à
   // l'adresse ferait échouer le broadcast après le débit.
-  try {
-    if (family === "TRON") {
-      if (!user.usdtAddress) throw new TransferError("Aucun portefeuille TRON configuré pour cet utilisateur");
-      const key = readStoredPrivateKey(user.usdtPrivateKey);
-      const derived = TronWeb.address.fromPrivateKey(key);
-      if (!derived || derived !== user.usdtAddress) {
-        throw new TransferError("La clé privée TRON stockée ne correspond pas à l'adresse du portefeuille. Utilisez la réparation des portefeuilles.");
-      }
-    } else if (family === "DOGE") {
-      if (!user.dogeAddress) throw new TransferError("Aucun portefeuille DOGE configuré pour cet utilisateur");
-      readStoredPrivateKey(user.dogePrivateKey);
-    } else if (!process.env.PI_MASTER_WALLET_SECRET || !process.env.PI_MASTER_WALLET_ADDRESS) {
-      throw new TransferError("Wallet maître Pi non configuré (PI_MASTER_WALLET_SECRET / PI_MASTER_WALLET_ADDRESS)");
+  // Chaque étape a son propre message : aucune valeur de clé n'est jamais renvoyée.
+  const storedKey = family === "TRON" ? user.usdtPrivateKey : family === "DOGE" ? user.dogePrivateKey : null;
+  if (family === "TRON" || family === "DOGE") {
+    if (family === "TRON" && !user.usdtAddress) {
+      return NextResponse.json({ error: "Aucun portefeuille TRON configuré pour cet utilisateur" }, { status: 400 });
     }
-  } catch (keyError: any) {
-    const msg = keyError instanceof TransferError ? keyError.message : "Clé privée de l'utilisateur illisible (ENCRYPTION_KEY ou format invalide). Aucun débit effectué.";
-    return NextResponse.json({ error: msg }, { status: 400 });
+    if (family === "DOGE" && !user.dogeAddress) {
+      return NextResponse.json({ error: "Aucun portefeuille DOGE configuré pour cet utilisateur" }, { status: 400 });
+    }
+    if (!storedKey) {
+      return NextResponse.json({ error: `Aucune clé privée ${family} enregistrée pour cet utilisateur. Aucun débit effectué.` }, { status: 400 });
+    }
+    let key: string;
+    try {
+      key = readStoredPrivateKey(storedKey);
+    } catch (e: any) {
+      console.error("[ADMIN_TRANSFER] Lecture de la clé impossible:", e?.message);
+      return NextResponse.json({
+        error: `Clé privée ${family} illisible : ${e?.message || "erreur inconnue"}. Vérifiez ENCRYPTION_KEY (même valeur que lors de la création du wallet). Aucun débit effectué.`,
+      }, { status: 400 });
+    }
+    if (family === "TRON") {
+      // Même dérivation que la génération des wallets (secp256k1 → 0x41 + keccak).
+      let derived = "";
+      try {
+        derived = hexToBase58("41" + new EthWallet("0x" + key).address.slice(2));
+      } catch (e: any) {
+        console.error("[ADMIN_TRANSFER] Dérivation d'adresse impossible:", e?.message);
+        return NextResponse.json({ error: "Clé privée TRON déchiffrée mais invalide (ce n'est pas une clé secp256k1 de 64 caractères hex). Aucun débit effectué." }, { status: 400 });
+      }
+      if (!derived || derived !== user.usdtAddress) {
+        return NextResponse.json({
+          error: `La clé privée TRON stockée ne correspond pas à l'adresse du wallet (clé → ${derived || "?"}, adresse en base → ${user.usdtAddress}). Aucun débit effectué.`,
+        }, { status: 400 });
+      }
+    }
+  } else if (!process.env.PI_MASTER_WALLET_SECRET || !process.env.PI_MASTER_WALLET_ADDRESS) {
+    return NextResponse.json({ error: "Wallet maître Pi non configuré (PI_MASTER_WALLET_SECRET / PI_MASTER_WALLET_ADDRESS)" }, { status: 400 });
   }
 
   // ── 2. Frais plateforme (même config que le retrait utilisateur) ─────────────
