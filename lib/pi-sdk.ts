@@ -27,8 +27,10 @@ export const initPiSDK = (): boolean => {
   
   if (window.Pi) {
     try {
+      const sandbox = getCachedPiSandbox();
+      if (sandbox === null) return false;
       window.__PI_SDK_INITIALIZING__ = true;
-      window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
+      window.Pi.init({ version: "2.0", sandbox });
       window.__PI_SDK_READY__ = true;
       window.__PI_SDK_INITIALIZING__ = false;
       console.log("[PimPay] Pi SDK 2.0 initialise");
@@ -103,7 +105,6 @@ export const authenticateWithPi = async () => {
       .then((auth: any) => {
         // Stockage des infos pour la session Pimpay
         localStorage.setItem("pimpay_user", JSON.stringify(auth.user));
-        localStorage.setItem("pi_token", auth.accessToken);
         resolve(auth);
       })
       .catch((err: any) => {

@@ -3,19 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
+import { getPiNetworkConfig, verifyPiHorizonNetwork } from "@/lib/pi";
 
-// Adresse du wallet opérateur central Pi Network (Mainnet)
-// Utilise PI_WALLET_PUBLIC_KEY en priorité, puis PI_OPERATOR_ADDRESS comme fallback
-const PI_OPERATOR_ADDRESS =
-  process.env.PI_WALLET_PUBLIC_KEY ||
-  process.env.PI_OPERATOR_ADDRESS ||
-  "GCD7XUKTQPYDNJL2XJDIHNDUEVRXY7VOGLBD75WAE2DAAGPXP2GAJFBB";
-
-// Pi Network Horizon APIs (essaie mainnet puis testnet)
-const PI_HORIZON_URLS = [
-  "https://api.mainnet.minepi.com",
-  "https://api.testnet.minepi.com",
-];
+// Adresse opérateur configurée pour le réseau Pi actif.
+const PI_OPERATOR_ADDRESS = process.env.PI_WALLET_PUBLIC_KEY || process.env.PI_OPERATOR_ADDRESS || "";
 
 // Pi Network Explorer
 const PI_EXPLORER = "https://blockexplorer.minepi.com";
@@ -78,37 +69,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 1. Lecture du solde on-chain - essaie mainnet puis testnet
-    let onChainBalance = 0;
-    let onChainError: string | null = null;
-    let network = "mainnet";
-
-    for (const horizonUrl of PI_HORIZON_URLS) {
-      const result = await fetchBalanceFromHorizon(horizonUrl, PI_OPERATOR_ADDRESS);
-      network = result.network;
-
-      if (result.error === null) {
-        // Succès - on a trouvé le compte
-        onChainBalance = result.balance;
-        onChainError = null;
-        break;
-      } else if (result.balance > 0) {
-        // Le compte existe mais avec une erreur partielle
-        onChainBalance = result.balance;
-        onChainError = result.error;
-        break;
-      }
-
-      // Garde la dernière erreur
-      onChainError = result.error;
-      
-      // Si c'est juste un compte non activé sur mainnet, on continue vers testnet
-      if (result.error?.includes("non activé")) {
-        continue;
-      }
+  const piConfig = await getPiNetworkConfig();
+  await verifyPiHorizonNetwork(piConfig);
+  if (!PI_OPERATOR_ADDRESS) {
+      return NextResponse.json({ error: "Adresse du wallet opérateur non configurée" }, { status: 503 });
     }
 
-    // Si aucune erreur de réseau mais solde 0, c'est peut-être un compte non activé
+    const result = await fetchBalanceFromHorizon(piConfig.horizonUrl, PI_OPERATOR_ADDRESS);
+    const onChainBalance = result.balance;
+    let onChainError = result.error;
+    const network = piConfig.network;
+
     if (onChainBalance === 0 && onChainError?.includes("non activé")) {
       onChainError = "Compte non activé - effectuez une première transaction pour activer";
     }
@@ -138,7 +109,7 @@ export async function GET(req: NextRequest) {
       coverage,
       network,
       onChainError,
-      explorerUrl: `${PI_EXPLORER}/account/${PI_OPERATOR_ADDRESS}`,
+      explorerUrl: network === "mainnet" ? `${PI_EXPLORER}/account/${PI_OPERATOR_ADDRESS}` : null,
       lastChecked: new Date().toISOString(),
     });
   } catch (error: any) {

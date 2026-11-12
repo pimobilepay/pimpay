@@ -109,10 +109,12 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
       return;
     }
 
-    const sdkReady = await ensureSdkReady();
-    if (!sdkReady) return;
+      const sdkReady = await ensureSdkReady();
+      if (!sdkReady) return;
+      const sandbox = await getPiSandbox();
+      const network = sandbox ? "testnet" : "mainnet";
 
-    if (!amount || amount <= 0) {
+      if (!amount || amount <= 0) {
       toast.error("Veuillez entrer un montant valide.");
       return;
     }
@@ -147,6 +149,7 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
             orderId: `pim-dep-${Date.now()}`,
             type: "deposit",
             app: "pimpay_core",
+            network,
           },
         },
         {
@@ -160,9 +163,10 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
               credentials: "include",
               body: JSON.stringify({
                 paymentId,
-                amount,
-                memo: paymentMemo,
-              }),
+                  amount,
+                  memo: paymentMemo,
+                  metadata: { network },
+                }),
             });
 
             if (!res.ok) {
@@ -194,9 +198,10 @@ export function PiButton({ amount, memo, onSuccess, onError, label, autoStart }:
               toast.success(`Depot de ${amount} Pi reussi !`, { duration: 5000 });
               onSuccess?.(txid);
             } else {
-              // Meme si la completion echoue, le paiement sera recupere plus tard
-              toast.info("Le solde sera mis a jour dans quelques instants.");
-              onSuccess?.(txid);
+              const data = await res.json().catch(() => ({}));
+              const message = data.error || "La confirmation Pi est en attente. Ne relancez pas le paiement.";
+              toast.error(message, { duration: 6000 });
+              onError?.(message);
             }
             setLoading(false);
           },

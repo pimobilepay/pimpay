@@ -294,9 +294,8 @@ export default function RescuePage() {
           </div>
           <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
             {[
-              { method: "GET", path: "/api/admin/force-cancel", desc: "Resoudre automatiquement" },
-              { method: "POST", path: "/api/admin/force-cancel", desc: "Annuler un paiement specifique" },
-              { method: "GET", path: "/api/payments/incomplete", desc: "Lister les paiements incomplets" },
+              { method: "POST", path: "/api/admin/force-cancel", desc: "Annuler un paiement non signé" },
+              { method: "POST", path: "/api/payments/incomplete", desc: "Callback Pi authentifié" },
             ].map((endpoint, i) => (
               <div key={i} className="flex items-center gap-3 bg-white/[0.02] rounded-xl px-3 py-2.5">
                 <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${

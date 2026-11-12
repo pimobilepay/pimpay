@@ -8,7 +8,6 @@ declare global {
     Pi: any;
     __PI_SDK_READY__: boolean;
     __PI_SDK_INITIALIZING__: boolean;
-    __PI_INCOMPLETE_CHECKED__: boolean;
   }
 }
 
@@ -19,10 +18,9 @@ declare global {
  * pour l'initialisation du SDK. Les hooks (usePiAuth, usePiPayment) 
  * peuvent aussi initialiser le SDK si necessaire (thread-safe).
  * 
- * Il gere aussi la detection automatique des paiements incomplets au chargement.
+ * Les paiements incomplets sont traites uniquement via le callback authentifie du SDK Pi.
  */
 export function PiInitializer() {
-  const checkedRef = useRef(false);
   const initAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -36,13 +34,14 @@ export function PiInitializer() {
       // Eviter les initialisations concurrentes
       if (window.__PI_SDK_INITIALIZING__) return false;
 
-      if (window.Pi) {
+      const sandbox = getCachedPiSandbox();
+      if (window.Pi && sandbox !== null) {
         try {
           window.__PI_SDK_INITIALIZING__ = true;
-          window.Pi.init({ version: "2.0", sandbox: getCachedPiSandbox() });
+          window.Pi.init({ version: "2.0", sandbox });
           window.__PI_SDK_READY__ = true;
           window.__PI_SDK_INITIALIZING__ = false;
-          console.log(`[PIMOBIPAY] SDK Pi 2.0 initialise (sandbox=${getCachedPiSandbox()})`);
+          console.log(`[PIMOBIPAY] SDK Pi 2.0 initialise (sandbox=${sandbox})`);
           return true;
         } catch (error: any) {
           window.__PI_SDK_INITIALIZING__ = false;
@@ -60,43 +59,24 @@ export function PiInitializer() {
       return false;
     };
 
-    // Proactive server-side check for incomplete payments (runs once per session)
-    const checkIncompletePayments = async () => {
-      if (checkedRef.current || window.__PI_INCOMPLETE_CHECKED__) return;
-      checkedRef.current = true;
-      window.__PI_INCOMPLETE_CHECKED__ = true;
-
-      try {
-        const res = await fetch("/api/payments/incomplete", {
-          credentials: "include", // Important pour envoyer les cookies
-        });
-        const data = await res.json();
-        if (data.details?.length > 0) {
-          console.log(`[PIMOBIPAY] ${data.details.length} paiement(s) incomplet(s) resolus au chargement`);
-        }
-      } catch {
-        // Silencieux - ne pas bloquer l'app
-      }
-    };
-
     // Resoudre le mode reseau (testnet/mainnet) AVANT toute initialisation,
     // puis initialiser le SDK avec la bonne valeur `sandbox`.
-    getPiSandbox().finally(() => {
-      // Verification immediate
-      if (window.Pi && !initAttemptedRef.current) {
-        initAttemptedRef.current = true;
-        initPi();
-        checkIncompletePayments();
-      }
-    });
+    let disposed = false;
+    getPiSandbox()
+      .then(() => {
+        if (!disposed && window.Pi && !initAttemptedRef.current) {
+          initAttemptedRef.current = initPi();
+        }
+      })
+      .catch((error) => {
+        console.error("[PIMOBIPAY] Initialisation Pi suspendue: configuration réseau invalide", error);
+      });
 
     if (!window.Pi) {
       // Polling si le script sdk n'est pas encore charge
       const interval = setInterval(() => {
-        if (window.Pi && !initAttemptedRef.current) {
+        if (window.Pi && !initAttemptedRef.current && initPi()) {
           initAttemptedRef.current = true;
-          initPi();
-          checkIncompletePayments();
           clearInterval(interval);
         }
       }, 200); // Check plus frequent (200ms au lieu de 300ms)
@@ -107,15 +87,18 @@ export function PiInitializer() {
         if (!window.Pi) {
           console.log("[PIMOBIPAY] SDK Pi non disponible (navigateur classique)");
         }
-        // Still try to resolve incomplete payments via server even without SDK
-        checkIncompletePayments();
       }, 15000);
 
       return () => {
+        disposed = true;
         clearInterval(interval);
         clearTimeout(timeout);
       };
     }
+
+    return () => {
+      disposed = true;
+    };
   }, []);
 
   return null;
