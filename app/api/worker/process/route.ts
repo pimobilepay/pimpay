@@ -8,32 +8,14 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import { ethers } from 'ethers'; // Pour Sidra et USDT
 import { TronWeb } from "tronweb";
 import { TransactionStatus, TransactionType } from "@prisma/client";
+import { completePiPayment, getPiNetworkConfig, verifyPiHorizonNetwork } from "@/lib/pi";
 
-// Configuration des accès réseaux - Utilise les variables d'environnement pour Pi Network
 const RPC_URLS = {
   XRP: "wss://s2.ripple.com",
   XLM: "https://horizon.stellar.org",
-  // PI est lu dynamiquement via getPiHorizonUrl() — voir ci-dessous
   SIDRA: "https://node.sidrachain.com",
   EVM_DEFAULT: "https://bsc-dataseed.binance.org"
 };
-
-// Lecture dynamique du réseau Pi à chaque requête
-// (process.env.PI_NETWORK peut être mis à jour par /api/admin/pi-network sans redéploiement)
-function getPiHorizonUrl(): string {
-  return process.env.PI_HORIZON_URL ||
-    (process.env.PI_NETWORK === "mainnet"
-      ? "https://api.mainnet.minepi.com"
-      : "https://api.testnet.minepi.com");
-}
-function getPiPassphrase(): string {
-  return process.env.PI_NETWORK_PASSPHRASE ||
-    (process.env.PI_NETWORK === "mainnet" ? "Pi Network" : "Pi Testnet");
-}
-
-// Passphrase réseau Pi — lue dynamiquement, ce const est conservé pour
-// compatibilité avec les usages existants dans ce fichier
-const PI_NETWORK_PASSPHRASE = getPiPassphrase();
 
 export async function GET(req: NextRequest) {
   // [FIX V3] — Vérification WORKER_SECRET obligatoire
@@ -47,14 +29,6 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(`[v0] [WORKER] Demarrage du worker process...`);
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`[v0] [WORKER] Config Pi:`, {
-      PI_HORIZON_URL: process.env.PI_HORIZON_URL,
-      PI_NETWORK_PASSPHRASE: process.env.PI_NETWORK_PASSPHRASE,
-      PI_MASTER_WALLET_ADDRESS: process.env.PI_MASTER_WALLET_ADDRESS?.substring(0, 10) + "...",
-      PI_API_KEY_PRESENT: !!process.env.PI_API_KEY
-    });
-  }
 
   try {
     const processed = await processExternalTransfers();
@@ -238,54 +212,51 @@ async function processExternalTransfers() {
 // IMPORTANT: Si l'utilisateur n'a pas de piUid stocké, on utilise le transfert direct
 // vers son adresse wallet (moins optimal mais fonctionne pour les wallets activés)
 async function sendPiFromMasterWallet(tx: any, dest: string): Promise<string> {
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
-  const PI_API_KEY = process.env.PI_API_KEY;
-  
+  const networkConfig = await getPiNetworkConfig();
+  await verifyPiHorizonNetwork(networkConfig);
+  const PI_MASTER_SECRET = networkConfig.masterSecret;
+  const PI_MASTER_ADDRESS = networkConfig.masterAddress;
+  const PI_API_KEY = networkConfig.apiKey;
+  const metadata = tx.metadata as Record<string, unknown> | null;
+  const transactionNetwork = metadata?.network;
+  if (transactionNetwork && transactionNetwork !== networkConfig.network) {
+    throw new Error("Le réseau de la transaction ne correspond plus au réseau Pi actif");
+  }
   if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
-    throw new Error("Configuration Pi Network manquante: PI_MASTER_WALLET_SECRET ou PI_MASTER_WALLET_ADDRESS");
+    throw new Error("Configuration du master wallet Pi indisponible pour le réseau actif");
   }
-  
-  // Récupérer les metadata de la transaction
-  const metadata = tx.metadata as any;
-  const userPiUid = metadata?.piUid; // UID Pi de l'utilisateur (si disponible)
-  
-  // IMPORTANT: L'URL de l'API Pi est TOUJOURS api.minepi.com (meme en testnet)
-  // L'URL testnet (api.testnet.minepi.com) est UNIQUEMENT pour Horizon (blockchain)
-  // L'API de paiement utilise toujours le meme endpoint
-  const isTestnet = PI_NETWORK_PASSPHRASE.includes("Testnet");
-  const PI_API_URL = "https://api.minepi.com"; // Toujours le meme endpoint
-  
-  console.log(`[PI_A2U] Configuration:`, {
-    horizonUrl: getPiHorizonUrl(),
-    apiUrl: PI_API_URL,
-    networkPassphrase: PI_NETWORK_PASSPHRASE,
-    masterAddress: PI_MASTER_ADDRESS.substring(0, 10) + "...",
+  const masterKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
+  if (masterKeypair.publicKey() !== PI_MASTER_ADDRESS) {
+    throw new Error("La clé secrète Pi ne correspond pas à l'adresse master configurée");
+  }
+
+  const userPiUid = typeof metadata?.piUid === "string" ? metadata.piUid : null;
+  const PI_API_URL = "https://api.minepi.com";
+
+  console.log("[PI_A2U] Transfert Pi", {
+    network: networkConfig.network,
+    masterAddress: `${PI_MASTER_ADDRESS.substring(0, 10)}...`,
     destination: dest,
-    userPiUid: userPiUid ? userPiUid.substring(0, 8) + "..." : "N/A",
+    userPiUid: userPiUid ? `${userPiUid.substring(0, 8)}...` : "N/A",
     amount: tx.amount,
-    isTestnet
   });
-  
-  // Si on a l'UID Pi de l'utilisateur ET une API key, utiliser le flux A2U officiel
+
   if (userPiUid && PI_API_KEY) {
-    return await sendPiA2UOfficial(tx, userPiUid, PI_API_KEY, PI_API_URL);
+    return sendPiA2UOfficial(tx, userPiUid, PI_API_KEY, PI_API_URL, networkConfig);
   }
-  
-  // Sinon, utiliser le transfert direct vers l'adresse wallet
-  console.log(`[PI_A2U] Pas d'UID Pi ou d'API key, utilisation du transfert direct vers ${dest}`);
-  return await sendPiDirectTransfer(tx, dest);
+  return sendPiDirectTransfer(tx, dest, networkConfig);
 }
 
 // Flux A2U officiel via l'API Pi Network
 async function sendPiA2UOfficial(
-  tx: any, 
-  userUid: string, 
+  tx: any,
+  userUid: string,
   apiKey: string,
-  apiUrl: string
+  apiUrl: string,
+  networkConfig: Awaited<ReturnType<typeof getPiNetworkConfig>>
 ): Promise<string> {
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
+  const PI_MASTER_SECRET = networkConfig.masterSecret!;
+  const PI_MASTER_ADDRESS = networkConfig.masterAddress!;
   
   // Étape 1: Créer le paiement via l'API Pi
   console.log(`[v0] [PI_A2U] Étape 1: Création du paiement via API Pi...`);
@@ -293,8 +264,7 @@ async function sendPiA2UOfficial(
     url: `${apiUrl}/v2/payments`,
     userUid: userUid,
     amount: Number(tx.amount),
-    apiKeyPresent: !!apiKey,
-    apiKeyPrefix: apiKey?.substring(0, 8) + "..."
+    apiKeyPresent: !!apiKey
   });
   
   const paymentBody = {
@@ -303,12 +273,13 @@ async function sendPiA2UOfficial(
     metadata: { 
       transactionId: tx.id,
       reference: tx.reference,
-      platform: "PIMOBIPAY"
+      platform: "PIMOBIPAY",
+      network: networkConfig.network,
     },
     uid: userUid
   };
   
-  console.log(`[v0] [PI_A2U] Payment body:`, JSON.stringify(paymentBody));
+  console.log(`[v0] [PI_A2U] Payment request prepared for network ${networkConfig.network}.`);
   
   const createPaymentResponse = await fetch(`${apiUrl}/v2/payments`, {
     method: 'POST',
@@ -341,10 +312,10 @@ async function sendPiA2UOfficial(
   // Étape 2: Charger le compte et construire la transaction
   console.log(`[PI_A2U] Étape 2: Construction de la transaction blockchain...`);
   
-  const server = new StellarSdk.Horizon.Server(getPiHorizonUrl(), { 
-    allowHttp: getPiHorizonUrl().includes("localhost") 
+  const server = new StellarSdk.Horizon.Server(networkConfig.horizonUrl, {
+    allowHttp: networkConfig.horizonUrl.includes("localhost")
   });
-  
+
   const sourceAccount = await server.loadAccount(PI_MASTER_ADDRESS);
   
   // Récupérer les frais dynamiques du réseau avec multiplicateur de sécurité
@@ -368,7 +339,7 @@ async function sendPiA2UOfficial(
   // Étape 3: Construire la transaction avec le paymentIdentifier comme MEMO (obligatoire!)
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: dynamicFee,
-    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    networkPassphrase: networkConfig.passphrase,
   })
     .addOperation(
       StellarSdk.Operation.payment({
@@ -425,37 +396,34 @@ async function sendPiA2UOfficial(
   // Étape 6: Compléter le paiement via l'API Pi
   console.log(`[PI_A2U] Étape 6: Complétion du paiement via API Pi...`);
   
-  const completeResponse = await fetch(`${apiUrl}/v2/payments/${paymentIdentifier}/complete`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ txid })
-  });
-  
-  if (!completeResponse.ok) {
-    const errorData = await completeResponse.text();
-    console.error(`[PI_A2U] Erreur complétion paiement:`, errorData);
-    // La transaction blockchain est déjà soumise, on retourne quand même le hash
-    // mais on log l'erreur pour investigation
+  const completion = await completePiPayment(paymentIdentifier, txid, { retries: 2, delayMs: 1000 });
+  if (!completion.ok) {
+    console.error("[PI_A2U] La transaction est diffusée, mais la complétion Pi reste à réconcilier", {
+      paymentIdentifier,
+      txid,
+      status: completion.status,
+    });
   } else {
-    console.log(`[PI_A2U] Paiement complété avec succès!`);
+    console.log("[PI_A2U] Paiement complété avec succès");
   }
   
   return txid;
 }
 
 // Transfert direct vers une adresse wallet (fallback si pas d'UID Pi)
-async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET!;
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS!;
+async function sendPiDirectTransfer(
+  tx: any,
+  dest: string,
+  networkConfig: Awaited<ReturnType<typeof getPiNetworkConfig>>
+): Promise<string> {
+  const PI_MASTER_SECRET = networkConfig.masterSecret!;
+  const PI_MASTER_ADDRESS = networkConfig.masterAddress!;
   
   console.log(`[v0] [PI_DIRECT] Demarrage transfert direct`);
   console.log(`[v0] [PI_DIRECT] Destination recue:`, { dest, type: typeof dest, length: dest?.length });
   console.log(`[v0] [PI_DIRECT] Config:`, {
-    horizonUrl: getPiHorizonUrl(),
-    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    horizonUrl: networkConfig.horizonUrl,
+    network: networkConfig.network,
     masterAddress: PI_MASTER_ADDRESS?.substring(0, 15) + "...",
     destination: dest?.substring(0, 15) + "...",
     amount: tx.amount,
@@ -482,10 +450,10 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
     throw new Error(`Adresse Pi invalide (format Stellar attendu): ${cleanDest}`);
   }
   
-  const server = new StellarSdk.Horizon.Server(getPiHorizonUrl(), { 
-    allowHttp: getPiHorizonUrl().includes("localhost") 
+  const server = new StellarSdk.Horizon.Server(networkConfig.horizonUrl, {
+    allowHttp: networkConfig.horizonUrl.includes("localhost")
   });
-  
+
   // Charger le compte master
   console.log(`[v0] [PI_DIRECT] Chargement du compte master...`);
   let sourceAccount;
@@ -495,7 +463,7 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   } catch (loadError: any) {
     console.error(`[v0] [PI_DIRECT] Erreur chargement compte:`, loadError.message);
     if (loadError.response?.status === 404) {
-      throw new Error(`Le compte master ${PI_MASTER_ADDRESS} n'existe pas sur ${getPiHorizonUrl()}. Verifiez votre configuration.`);
+      throw new Error(`Le compte master ${PI_MASTER_ADDRESS} n'existe pas sur ${networkConfig.horizonUrl}. Vérifiez le réseau Pi configuré.`);
     }
     throw loadError;
   }
@@ -530,7 +498,7 @@ async function sendPiDirectTransfer(tx: any, dest: string): Promise<string> {
   
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: dynamicFee,
-    networkPassphrase: PI_NETWORK_PASSPHRASE,
+    networkPassphrase: networkConfig.passphrase,
   })
     .addOperation(
       StellarSdk.Operation.payment({
@@ -601,10 +569,14 @@ async function sendStellarBased(tx: any, dest: string, encryptedKey: string | nu
   if (!encryptedKey) throw new Error("Clé Stellar/Pi manquante");
   
   const isPi = tx.currency === "PI";
-  const url = isPi ? getPiHorizonUrl() : RPC_URLS.XLM;
-  
-  // Utiliser la passphrase depuis l'environnement pour Pi, sinon réseau public Stellar
-  const networkPassphrase = isPi ? PI_NETWORK_PASSPHRASE : StellarSdk.Networks.PUBLIC;
+  const piConfig = isPi ? await getPiNetworkConfig() : null;
+  if (piConfig) await verifyPiHorizonNetwork(piConfig);
+  const transactionNetwork = (tx.metadata as Record<string, unknown> | null)?.network;
+  if (piConfig && transactionNetwork && transactionNetwork !== piConfig.network) {
+    throw new Error("Le réseau de la transaction ne correspond plus au réseau Pi actif");
+  }
+  const url = piConfig?.horizonUrl ?? RPC_URLS.XLM;
+  const networkPassphrase = piConfig?.passphrase ?? StellarSdk.Networks.PUBLIC;
   
   const server = new StellarSdk.Horizon.Server(url, { allowHttp: url.includes("localhost") });
   

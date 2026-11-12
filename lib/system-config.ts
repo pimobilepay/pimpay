@@ -1,12 +1,12 @@
 
 export const PI_NETWORK_CONFIG = {
   SDK_URL: "https://sdk.minepi.com/pi-sdk.js",
-  SANDBOX: false, // Mainnet mode - Production
+  SANDBOX: process.env.PI_NETWORK_PASSPHRASE !== "Pi Network",
 } as const;
 
 export const BACKEND_CONFIG = {
   BASE_URL: "https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com",
-  BLOCKCHAIN_BASE_URL: process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com",
+  BLOCKCHAIN_BASE_URL: process.env.PI_HORIZON_URL || "",
 } as const;
 
 export const BACKEND_URLS = {
@@ -26,5 +26,5 @@ export const PI_PLATFORM_URLS = {} as const;
 
 export const PI_BLOCKCHAIN_URLS = {
   GET_TRANSACTION: (txid: string) =>
-    `${BACKEND_CONFIG.BLOCKCHAIN_BASE_URL}/transactions/${txid}/effects`,
+    `${BACKEND_CONFIG.BLOCKCHAIN_BASE_URL}/transactions/${encodeURIComponent(txid)}/effects`,
 } as const;

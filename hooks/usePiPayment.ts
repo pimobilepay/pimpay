@@ -186,13 +186,16 @@ export const usePiPayment = () => {
         return { success: false, error: msg };
       }
 
-      console.log("[PIMOBIPAY] Creation paiement Pi:", config);
+      const sandbox = await getPiSandbox();
+      const network = sandbox ? "testnet" : "mainnet";
+      const paymentMetadata = { ...config.metadata, network };
+      console.log("[PIMOBIPAY] Creation paiement Pi:", { ...config, network });
 
       return new Promise((resolve) => {
         const paymentData = {
           amount: config.amount,
           memo: config.memo,
-          metadata: config.metadata,
+          metadata: paymentMetadata,
         };
 
         const paymentCallbacks: PaymentCallbacks = {
@@ -210,7 +213,8 @@ export const usePiPayment = () => {
                   paymentId: id,
                   amount: config.amount,
                   memo: config.memo,
-                  ...config.metadata,
+                  type: config.metadata?.type,
+                  metadata: paymentMetadata,
                 }),
               });
 

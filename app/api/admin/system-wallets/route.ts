@@ -3,11 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/adminAuth";
-
-const PI_HORIZON_URLS = [
-  "https://api.mainnet.minepi.com",
-  "https://api.testnet.minepi.com",
-];
+import { getPiNetworkConfig, verifyPiHorizonNetwork } from "@/lib/pi";
 
 const XAF_RATE = 603;
 
@@ -83,45 +79,47 @@ const DEFAULT_SYSTEM_WALLETS = [
   },
 ];
 
-/** Lit le solde native reel d'une adresse Pi/Stellar (mainnet puis testnet). */
+/** Lit le solde natif uniquement sur le réseau Pi actuellement configuré. */
 async function fetchOnChainPiBalance(
   address: string,
+  horizonUrl: string,
+  network: string,
 ): Promise<{ balance: number; network: string | null; error: string | null }> {
   if (!address || !/^G[A-Z2-7]{55}$/.test(address)) {
-    return { balance: 0, network: null, error: "Adresse absente ou invalide" };
+    return { balance: 0, network, error: "Adresse absente ou invalide" };
   }
 
-  let lastError: string | null = null;
-
-  for (const url of PI_HORIZON_URLS) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8_000);
-      const res = await fetch(`${url}/accounts/${address}`, {
-        signal: controller.signal,
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-      clearTimeout(timeoutId);
-
-      const network = url.includes("testnet") ? "testnet" : "mainnet";
-
-      if (!res.ok) {
-        lastError = res.status === 404 ? "Compte non activé on-chain" : `Erreur HTTP ${res.status}`;
-        continue;
-      }
-
-      const account = await res.json();
-      const native = account.balances?.find(
-        (b: { asset_type: string }) => b.asset_type === "native",
-      );
-      return { balance: native ? parseFloat(native.balance) : 0, network, error: null };
-    } catch (err: unknown) {
-      lastError = err instanceof Error ? err.message : "Erreur réseau";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const res = await fetch(`${horizonUrl}/accounts/${address}`, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return {
+        balance: 0,
+        network,
+        error: res.status === 404 ? "Compte non activé on-chain" : `Erreur HTTP ${res.status}`,
+      };
     }
-  }
 
-  return { balance: 0, network: null, error: lastError };
+    const account = await res.json();
+    const native = account.balances?.find(
+      (b: { asset_type: string }) => b.asset_type === "native",
+    );
+    const balance = native ? Number.parseFloat(native.balance) : 0;
+    return { balance: Number.isFinite(balance) ? balance : 0, network, error: null };
+  } catch (err: unknown) {
+    return {
+      balance: 0,
+      network,
+      error: err instanceof Error ? err.message : "Erreur réseau",
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 // GET - Fetch all system wallets (auto-creates if missing)
@@ -183,10 +181,12 @@ export async function GET(req: NextRequest) {
 
     const chainStatus: Record<string, { network: string | null; error: string | null; source: string }> = {};
 
-    const onChainResults = await Promise.all(
+  const piConfig = await getPiNetworkConfig();
+  await verifyPiHorizonNetwork(piConfig);
+  const onChainResults = await Promise.all(
       refreshed.map(async (w) => ({
         wallet: w,
-        chain: await fetchOnChainPiBalance(w.publicAddress),
+        chain: await fetchOnChainPiBalance(w.publicAddress, piConfig.horizonUrl, piConfig.network),
       })),
     );
 
@@ -255,6 +255,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      network: piConfig.network,
       // Chaque wallet expose l'origine de son adresse et l'etat de lecture on-chain
       wallets: wallets.map((w) => ({
         ...w,

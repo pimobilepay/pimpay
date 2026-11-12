@@ -4,65 +4,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/adminAuth";
 import { logSystemEvent } from "@/lib/systemLogger";
+import { getPiNetwork, getPiNetworkConfig, verifyPiHorizonNetwork, type PiNetwork } from "@/lib/pi";
 
-/**
- * GET /api/admin/pi-network
- * Retourne le réseau Pi actuel (testnet | mainnet) stocké en DB.
- *
- * POST /api/admin/pi-network
- * { network: "testnet" | "mainnet" }
- * Bascule le réseau Pi et met à jour PI_NETWORK en DB (SystemConfig).
- *
- * Les fichiers backend (external-transfer, worker) lisent PI_NETWORK
- * via process.env.PI_NETWORK au démarrage. Pour appliquer le changement
- * sans redéploiement, la valeur est également persistée dans SystemConfig
- * et tous les modules qui en ont besoin peuvent la lire via getSystemConfig().
- */
-
-const CONFIG_KEY = "GLOBAL_CONFIG";
-
-type PiNetwork = "testnet" | "mainnet";
-
-async function getCurrentNetwork(): Promise<PiNetwork> {
-  try {
-    const cfg = await prisma.systemConfig.findUnique({
-      where: { id: CONFIG_KEY },
-      select: { piNetwork: true } as any,
-    });
-    const val = (cfg as any)?.piNetwork;
-    return val === "mainnet" ? "mainnet" : "testnet";
-  } catch {
-    // Si la colonne n'existe pas encore, fallback sur la variable d'env
-    return (process.env.PI_NETWORK === "mainnet" ? "mainnet" : "testnet");
-  }
+function networkDetails(network: PiNetwork) {
+  return {
+    network,
+    horizonUrl: `https://api.${network}.minepi.com`,
+    passphrase: network === "mainnet" ? "Pi Network" : "Pi Testnet",
+    sandbox: network === "testnet",
+  };
 }
 
-// ── GET ──────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const auth = await adminAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!auth) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
+  try {
+    const network = await getPiNetwork();
+    const ready = await getPiNetworkConfig(network)
+      .then(verifyPiHorizonNetwork)
+      .then(() => true)
+      .catch(() => false);
+    return NextResponse.json({ ...networkDetails(network), ready });
+  } catch {
+    return NextResponse.json({ error: "Configuration Pi indisponible" }, { status: 503 });
   }
-
-  const network = await getCurrentNetwork();
-
-  return NextResponse.json({
-    network,
-    horizonUrl:
-      network === "mainnet"
-        ? "https://api.mainnet.minepi.com"
-        : "https://api.testnet.minepi.com",
-    passphrase: network === "mainnet" ? "Pi Network" : "Pi Testnet",
-    sandbox: network !== "mainnet",
-  });
 }
 
-// ── POST ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const auth = await adminAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
+  if (!auth) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   let body: { network?: string };
   try {
@@ -71,76 +42,90 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Corps JSON invalide" }, { status: 400 });
   }
 
-  const { network } = body;
-
+  const network = body.network;
   if (network !== "testnet" && network !== "mainnet") {
+    return NextResponse.json({ error: 'Valeur attendue: "testnet" ou "mainnet"' }, { status: 400 });
+  }
+
+  let previous: PiNetwork;
+  try {
+    previous = await getPiNetwork();
+  } catch {
+    return NextResponse.json({ error: "Configuration Pi indisponible" }, { status: 503 });
+  }
+
+  if (previous === network) {
+    const ready = await getPiNetworkConfig(network)
+      .then(verifyPiHorizonNetwork)
+      .then(() => true)
+      .catch(() => false);
+    return NextResponse.json({ ...networkDetails(network), ready, changed: false });
+  }
+
+  try {
+    await verifyPiHorizonNetwork(await getPiNetworkConfig(network));
+  } catch {
     return NextResponse.json(
-      { error: 'Valeur invalide — "testnet" ou "mainnet" attendu' },
-      { status: 400 }
+      { error: `Les variables Pi existantes ne correspondent pas à ${network}. Aucun changement effectué.` },
+      { status: 409 }
     );
   }
 
-  const previous = await getCurrentNetwork();
+  const [fundedWallet, pendingPiTransaction] = await Promise.all([
+    prisma.wallet.findFirst({
+      where: { currency: "PI", balance: { not: 0 } },
+      select: { id: true },
+    }),
+    prisma.transaction.findFirst({
+      where: {
+        currency: { in: ["PI", "PIM"] },
+        OR: [
+          { status: "PENDING" },
+          { statusClass: { in: ["QUEUED", "PROCESSING", "RETRY"] } },
+        ],
+      },
+      select: { id: true },
+    }),
+  ]);
 
-  if (previous === network) {
-    return NextResponse.json({
-      network,
-      message: "Réseau déjà configuré sur " + network,
-      changed: false,
-    });
+  if (fundedWallet || pendingPiTransaction) {
+    return NextResponse.json(
+      {
+        error: "Basculement refusé: videz tous les soldes PI et terminez les opérations Pi en attente avant de changer de réseau.",
+      },
+      { status: 409 }
+    );
   }
 
-  // Persister dans SystemConfig (upsert)
   try {
-    await (prisma.systemConfig as any).upsert({
-      where: { id: CONFIG_KEY },
+    await prisma.systemConfig.upsert({
+      where: { id: "GLOBAL_CONFIG" },
       update: { piNetwork: network },
-      create: { id: CONFIG_KEY, piNetwork: network },
+      create: { id: "GLOBAL_CONFIG", piNetwork: network },
     });
-  } catch (err: any) {
-    // La colonne piNetwork n'existe peut-être pas encore en DB —
-    // on log l'avertissement mais on continue (la valeur sera lue via process.env)
-    console.warn("[pi-network] Impossible de persister piNetwork en DB:", err.message);
-    await logSystemEvent({
-      level: "WARN",
-      source: "ADMIN_PI_NETWORK",
-      action: "DB_PERSIST_FAILED",
-      message: `Impossible de persister piNetwork="${network}" en DB: ${err.message}`,
-      details: { network, error: err.message },
-    });
+  } catch {
+    return NextResponse.json(
+      { error: "Le réseau n'a pas été changé: impossible de persister la configuration." },
+      { status: 503 }
+    );
   }
 
-  // Mettre à jour process.env en mémoire pour les appels dans ce même processus
-  // (Vercel / Node.js — sans redéploiement, la valeur sera active immédiatement
-  // pour les requêtes suivantes dans ce worker)
-  process.env.PI_NETWORK = network;
-
-  await logSystemEvent({
-    level: "INFO",
-    source: "ADMIN_PI_NETWORK",
-    action: "NETWORK_SWITCHED",
-    message: `Réseau Pi basculé: ${previous} → ${network}`,
-    details: {
-      previous,
-      network,
-      horizonUrl:
-        network === "mainnet"
-          ? "https://api.mainnet.minepi.com"
-          : "https://api.testnet.minepi.com",
-      passphrase: network === "mainnet" ? "Pi Network" : "Pi Testnet",
-      adminId: (auth as any)?.id,
-    },
-  });
+  try {
+    await logSystemEvent({
+      level: "INFO",
+      source: "ADMIN_PI_NETWORK",
+      action: "NETWORK_SWITCHED",
+      message: `Réseau Pi basculé: ${previous} → ${network}`,
+      details: { previous, network, adminId: (auth as any)?.id },
+    });
+  } catch {
+    // Le changement est déjà persisté; l'échec de journalisation ne doit pas le masquer.
+  }
 
   return NextResponse.json({
-    network,
-    horizonUrl:
-      network === "mainnet"
-        ? "https://api.mainnet.minepi.com"
-        : "https://api.testnet.minepi.com",
-    passphrase: network === "mainnet" ? "Pi Network" : "Pi Testnet",
-    sandbox: network !== "mainnet",
+    ...networkDetails(network),
+    ready: true,
     changed: true,
-    message: `Réseau Pi basculé sur ${network === "mainnet" ? "MAINNET" : "TESTNET"} avec succès`,
+    message: `Réseau Pi basculé sur ${network === "mainnet" ? "MAINNET" : "TESTNET"}`,
   });
 }

@@ -20,45 +20,42 @@ declare global {
   }
 }
 
-// Valeur par defaut : sandbox (testnet) tant que la config admin n'est pas chargee.
-const DEFAULT_SANDBOX = true;
-
 let cached: boolean | null = null;
 let inflight: Promise<boolean> | null = null;
 
 /** Lit la valeur sandbox deja resolue (sans declencher de fetch). */
-export function getCachedPiSandbox(): boolean {
+export function getCachedPiSandbox(): boolean | null {
   if (typeof window !== "undefined" && typeof window.__PI_SANDBOX__ === "boolean") {
     return window.__PI_SANDBOX__;
   }
-  return cached ?? DEFAULT_SANDBOX;
+  return cached;
 }
 
-/**
- * Recupere (et met en cache) le flag sandbox depuis la config admin.
- * Idempotent : les appels concurrents partagent la meme requete.
- */
+/** Recupere le reseau actif; une configuration absente ne doit jamais basculer en testnet. */
 export async function getPiSandbox(): Promise<boolean> {
-  if (typeof window === "undefined") return DEFAULT_SANDBOX;
-  if (typeof window.__PI_SANDBOX__ === "boolean") return window.__PI_SANDBOX__;
-  if (cached !== null) return cached;
+  if (typeof window === "undefined") throw new Error("Pi SDK indisponible cote serveur");
   if (inflight) return inflight;
 
-  inflight = fetch("/api/pi-network", { credentials: "include" })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      const sandbox = data ? Boolean(data.sandbox) : DEFAULT_SANDBOX;
+  const previousNetwork = typeof window.__PI_SANDBOX__ === "boolean" ? window.__PI_SANDBOX__ : cached;
+  inflight = fetch("/api/pi-network", { credentials: "include", cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) throw new Error("Configuration Pi Network indisponible");
+      const data = await response.json();
+      if (data.ready !== true || !["testnet", "mainnet"].includes(data.network)) {
+        throw new Error("Configuration Pi Network invalide");
+      }
+      const sandbox = data.network === "testnet";
+      if (data.sandbox !== sandbox) throw new Error("Mode sandbox Pi incoherent avec le reseau actif");
+      if (previousNetwork !== null && previousNetwork !== sandbox) {
+        throw new Error("Le réseau Pi a changé. Rechargez la page avant de continuer.");
+      }
       cached = sandbox;
       window.__PI_SANDBOX__ = sandbox;
-      console.log(
-        `[PimPay] Mode reseau Pi: ${data?.network || "inconnu"} (sandbox=${sandbox})`
-      );
       return sandbox;
     })
-    .catch(() => {
-      cached = DEFAULT_SANDBOX;
-      window.__PI_SANDBOX__ = DEFAULT_SANDBOX;
-      return DEFAULT_SANDBOX;
+    .catch((error) => {
+      cached = null;
+      throw error;
     })
     .finally(() => {
       inflight = null;

@@ -9,6 +9,7 @@ import { TransactionStatus, TransactionType, WalletType } from '@prisma/client';
 import { logSystemEvent, logApiError } from '@/lib/systemLogger';
 import { enforcePiPolicy, WithdrawalPolicyError } from '@/lib/withdrawal-limits';
 import { guardRequest } from '@/lib/defenseGuard';
+import { getPiNetworkConfig } from '@/lib/pi';
 
 /**
  * POST /api/mpay/external-transfer
@@ -17,41 +18,21 @@ import { guardRequest } from '@/lib/defenseGuard';
  *   - Mode A2U  : uid fourni => Pi Platform API + blockchain broadcast
  *   - Mode Direct: adresse G... fournie => blockchain broadcast direct
  *
- * Configuration requise (variables d'environnement):
- *   Testnet (variables existantes): PI_API_KEY, PI_MASTER_WALLET_ADDRESS,
- *     PI_MASTER_WALLET_SECRET, PI_HORIZON_URL, PI_NETWORK_PASSPHRASE
- *   Mainnet (variables dédiées): PI_API_KEY_MAINNET,
- *     PI_MASTER_WALLET_ADDRESS_MAINNET, PI_MASTER_WALLET_SECRET_MAINNET,
- *     PI_HORIZON_URL_MAINNET, PI_NETWORK_PASSPHRASE_MAINNET
- *   PI_NETWORK              - "testnet" (defaut) ou "mainnet"
+ * Le réseau est lu depuis SystemConfig et les identifiants Pi existants sont
+ * acceptés uniquement si l'URL Horizon et la passphrase correspondent.
  */
 
-const PI_API_URL          = "https://api.minepi.com";
+const PI_API_URL = "https://api.minepi.com";
 
-// IMPORTANT: Pi testnet  → https://api.testnet.minepi.com   passphrase "Pi Testnet"
-//            Pi mainnet  → https://api.mainnet.minepi.com   passphrase "Pi Network"
-// La valeur est lue à CHAQUE requête (pas au démarrage du module) pour que
-// le basculement admin via /api/admin/pi-network prenne effet immédiatement
-// sans redéploiement.
-function getPiEnv() {
-  const env = (process.env.PI_NETWORK || "testnet").toLowerCase();
-  const isMainnet = env === "mainnet";
-
+async function getPiEnv() {
+  const config = await getPiNetworkConfig();
   return {
-    isMainnet,
-    apiKey: isMainnet ? process.env.PI_API_KEY_MAINNET : process.env.PI_API_KEY,
-    masterAddress: isMainnet
-      ? process.env.PI_MASTER_WALLET_ADDRESS_MAINNET
-      : process.env.PI_MASTER_WALLET_ADDRESS,
-    masterSecret: isMainnet
-      ? process.env.PI_MASTER_WALLET_SECRET_MAINNET
-      : process.env.PI_MASTER_WALLET_SECRET,
-    horizonUrl: isMainnet
-      ? process.env.PI_HORIZON_URL_MAINNET || "https://api.mainnet.minepi.com"
-      : process.env.PI_HORIZON_URL || "https://api.testnet.minepi.com",
-    passphrase: isMainnet
-      ? process.env.PI_NETWORK_PASSPHRASE_MAINNET || "Pi Network"
-      : process.env.PI_NETWORK_PASSPHRASE || "Pi Testnet",
+    isMainnet: config.network === "mainnet",
+    apiKey: config.apiKey,
+    masterAddress: config.masterAddress,
+    masterSecret: config.masterSecret,
+    horizonUrl: config.horizonUrl,
+    passphrase: config.passphrase,
   };
 }
 
@@ -59,7 +40,7 @@ function getPiEnv() {
 // Helper: appel API Pi Platform
 // ---------------------------------------------------------------------------
 async function piApi(endpoint: string, method: string, body?: unknown, requestId?: string) {
-  const { apiKey } = getPiEnv();
+  const { apiKey } = await getPiEnv();
   if (!apiKey) throw new Error("PI_API_KEY non configure pour le reseau Pi actif");
 
   const startTime = Date.now();
@@ -159,7 +140,7 @@ async function broadcastPi(
 ): Promise<string> {
   const startTime = Date.now();
   // Lire le réseau et ses identifiants à chaque appel pour isoler testnet et mainnet.
-  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE, masterAddress: PI_MASTER_ADDRESS, masterSecret: PI_MASTER_SECRET } = getPiEnv();
+  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE, masterAddress: PI_MASTER_ADDRESS, masterSecret: PI_MASTER_SECRET } = await getPiEnv();
   
   await logSystemEvent({
     level: "INFO",
@@ -216,32 +197,13 @@ async function broadcastPi(
 
   const server = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
 
-  // ── Garde anti tx_bad_auth #2 ───────────────────────────────────────────
-  // La 2e cause d'une erreur "tx_bad_auth" est une passphrase reseau qui ne
-  // correspond pas a celle attendue par le Horizon ciblé. On lit la passphrase
-  // REELLE directement depuis la racine du serveur Horizon : ainsi la signature
-  // est toujours calculee avec la meme passphrase que celle du reseau auquel la
-  // transaction est soumise. Fallback sur la valeur configuree si indisponible.
-  let networkPassphrase = PI_NETWORK_PASSPHRASE;
-  try {
-    const rootRes = await fetch(PI_HORIZON_URL, { headers: { Accept: "application/json" } });
-    const root: any = await rootRes.json().catch(() => ({}));
-    if (root?.network_passphrase) {
-      networkPassphrase = root.network_passphrase;
-      if (networkPassphrase !== PI_NETWORK_PASSPHRASE) {
-        await logSystemEvent({
-          level: "WARN",
-          source: "MPAY_EXTERNAL_TRANSFER",
-          action: "PASSPHRASE_OVERRIDE",
-          message: "Passphrase reseau Horizon differente de la config — utilisation de celle d'Horizon",
-          details: { configured: PI_NETWORK_PASSPHRASE, horizon: networkPassphrase },
-          requestId,
-        });
-      }
-    }
-  } catch {
-    // Horizon root indisponible → on garde la passphrase configuree
+  const rootRes = await fetch(PI_HORIZON_URL, { headers: { Accept: "application/json" } });
+  if (!rootRes.ok) throw new Error("Horizon Pi indisponible; transfert arrêté par sécurité");
+  const root: any = await rootRes.json().catch(() => ({}));
+  if (root?.network_passphrase !== PI_NETWORK_PASSPHRASE) {
+    throw new Error("La passphrase du serveur Horizon ne correspond pas au réseau Pi configuré");
   }
+  const networkPassphrase = PI_NETWORK_PASSPHRASE;
 
   // Verifier que le compte destinataire existe
   try {
@@ -486,12 +448,13 @@ export async function POST(req: NextRequest) {
   // Lire la configuration réseau et les identifiants correspondants pour cette requête.
   // Les variables historiques restent dédiées au testnet; le mainnet utilise ses propres clés.
   const {
-    horizonUrl: _horizonUrl,
-    passphrase: PI_NETWORK_PASSPHRASE,
-    apiKey: PI_API_KEY,
+  horizonUrl: _horizonUrl,
+  passphrase: PI_NETWORK_PASSPHRASE,
+  network: piNetwork,
+  apiKey: PI_API_KEY,
     masterAddress: PI_MASTER_ADDRESS,
     masterSecret: PI_MASTER_SECRET,
-  } = getPiEnv();
+  } = await getPiEnv();
 
   // Log initial de la requete
   await logSystemEvent({
@@ -841,7 +804,7 @@ export async function POST(req: NextRequest) {
           externalAddress: isPiAddress ? destination : null,
           piUid:           piUid,
           transferType:    piUid && canA2U ? "A2U" : "DIRECT",
-          network:         PI_NETWORK_PASSPHRASE,
+          network:         piNetwork,
           startedAt:       new Date().toISOString(),
         },
       },
@@ -1117,30 +1080,33 @@ export async function POST(req: NextRequest) {
 // GET: statut du service de retrait
 // ---------------------------------------------------------------------------
 export async function GET() {
-  const { horizonUrl: PI_HORIZON_URL, passphrase: PI_NETWORK_PASSPHRASE, apiKey: PI_API_KEY, masterAddress: PI_MASTER_ADDRESS, masterSecret: PI_MASTER_SECRET } = getPiEnv();
-  const configured = !!PI_API_KEY && !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET;
-  let masterBalance: string | null = null;
+  try {
+    const { horizonUrl, passphrase, apiKey, masterAddress, masterSecret, isMainnet } = await getPiEnv();
+    let masterBalance: string | null = null;
 
-  if (PI_MASTER_ADDRESS && PI_MASTER_SECRET) {
-    try {
-      const server  = new StellarSdk.Horizon.Server(PI_HORIZON_URL);
-      const account = await server.loadAccount(PI_MASTER_ADDRESS);
-      const bal     = account.balances.find((b: any) => b.asset_type === "native");
-      masterBalance = bal?.balance ?? null;
-    } catch {
-      masterBalance = null;
+    if (masterAddress && masterSecret) {
+      try {
+        const server = new StellarSdk.Horizon.Server(horizonUrl);
+        const account = await server.loadAccount(masterAddress);
+        const balance = account.balances.find((item: any) => item.asset_type === "native");
+        masterBalance = balance?.balance ?? null;
+      } catch {
+        masterBalance = null;
+      }
     }
-  }
 
-  return NextResponse.json({
-    available:     configured,
-    network:       PI_NETWORK_PASSPHRASE?.includes("Testnet") ? "testnet" : "mainnet",
-    masterBalance,
-    modes: {
-      a2u:    !!PI_API_KEY,
-      direct: !!PI_MASTER_ADDRESS && !!PI_MASTER_SECRET,
-    },
-    minWithdraw:   1,
-    estimatedTime: "1-3 minutes",
-  });
+    return NextResponse.json({
+      available: !!apiKey && !!masterAddress && !!masterSecret,
+      network: isMainnet ? "mainnet" : "testnet",
+      masterBalance,
+      modes: { a2u: !!apiKey, direct: !!masterAddress && !!masterSecret },
+      minWithdraw: 1,
+      estimatedTime: "1-3 minutes",
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json(
+      { available: false, network: null, error: "Configuration Pi indisponible pour le réseau sélectionné." },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 }

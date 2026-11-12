@@ -1,340 +1,183 @@
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { TransactionStatus, WalletType, TransactionType } from "@prisma/client";
+import { getAuthUserId } from "@/lib/auth";
+import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
+import { cancelPiPayment, completePiPayment, getPiNetwork, getPiPayment } from "@/lib/pi";
 
-const PI_API_KEY = () => {
-  const key = process.env.PI_API_KEY;
-  if (!key) {
-    console.warn("[PIMOBIPAY] PI_API_KEY non configuree");
-  }
-  return key;
-};
-
-// ── Helper: Get payment details from Pi Network ──────────────────────────────
-async function getPiPaymentDetails(paymentId: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
-    headers: { Authorization: `Key ${PI_API_KEY()}` },
-  });
-  if (!res.ok) return null;
-  return res.json();
+function belongsToUser(
+  payment: NonNullable<Awaited<ReturnType<typeof getPiPayment>>>,
+  _userId: string,
+  piUserId: string | null
+) {
+  return Boolean(payment.user_uid && piUserId && payment.user_uid === piUserId);
 }
 
-// ── Helper: Try to approve a payment ─────────────────────────────────────────
-async function approvePayment(paymentId: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${PI_API_KEY()}`,
-      "Content-Type": "application/json",
-    },
-  });
-  return res;
+function isVerified(payment: NonNullable<Awaited<ReturnType<typeof getPiPayment>>>) {
+  return payment.status?.transaction_verified === true || payment.transaction?.verified === true;
 }
 
-// ── Helper: Try to complete a payment ────────────────────────────────────────
-async function completePayment(paymentId: string, txid: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${PI_API_KEY()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ txid }),
-  });
-  return res;
-}
-
-// ── Helper: Try to cancel a payment ──────────────────────────────────────────
-async function cancelPayment(paymentId: string) {
-  const res = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/cancel`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${PI_API_KEY()}`,
-      "Content-Type": "application/json",
-    },
-  });
-  return res;
-}
-
-// ── POST: Handle a single incomplete payment from the client SDK callback ────
 export async function POST(req: Request) {
   try {
-    const apiKey = PI_API_KEY();
-    if (!apiKey) {
-      console.warn("[PIMOBIPAY] POST /api/payments/incomplete: PI_API_KEY non configuree");
-      return NextResponse.json({ 
-        success: false, 
-        action: "skipped", 
-        message: "Configuration Pi Network en attente" 
-      });
+    const userId = await getAuthUserId();
+    if (!userId) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
+
+    let body: { paymentId?: string; txid?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Corps JSON invalide" }, { status: 400 });
     }
 
-    const { paymentId, txid } = await req.json();
-
-    if (!paymentId) {
-      return NextResponse.json({ error: "paymentId manquant" }, { status: 400 });
+    const paymentId = typeof body.paymentId === "string" ? body.paymentId.trim() : "";
+    const submittedTxid = typeof body.txid === "string" ? body.txid.trim() : "";
+    if (!paymentId || paymentId.length > 256) {
+      return NextResponse.json({ error: "paymentId invalide" }, { status: 400 });
     }
 
-    console.log(`[PIMOBIPAY] Traitement paiement incomplet: ${paymentId}, txid: ${txid || "aucun"}`);
+    const [transaction, user, payment] = await Promise.all([
+      prisma.transaction.findUnique({ where: { externalId: paymentId } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { piUserId: true } }),
+      getPiPayment(paymentId),
+    ]);
 
-    // 1. Get payment status from Pi Network
-    const piPayment = await getPiPaymentDetails(paymentId);
-
-    if (!piPayment) {
-      // Payment not found on Pi side - try cancelling to unblock
-      console.warn(`[PIMOBIPAY] Paiement ${paymentId} introuvable sur Pi Network. Tentative d'annulation...`);
-      await cancelPayment(paymentId);
-      return NextResponse.json({ success: true, action: "cancelled", message: "Paiement introuvable, annulation envoyee" });
+    if (!transaction || transaction.toUserId !== userId || transaction.type !== TransactionType.DEPOSIT || transaction.currency !== "PI") {
+      return NextResponse.json({ error: "Paiement en attente introuvable pour cet utilisateur" }, { status: 404 });
+    }
+    if (transaction.status === TransactionStatus.SUCCESS) {
+      return NextResponse.json({ success: true, action: "already_completed" });
+    }
+    if (transaction.status !== TransactionStatus.PENDING) {
+      return NextResponse.json({ error: "Ce paiement n'est plus en attente" }, { status: 409 });
+    }
+    if (!payment || payment.identifier !== paymentId) {
+      return NextResponse.json({ error: "Paiement Pi introuvable; aucune annulation automatique effectuée" }, { status: 404 });
+    }
+    if (!belongsToUser(payment, userId, user?.piUserId ?? null)) {
+      return NextResponse.json({ error: "Le paiement Pi n'appartient pas à cet utilisateur" }, { status: 403 });
+    }
+    const network = await getPiNetwork();
+    const transactionMetadata = transaction.metadata && typeof transaction.metadata === "object" && !Array.isArray(transaction.metadata)
+      ? transaction.metadata as Record<string, unknown>
+      : {};
+    if (
+      (typeof transactionMetadata.network === "string" && transactionMetadata.network !== network) ||
+      (payment.metadata?.network && payment.metadata.network !== network)
+    ) {
+      return NextResponse.json({ error: "Ce paiement appartient à un autre réseau Pi" }, { status: 409 });
     }
 
-    const piStatus = piPayment.status?.transaction;
-    const piTxid = txid || piPayment.transaction?.txid;
-    const piAmount = piPayment.amount;
-    const piUserId = piPayment.metadata?.userId;
+    const txid = submittedTxid || payment.transaction?.txid || "";
+    const verified = isVerified(payment);
 
-    console.log(`[PIMOBIPAY] Pi payment status: ${JSON.stringify(piPayment.status)}, txid: ${piTxid}`);
-
-    // ── CASE A: Payment already completed on Pi side ─────────────────────────
-    // The blockchain transaction exists. We need to complete it on our side too.
-    if (piTxid && (piStatus === "completed" || piStatus === "confirmed")) {
-      // Already done, just sync our DB
-      return await syncCompletedPayment(paymentId, piTxid, piAmount, piUserId);
-    }
-
-    // ── CASE B: Payment has a blockchain txid but server hasn't completed it ──
-    // The user signed but our /complete was never called (app crashed, network error, etc.)
-    if (piTxid) {
-      console.log(`[PIMOBIPAY] Tentative de completion S2S pour ${paymentId}`);
-
-      const completeRes = await completePayment(paymentId, piTxid);
-      const completeData = await completeRes.json().catch(() => ({}));
-
-      if (completeRes.ok || completeData.message === "Payment already completed") {
-        return await syncCompletedPayment(paymentId, piTxid, piAmount, piUserId);
+    if (!txid) {
+      if (verified || payment.transaction?.txid) {
+        return NextResponse.json({ error: "Paiement déjà signé: annulation refusée" }, { status: 409 });
       }
-    }
+      const cancelled = await cancelPiPayment(paymentId);
+      if (!cancelled) return NextResponse.json({ error: "Pi n'a pas confirmé l'annulation" }, { status: 409 });
 
-    // ── CASE C: Payment was approved but user never signed (no txid) ─────────
-    // The user saw the Pi payment dialog but never confirmed. We must cancel it.
-    if (!piTxid) {
-      // First try to approve (in case it's stuck in "created" state)
-      const serverApproved = piPayment.status?.developer_approved;
-      
-      if (!serverApproved) {
-        console.log(`[PIMOBIPAY] Paiement ${paymentId} non approuve. Approbation puis annulation...`);
-        await approvePayment(paymentId);
-      }
-
-      // Now cancel it to free up the user
-      console.log(`[PIMOBIPAY] Annulation du paiement ${paymentId} (pas de txid)`);
-      const cancelRes = await cancelPayment(paymentId);
-      const cancelData = await cancelRes.json().catch(() => ({}));
-
-      if (cancelRes.ok || cancelData.message?.includes("already")) {
-        // Mark as FAILED in our DB if it exists
-        await prisma.transaction.updateMany({
-          where: { externalId: paymentId },
-          data: {
-            status: TransactionStatus.FAILED,
-            metadata: {
-              cancelledAt: new Date().toISOString(),
-              reason: "incomplete_auto_cancel",
-            },
+      const update = await prisma.transaction.updateMany({
+        where: { id: transaction.id, toUserId: userId, status: TransactionStatus.PENDING },
+        data: {
+          status: TransactionStatus.FAILED,
+          metadata: {
+            ...transactionMetadata,
+            network,
+            cancelledAt: new Date().toISOString(),
+            reason: "user_incomplete_payment",
           },
-        });
+        },
+      });
 
-        return NextResponse.json({
-          success: true,
-          action: "cancelled",
-          message: "Paiement annule avec succes. Vous pouvez relancer une transaction.",
-        });
+      if (update.count !== 1) {
+        const latest = await prisma.transaction.findUnique({ where: { id: transaction.id } });
+        if (latest?.status === TransactionStatus.SUCCESS && latest.toUserId === userId) {
+          return NextResponse.json({ success: true, action: "already_completed" });
+        }
+        return NextResponse.json({ error: "Le paiement a changé d'état; aucune autre action effectuée" }, { status: 409 });
       }
 
-      // If cancel also fails, return the error but don't crash
-      console.error(`[PIMOBIPAY] Echec annulation ${paymentId}:`, cancelData);
-      return NextResponse.json({
-        success: false,
-        action: "cancel_failed",
-        message: "Impossible d'annuler le paiement. Veuillez reessayer.",
-        details: cancelData,
-      }, { status: 500 });
+      return NextResponse.json({ success: true, action: "cancelled", network });
     }
 
-    return NextResponse.json({ success: false, message: "Etat du paiement non gere" }, { status: 400 });
+    const amount = Number(payment.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount - transaction.amount) > 1e-7) {
+      return NextResponse.json({ error: "Le montant Pi ne correspond pas au dépôt en attente" }, { status: 409 });
+    }
+    if (payment.transaction?.txid && payment.transaction.txid !== txid) {
+      return NextResponse.json({ error: "Le txid ne correspond pas au paiement Pi" }, { status: 403 });
+    }
 
-  } catch (error: any) {
-    // [FIX V9] Ne pas exposer error.message en production
-    console.error("[INCOMPLETE_PAYMENT_ERROR]:", error.message);
+    if (!verified) {
+      const completion = await completePiPayment(paymentId, txid);
+      if (!completion.ok) return NextResponse.json({ error: "Pi n'a pas confirmé la transaction", retryable: true }, { status: 409 });
+    }
+
+    const confirmedPayment = await getPiPayment(paymentId);
+    if (
+      !confirmedPayment ||
+      !belongsToUser(confirmedPayment, userId, user?.piUserId ?? null) ||
+      !isVerified(confirmedPayment) ||
+      (confirmedPayment.metadata?.network && confirmedPayment.metadata.network !== network)
+    ) {
+      return NextResponse.json({ error: "Paiement non confirmé sur le réseau Pi actif", retryable: true }, { status: 409 });
+    }
+    if (confirmedPayment.transaction?.txid && confirmedPayment.transaction.txid !== txid) {
+      return NextResponse.json({ error: "Le txid confirmé ne correspond pas" }, { status: 403 });
+    }
+
+    const settled = await prisma.$transaction(async (tx) => {
+      const claim = await tx.transaction.updateMany({
+        where: {
+          id: transaction.id,
+          toUserId: userId,
+          type: TransactionType.DEPOSIT,
+          currency: "PI",
+          status: TransactionStatus.PENDING,
+        },
+        data: { status: TransactionStatus.SUCCESS, amount, blockchainTx: txid },
+      });
+      if (claim.count !== 1) return false;
+
+      const wallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId, currency: "PI" } },
+        update: { balance: { increment: amount } },
+        create: { userId, currency: "PI", balance: amount, type: WalletType.PI },
+      });
+      const metadata = transaction.metadata && typeof transaction.metadata === "object" && !Array.isArray(transaction.metadata)
+        ? transaction.metadata as Record<string, unknown>
+        : {};
+      await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          toWalletId: wallet.id,
+          metadata: { ...metadata, network, verifiedAmount: amount, recoveredAt: new Date().toISOString() },
+        },
+      });
+      return true;
+    }, { maxWait: 10000, timeout: 30000 });
+
+    if (!settled) {
+      const latest = await prisma.transaction.findUnique({ where: { id: transaction.id } });
+      if (latest?.status === TransactionStatus.SUCCESS && latest.toUserId === userId) {
+        return NextResponse.json({ success: true, action: "already_completed", amount: latest.amount, network });
+      }
+      return NextResponse.json({ error: "Le paiement a changé d'état; réessayez après vérification" }, { status: 409 });
+    }
+
+    return NextResponse.json({ success: true, action: "completed", amount, network });
+  } catch (error) {
+    console.error("[PIMPAY] Erreur paiement incomplet Pi:", error);
     return NextResponse.json({ error: "Erreur lors du traitement du paiement" }, { status: 500 });
   }
 }
 
-// ── Sync a completed payment into our database ──────────────────────────────
-async function syncCompletedPayment(
-  paymentId: string,
-  txid: string,
-  amount: number,
-  userId: string | null
-) {
-  // Find existing transaction in our DB
-  const existingTx = await prisma.transaction.findUnique({
-    where: { externalId: paymentId },
-  });
-
-  const finalUserId = existingTx?.toUserId || userId;
-  const finalAmount = existingTx?.amount || amount;
-
-  if (!finalUserId) {
-    console.error(`[PIMOBIPAY] Impossible de crediter: userId introuvable pour ${paymentId}`);
-    return NextResponse.json({
-      success: true,
-      action: "completed_no_user",
-      message: "Paiement complete sur Pi Network mais utilisateur introuvable dans PIMOBIPAY",
-    });
-  }
-
-  // Don't double-credit
-  if (existingTx?.status === TransactionStatus.SUCCESS) {
-    return NextResponse.json({
-      success: true,
-      action: "already_completed",
-      message: "Ce paiement a deja ete credite.",
-    });
-  }
-
-  // Atomic DB update
-  const result = await prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.upsert({
-      where: { userId_currency: { userId: finalUserId, currency: "PI" } },
-      update: { balance: { increment: finalAmount } },
-      create: {
-        userId: finalUserId,
-        currency: "PI",
-        balance: finalAmount,
-        type: WalletType.PI,
-      },
-    });
-
-    const updatedTx = await tx.transaction.upsert({
-      where: { externalId: paymentId },
-      update: {
-        status: TransactionStatus.SUCCESS,
-        blockchainTx: txid,
-        toWalletId: wallet.id,
-        metadata: {
-          recoveredAt: new Date().toISOString(),
-          method: "INCOMPLETE_AUTO_RECOVERY",
-        },
-      },
-      create: {
-        reference: `REC-${paymentId.slice(-6).toUpperCase()}`,
-        externalId: paymentId,
-        blockchainTx: txid,
-        amount: finalAmount,
-        currency: "PI",
-        type: TransactionType.DEPOSIT,
-        status: TransactionStatus.SUCCESS,
-        toUserId: finalUserId,
-        toWalletId: wallet.id,
-        description: "Depot recupere automatiquement",
-      },
-    });
-
-    return updatedTx;
-  }, { maxWait: 10000, timeout: 30000 });
-
-  console.log(`[PIMOBIPAY] Paiement ${paymentId} recupere et credite: ${finalAmount} PI`);
-
-  return NextResponse.json({
-    success: true,
-    action: "completed",
-    message: `Depot de ${finalAmount} Pi credite avec succes !`,
-    transaction: result,
-  });
-}
-
-// ── GET: Batch recover all incomplete payments from Pi Network ────────────────
 export async function GET() {
-  try {
-    const apiKey = PI_API_KEY();
-    if (!apiKey) {
-      // En mode dev sans cle API, on retourne juste vide au lieu d'une erreur
-      console.warn("[PIMOBIPAY] GET /api/payments/incomplete: PI_API_KEY non configuree");
-      return NextResponse.json({ message: "Configuration en attente", count: 0, details: [] });
-    }
-
-    // 1. Fetch incomplete payments from Pi Network
-    const piRes = await fetch("https://api.minepi.com/v2/payments/incomplete", {
-      headers: { Authorization: `Key ${apiKey}` },
-    });
-
-    const data = await piRes.json();
-    const incompletePayments = data.incomplete_payments || [];
-
-    if (incompletePayments.length === 0) {
-      return NextResponse.json({ message: "Aucun paiement bloque trouve.", count: 0 });
-    }
-
-    const results = [];
-
-    // 2. Process each incomplete payment
-    for (const payment of incompletePayments) {
-      const paymentId = payment.identifier;
-      const txid = payment.transaction?.txid;
-      const serverApproved = payment.status?.developer_approved;
-
-      try {
-        if (txid) {
-          // Has txid -> try to complete
-          const completeRes = await completePayment(paymentId, txid);
-          if (completeRes.ok) {
-            await prisma.transaction.updateMany({
-              where: { externalId: paymentId },
-              data: {
-                status: "SUCCESS",
-                blockchainTx: txid,
-                metadata: { recoveredAt: new Date().toISOString(), method: "BATCH_RECOVERY" },
-              },
-            });
-            results.push({ id: paymentId, action: "completed" });
-          } else {
-            results.push({ id: paymentId, action: "complete_failed" });
-          }
-        } else {
-          // No txid -> approve if needed, then cancel
-          if (!serverApproved) {
-            await approvePayment(paymentId);
-          }
-          const cancelRes = await cancelPayment(paymentId);
-          if (cancelRes.ok) {
-            await prisma.transaction.updateMany({
-              where: { externalId: paymentId },
-              data: {
-                status: "FAILED",
-                metadata: { cancelledAt: new Date().toISOString(), reason: "batch_auto_cancel" },
-              },
-            });
-            results.push({ id: paymentId, action: "cancelled" });
-          } else {
-            results.push({ id: paymentId, action: "cancel_failed" });
-          }
-        }
-      } catch (err: any) {
-        results.push({ id: paymentId, action: "error", error: err.message });
-      }
-    }
-
-    return NextResponse.json({
-      message: `${results.length} paiements traites`,
-      details: results,
-    });
-
-  } catch (error: any) {
-    // [FIX V9] Ne pas exposer error.message en production
-    console.error("[BATCH_RECOVERY_ERROR]:", error.message);
-    return NextResponse.json({ error: "Erreur lors de la récupération des paiements" }, { status: 500 });
-  }
+  return NextResponse.json(
+    { error: "La récupération globale des paiements est désactivée. Utilisez le callback Pi authentifié." },
+    { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } }
+  );
 }

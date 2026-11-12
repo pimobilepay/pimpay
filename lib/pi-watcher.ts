@@ -1,92 +1,11 @@
-import { prisma } from "@/lib/prisma";
-
-// Utilise l'URL Horizon depuis les variables d'environnement (mainnet par defaut)
-const PI_HORIZON_URL = process.env.PI_HORIZON_URL || "https://api.mainnet.minepi.com";
-
-export async function watchDeposit(paymentId: string) {
-  try {
-    // 1. Vérification blockchain
-    const response = await fetch(`${PI_HORIZON_URL}/payments/${paymentId}`);
-    if (!response.ok) return { success: false, message: "Paiement introuvable sur Horizon" };
-
-    const paymentData = await response.json();
-
-    // 2. Sécurité : Status et Destinataire
-    if (paymentData.status !== "SUCCESS") {
-        return { success: false, message: "Paiement non finalisé sur la blockchain" };
-    }
-
-    if (paymentData.recipient !== process.env.PI_MASTER_WALLET_ADDRESS) {
-      return { success: false, message: "Ce paiement n'est pas destiné au Master Wallet Pimpay" };
-    }
-
-    // 3. Recherche du Wallet (Possibilité 1: par Memo | Possibilité 2: par userId si le memo est l'UID)
-    const memo = paymentData.memo;
-    const wallet = await prisma.wallet.findFirst({
-      where: {
-        OR: [
-          { depositMemo: memo },
-          { user: { piUserId: memo } } // Si l'UID est utilisé comme mémo
-        ]
-      },
-      include: { user: true }
-    });
-
-    if (!wallet) {
-        return { success: false, message: "Référence de dépôt (memo) inconnue" };
-    }
-
-    // 4. TRANSACTION ATOMIQUE (Adaptée à ton schéma)
-    await prisma.$transaction([
-      // A. Créditer le compte
-      prisma.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { increment: parseFloat(paymentData.amount) } }
-      }),
-
-      // B. Créer la transaction Ledger
-      prisma.transaction.create({
-        data: {
-          reference: paymentId,
-          amount: parseFloat(paymentData.amount),
-          currency: "PI",
-          type: "DEPOSIT",
-          status: "SUCCESS", // Selon ton Enum TransactionStatus
-          toUserId: wallet.userId,
-          toWalletId: wallet.id,
-          description: `Dépôt Blockchain Pi - Memo: ${memo}`,
-        }
-      }),
-
-      // C. Notification systeme avec metadonnees completes
-      prisma.notification.create({
-        data: {
-          userId: wallet.userId,
-          title: "Depot Pi approuve !",
-          message: `Votre depot de ${paymentData.amount} PI a ete credite automatiquement.`,
-          type: "SUCCESS",
-          metadata: JSON.stringify({
-            amount: parseFloat(paymentData.amount),
-            currency: "PI",
-            fee: 0,
-            reference: paymentId,
-            method: "Pi Network (Blockchain)",
-            status: "SUCCESS",
-            network: "Pi Mainnet",
-            memo: memo,
-          }),
-        }
-      })
-    ]);
-
-    return {
-        success: true,
-        amount: paymentData.amount,
-        username: wallet.user?.username
-    };
-
-  } catch (error) {
-    console.error("CRITICAL WATCHER ERROR:", error);
-    return { success: false, message: "Erreur interne de validation" };
-  }
+/**
+ * Le crédit de dépôts Pi n'est plus autorisé depuis un webhook Horizon non lié
+ * à une transaction Pi approuvée et à son utilisateur. Les paiements sont
+ * réglés exclusivement par les routes authentifiées de paiement Pi.
+ */
+export async function watchDeposit(_paymentId: string) {
+  return {
+    success: false as const,
+    message: "Le watcher de dépôt direct est désactivé; utilisez le flux Pi authentifié.",
+  };
 }

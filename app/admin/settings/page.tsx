@@ -126,6 +126,7 @@ export default function SystemSettings() {
   const [comingSoonDate, setComingSoonDate] = useState('');
   const [savingComingSoonDate, setSavingComingSoonDate] = useState(false);
   const [piNetworkEnv, setPiNetworkEnv] = useState<'testnet' | 'mainnet'>('testnet');
+  const [piNetworkReady, setPiNetworkReady] = useState(false);
   const [togglingPiNetwork, setTogglingPiNetwork] = useState(false);
   const [gpEnv, setGpEnv] = useState<GeniusPayEnvInfo | null>(null);
   const [togglingGpEnv, setTogglingGpEnv] = useState(false);
@@ -260,6 +261,7 @@ export default function SystemSettings() {
       if (piEnvRes.ok) {
         const piData = await piEnvRes.json();
         setPiNetworkEnv(piData.network || 'testnet');
+        setPiNetworkReady(Boolean(piData.ready));
       }
       if (gpEnvRes.ok) {
         setGpEnv(await gpEnvRes.json());
@@ -547,13 +549,16 @@ export default function SystemSettings() {
         credentials: "include",
         body: JSON.stringify({ network: next }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Erreur serveur");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ready) {
+        throw new Error(data.error || "Le réseau Pi sélectionné n'est pas prêt");
+      }
       setPiNetworkEnv(data.network);
+      setPiNetworkReady(true);
       toast.success(
-        data.network === 'mainnet'
-          ? "🚀 Pi Network basculé sur MAINNET — transactions réelles activées"
-          : "🧪 Pi Network basculé sur TESTNET — mode sandbox activé",
+        data.changed === false
+          ? `Le réseau Pi est déjà configuré sur ${data.network.toUpperCase()}`
+          : `Réseau Pi basculé sur ${data.network.toUpperCase()}`,
         { duration: 6000 }
       );
     } catch (err: any) {
@@ -1204,6 +1209,11 @@ export default function SystemSettings() {
                               ? 'Réseau principal actif — les transactions Pi sont réelles et définitives. Horizon : api.mainnet.minepi.com · Passphrase : "Pi Network"'
                               : 'Réseau de test actif — aucun Pi réel échangé. Horizon : api.testnet.minepi.com · Passphrase : "Pi Testnet"'}
                           </p>
+                          {!piNetworkReady && (
+                            <p role="status" className="mt-2 max-w-sm text-[10px] font-semibold leading-relaxed text-amber-300">
+                              Les opérations Pi sont suspendues : la configuration Horizon et la passphrase ne correspondent pas au réseau sélectionné.
+                            </p>
+                          )}
                           {piNetworkEnv === 'mainnet' && (
                             <div className="flex items-center gap-1.5 mt-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />

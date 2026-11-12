@@ -219,21 +219,26 @@ async function broadcastDogeWithdraw(job: WithdrawJob, toAddress: string): Promi
  * 4. Soumettre à Horizon
  */
 async function broadcastPiWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
-  // Configuration Pi Network lue dynamiquement (peut être changée via /api/admin/pi-network)
-  const PI_HORIZON_URL = process.env.PI_HORIZON_URL ||
-    (process.env.PI_NETWORK === "mainnet"
-      ? "https://api.mainnet.minepi.com"
-      : "https://api.testnet.minepi.com");
-  const PI_MASTER_SECRET = process.env.PI_MASTER_WALLET_SECRET;
-  const PI_MASTER_ADDRESS = process.env.PI_MASTER_WALLET_ADDRESS;
-  const PI_NETWORK_PASSPHRASE = process.env.PI_NETWORK_PASSPHRASE ||
-    (process.env.PI_NETWORK === "mainnet" ? "Pi Network" : "Pi Testnet");
+  const piConfig = await getPiNetworkConfig();
+  await verifyPiHorizonNetwork(piConfig);
+  const PI_HORIZON_URL = piConfig.horizonUrl;
+  const PI_MASTER_SECRET = piConfig.masterSecret;
+  const PI_MASTER_ADDRESS = piConfig.masterAddress;
+  const PI_NETWORK_PASSPHRASE = piConfig.passphrase;
+  const transactionNetwork = (job as WithdrawJob & { metadata?: Record<string, unknown> }).metadata?.network;
 
+  if (transactionNetwork && transactionNetwork !== piConfig.network) {
+    throw new Error("Le réseau de la transaction ne correspond plus au réseau Pi actif");
+  }
   if (!PI_MASTER_SECRET || !PI_MASTER_ADDRESS) {
-    throw new Error("Configuration Pi Network manquante (PI_MASTER_WALLET_SECRET ou PI_MASTER_WALLET_ADDRESS)");
+    throw new Error("Configuration du master wallet Pi indisponible pour le réseau actif");
+  }
+  const masterKeypair = StellarSdk.Keypair.fromSecret(PI_MASTER_SECRET);
+  if (masterKeypair.publicKey() !== PI_MASTER_ADDRESS) {
+    throw new Error("La clé secrète Pi ne correspond pas à l'adresse master configurée");
   }
 
-  // Log de debug pour vérifier la configuration testnet
+  // Log de debug pour vérifier la configuration réseau
   console.log(`[PI_WITHDRAW] Configuration:`, {
     horizonUrl: PI_HORIZON_URL,
     networkPassphrase: PI_NETWORK_PASSPHRASE,

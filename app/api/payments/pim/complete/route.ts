@@ -5,231 +5,174 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserId } from "@/lib/auth";
 import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
-import { completePiPayment, getPiPayment } from "@/lib/pi";
+import { completePiPayment, getPiNetwork, getPiPayment } from "@/lib/pi";
 import { resolvePimCoins } from "@/lib/pim-packages";
 
-/**
- * POST /api/payments/pim/complete
- * 
- * Completes a PIM coin purchase after Pi payment is confirmed.
- * Called by the /api/payments/complete route when metadata.type === "PIM_COIN_PURCHASE"
- * 
- * This endpoint:
- * 1. Validates the payment was for PIM coins
- * 2. Credits PIM coins to the user's PIM wallet
- * 3. Creates a transaction record
- */
+function belongsToUser(
+  payment: NonNullable<Awaited<ReturnType<typeof getPiPayment>>>,
+  _userId: string,
+  piUserId: string | null
+) {
+  return Boolean(payment.user_uid && piUserId && payment.user_uid === piUserId);
+}
+
+function isVerified(payment: NonNullable<Awaited<ReturnType<typeof getPiPayment>>>) {
+  return payment.status?.transaction_verified === true || payment.transaction?.verified === true;
+}
+
 export async function POST(req: Request) {
   try {
-    // NOTE SECURITE : `pimCoins` et `piAmount` envoyes par le client ne sont
-    // PAS dignes de confiance et ne servent qu'a titre indicatif. Le nombre de
-    // PIM credite est recalcule cote serveur a partir du montant Pi verifie.
-    const { paymentId, txid, metadata } = await req.json();
-
-    if (!paymentId) {
-      return NextResponse.json(
-        { error: "Donnees invalides pour l'achat PIM (paymentId requis)" },
-        { status: 400 }
-      );
-    }
-
-    // 1. Authenticate user
     const userId = await getAuthUserId();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Non authentifie. Veuillez vous reconnecter." },
-        { status: 401 }
-      );
+    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+    let body: { paymentId?: string; txid?: string; metadata?: { productId?: string } };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Corps JSON invalide" }, { status: 400 });
     }
 
-    console.log(`[PIMOBIPAY] PIM purchase request for user ${userId}, paymentId: ${paymentId}`);
-
-    // 2. VALIDATION PI NETWORK (S2S) — indispensable pour que Pi Wallet
-    // marque le paiement comme complete (sinon il reste "incomplet/expire").
-    const PI_API_KEY = process.env.PI_API_KEY;
-    if (!PI_API_KEY) {
-      console.error("[PIMOBIPAY] PI_API_KEY non configuree");
-      return NextResponse.json({ error: "Configuration serveur incomplete" }, { status: 500 });
+    const paymentId = typeof body.paymentId === "string" ? body.paymentId.trim() : "";
+    const txid = typeof body.txid === "string" ? body.txid.trim() : "";
+    if (!paymentId || paymentId.length > 256 || !txid || txid.length > 256) {
+      return NextResponse.json({ error: "paymentId ou txid invalide" }, { status: 400 });
     }
 
-    if (txid) {
-      // Retry indispensable : juste apres la signature, le txid n'est pas
-      // toujours confirme. Sans retry, /complete echoue, le Pi Wallet reste
-      // bloque jusqu'a expiration du compte a rebours alors que les PIM
-      // pourraient etre credites.
-      const piResult = await completePiPayment(paymentId, txid, { retries: 4, delayMs: 1500 });
+    const [transaction, user] = await Promise.all([
+      prisma.transaction.findUnique({ where: { externalId: `PIM-${paymentId}` } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { piUserId: true } }),
+    ]);
 
-      if (!piResult.ok) {
-        console.error("[PIMOBIPAY] Echec completion Pi Network apres retries:", piResult.data);
-        // On laisse la transaction en PENDING (creee a l'approbation) pour
-        // qu'elle puisse etre reprise via /api/payments/incomplete ou le mode rescue.
-        return NextResponse.json(
-          {
-            error: "La validation Pi Network n'a pas encore abouti. Votre paiement sera finalise automatiquement, reessayez dans quelques instants.",
-            retryable: true,
-          },
-          { status: 409 }
-        );
+    if (!transaction || transaction.toUserId !== userId || transaction.type !== TransactionType.DEPOSIT || transaction.currency !== "PIM") {
+      return NextResponse.json({ error: "Achat PIM introuvable pour cet utilisateur" }, { status: 404 });
+    }
+    if (transaction.status === TransactionStatus.SUCCESS) {
+      return NextResponse.json({ success: true, alreadyCredited: true, pimCoins: transaction.amount });
+    }
+    if (transaction.status !== TransactionStatus.PENDING) {
+      return NextResponse.json({ error: "Cet achat PIM n'est plus en attente" }, { status: 409 });
+    }
+
+    const storedMetadata = transaction.metadata && typeof transaction.metadata === "object" && !Array.isArray(transaction.metadata)
+      ? transaction.metadata as Record<string, unknown>
+      : {};
+    const productId = typeof storedMetadata.productId === "string" ? storedMetadata.productId : "";
+    if (!productId || (body.metadata?.productId && body.metadata.productId !== productId)) {
+      return NextResponse.json({ error: "Le produit ne correspond pas à l'achat approuvé" }, { status: 409 });
+    }
+
+    let payment = await getPiPayment(paymentId);
+    if (!payment || payment.identifier !== paymentId || !belongsToUser(payment, userId, user?.piUserId ?? null)) {
+      return NextResponse.json({ error: "Paiement Pi introuvable ou associé à un autre utilisateur" }, { status: 403 });
+    }
+    const network = await getPiNetwork();
+    if (payment.metadata?.network && payment.metadata.network !== network) {
+      return NextResponse.json({ error: "Le paiement PIM appartient à un autre réseau Pi" }, { status: 409 });
+    }
+    if (typeof storedMetadata.network === "string" && storedMetadata.network !== network) {
+      return NextResponse.json({ error: "L'achat PIM est enregistré sur un autre réseau Pi" }, { status: 409 });
+    }
+
+    const amount = Number(payment.amount);
+    const resolved = resolvePimCoins(productId, amount);
+    if (!resolved.ok || resolved.pimCoins !== transaction.amount) {
+      return NextResponse.json({ error: resolved.reason || "Montant Pi incompatible avec le produit approuvé" }, { status: 409 });
+    }
+
+    if (payment.transaction?.txid && payment.transaction.txid !== txid) {
+      return NextResponse.json({ error: "Le txid ne correspond pas au paiement Pi" }, { status: 403 });
+    }
+    if (!isVerified(payment)) {
+      const completion = await completePiPayment(paymentId, txid);
+      if (!completion.ok) {
+        return NextResponse.json({ error: "Pi n'a pas encore confirmé la transaction", retryable: true }, { status: 409 });
       }
-
-      console.log(`[PIMOBIPAY] Paiement Pi confirme cote serveur: ${paymentId}`);
+      payment = await getPiPayment(paymentId);
+    }
+    if (
+      !payment ||
+      !belongsToUser(payment, userId, user?.piUserId ?? null) ||
+      !isVerified(payment) ||
+      (payment.metadata?.network && payment.metadata.network !== network)
+    ) {
+      return NextResponse.json({ error: "Paiement non vérifié sur le réseau Pi actif", retryable: true }, { status: 409 });
+    }
+    if (payment.transaction?.txid && payment.transaction.txid !== txid) {
+      return NextResponse.json({ error: "Le txid confirmé ne correspond pas" }, { status: 403 });
     }
 
-    // 2bis. SOURCE DE VERITE : montant Pi reellement paye + statut verifie.
-    // FAILLE CORRIGEE : on ne credite plus le `pimCoins` fourni par le client.
-    const piPayment = await getPiPayment(paymentId);
-    if (!piPayment) {
-      return NextResponse.json({ error: "Paiement Pi introuvable" }, { status: 404 });
-    }
-
-    const isVerified =
-      piPayment.status?.transaction_verified === true ||
-      piPayment.transaction?.verified === true;
-
-    if (!isVerified) {
-      console.error("[PIMOBIPAY] Paiement PIM non verifie:", paymentId, piPayment.status);
-      return NextResponse.json(
-        { error: "Paiement non verifie sur la blockchain Pi", retryable: true },
-        { status: 409 }
-      );
-    }
-
-    const verifiedPiAmount = Number(piPayment.amount);
-
-    // Calcul EXCLUSIVEMENT cote serveur du nombre de PIM a crediter.
-    const resolved = resolvePimCoins(metadata?.productId, verifiedPiAmount);
-    if (!resolved.ok) {
-      console.error("[PIMOBIPAY] Resolution PIM refusee:", resolved.reason);
-      return NextResponse.json(
-        { error: resolved.reason || "Achat PIM invalide" },
-        { status: 400 }
-      );
-    }
-    const pimCoins = resolved.pimCoins;
-
-    // 3. Check for duplicate purchase
-    const existingTx = await prisma.transaction.findUnique({
-      where: { externalId: `PIM-${paymentId}` },
-    });
-
-    if (existingTx?.status === TransactionStatus.SUCCESS) {
-      return NextResponse.json({
-        success: true,
-        message: "Achat deja credite",
-        pimCoins: existingTx.amount,
-      });
-    }
-
-    // 4. Atomic transaction: credit PIM coins
-    const result = await prisma.$transaction(async (tx) => {
-      // Upsert PIM wallet
-      const pimWallet = await tx.wallet.upsert({
-        where: { userId_currency: { userId, currency: "PIM" } },
-        update: { balance: { increment: pimCoins } },
-        create: {
-          userId,
-          currency: "PIM",
-          balance: pimCoins,
-          // L'enum WalletType ne comporte pas de valeur PIM ; le wallet est
-          // identifie de maniere unique par currency: "PIM".
-          type: WalletType.CRYPTO,
-        },
-      });
-
-      // Create transaction record
-      const transaction = await tx.transaction.upsert({
-        where: { externalId: `PIM-${paymentId}` },
-        update: {
-          amount: pimCoins,
-          status: TransactionStatus.SUCCESS,
-          blockchainTx: txid,
-          toWalletId: pimWallet.id,
-        },
-        create: {
-          reference: `PIM-${paymentId.slice(-8).toUpperCase()}`,
-          externalId: `PIM-${paymentId}`,
-          blockchainTx: txid,
-          amount: pimCoins,
+    const settled = await prisma.$transaction(async (tx) => {
+      const claim = await tx.transaction.updateMany({
+        where: {
+          id: transaction.id,
+          toUserId: userId,
           currency: "PIM",
           type: TransactionType.DEPOSIT,
-          status: TransactionStatus.SUCCESS,
-          description: `Achat de ${pimCoins} PIM Coins`,
-          toUserId: userId,
-          toWalletId: pimWallet.id,
+          status: TransactionStatus.PENDING,
+        },
+        data: { status: TransactionStatus.SUCCESS, amount: resolved.pimCoins, blockchainTx: txid },
+      });
+      if (claim.count !== 1) return null;
+
+      const wallet = await tx.wallet.upsert({
+        where: { userId_currency: { userId, currency: "PIM" } },
+        update: { balance: { increment: resolved.pimCoins } },
+        create: { userId, currency: "PIM", balance: resolved.pimCoins, type: WalletType.CRYPTO },
+      });
+      await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          toWalletId: wallet.id,
           metadata: {
-            piAmount: verifiedPiAmount,
-            productId: metadata?.productId,
+            ...storedMetadata,
+            piAmount: amount,
+            productId,
             bonus: resolved.bonus,
+            network,
             purchasedAt: new Date().toISOString(),
           },
         },
       });
-
-      return { pimWallet, transaction };
+      return { wallet, balance: wallet.balance };
     }, { maxWait: 10000, timeout: 30000 });
 
-    // 4. Create notification
+    if (!settled) {
+      const latest = await prisma.transaction.findUnique({ where: { id: transaction.id } });
+      if (latest?.status === TransactionStatus.SUCCESS && latest.toUserId === userId) {
+        return NextResponse.json({ success: true, alreadyCredited: true, pimCoins: latest.amount });
+      }
+      return NextResponse.json({ error: "L'achat a déjà été traité ou a changé d'état" }, { status: 409 });
+    }
+
     try {
       await prisma.notification.create({
         data: {
           userId,
-          title: "PIM Coins ajoutes !",
-          message: `Vous avez recu ${pimCoins} PIM Coins.${resolved.bonus ? ` Bonus inclus: ${resolved.bonus} PIM !` : ""}`,
+          title: "PIM Coins ajoutés",
+          message: `Vous avez reçu ${resolved.pimCoins} PIM Coins.`,
           type: "SUCCESS",
-          metadata: JSON.stringify({
-            pimCoins,
-            piAmount: verifiedPiAmount,
-            transactionId: result.transaction.id,
-            productId: metadata?.productId,
-          }),
+          metadata: JSON.stringify({ pimCoins: resolved.pimCoins, piAmount: amount, transactionId: transaction.id, productId, network }),
         },
       });
     } catch {
-      // Notification non-bloquante
+      // Notification non bloquante.
     }
 
-    console.log(`[PIMOBIPAY] PIM credited: ${pimCoins} PIM to user ${userId}`);
-
-    return NextResponse.json({
-      success: true,
-      message: `${pimCoins} PIM Coins ajoutes !`,
-      pimCoins,
-      newBalance: result.pimWallet.balance,
-      transactionId: result.transaction.id,
-    });
-
-  } catch (error: any) {
-    console.error("[PIM_PURCHASE_ERROR]:", error.message);
-    return NextResponse.json(
-      { error: "Erreur lors de l'achat PIM" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, pimCoins: resolved.pimCoins, newBalance: settled.balance, network });
+  } catch (error) {
+    console.error("[PIMPAY] Erreur achat PIM:", error);
+    return NextResponse.json({ error: "Erreur lors de l'achat PIM" }, { status: 500 });
   }
 }
 
-/**
- * GET /api/payments/pim/complete
- * 
- * Returns the user's current PIM balance
- */
 export async function GET() {
   try {
     const userId = await getAuthUserId();
-    if (!userId) {
-      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-    const pimWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: "PIM" } },
-    });
-
-    return NextResponse.json({
-      balance: pimWallet?.balance || 0,
-      currency: "PIM",
-    });
-
-  } catch (error: any) {
-    console.error("[PIM_BALANCE_ERROR]:", error.message);
+    const wallet = await prisma.wallet.findUnique({ where: { userId_currency: { userId, currency: "PIM" } } });
+    return NextResponse.json({ balance: wallet?.balance || 0, currency: "PIM" });
+  } catch {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
