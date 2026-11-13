@@ -8,7 +8,11 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { readStoredPrivateKey } from "@/lib/crypto";
 import { sendDoge } from "@/lib/blockchain/dogecoin";
 import { TronWeb } from "tronweb";
-import { USDT_TRC20_CONTRACT } from "@/lib/blockchain/tron";
+import {
+  TronConfirmationPendingError,
+  USDT_TRC20_CONTRACT,
+  verifySolidifiedTronTransaction,
+} from "@/lib/blockchain/tron";
 
 /**
  * Sécurise l'accès : le worker doit envoyer le header:
@@ -110,16 +114,68 @@ async function createTronWallet(job: WithdrawJob) {
     privateKey,
   });
   if (!tronWeb.isAddress(user.usdtAddress)) throw new Error("Adresse source TRON invalide");
-  return { tronWeb, userAddress: user.usdtAddress };
+  if (tronWeb.address.fromPrivateKey(privateKey) !== user.usdtAddress) {
+    throw new Error("La clé privée TRON ne correspond pas à l'adresse source configurée");
+  }
+  return { tronWeb };
+}
+
+async function persistTronFeeBroadcast(job: WithdrawJob, txId: string): Promise<void> {
+  const latest = await prisma.transaction.findUnique({
+    where: { id: job.id },
+    select: { metadata: true },
+  });
+  const metadata =
+    latest?.metadata && typeof latest.metadata === "object" && !Array.isArray(latest.metadata)
+      ? latest.metadata
+      : {};
+  await prisma.transaction.update({
+    where: { id: job.id },
+    data: {
+      metadata: {
+        ...metadata,
+        feeCollectionTx: txId,
+        feeConfirmationPending: true,
+        feeCollectionBroadcastAt: new Date().toISOString(),
+      },
+    },
+  });
+}
+
+async function confirmTronTx(txId: string): Promise<void> {
+  const verification = await verifySolidifiedTronTransaction(txId);
+  if (!verification.confirmed) throw new TronConfirmationPendingError(txId);
+  if (!verification.success) {
+    throw new Error(verification.errorMessage || `Transaction TRON échouée (${verification.contractRet})`);
+  }
 }
 
 async function broadcastTrxWithdraw(job: WithdrawJob, toAddress: string): Promise<string> {
   const { tronWeb } = await createTronWallet(job);
   if (!tronWeb.isAddress(toAddress)) throw new Error("Adresse TRX invalide");
   const amountSun = BigInt(Math.round(Number(job.amount) * 1_000_000));
-  if (amountSun <= 0n) throw new Error("Montant TRX invalide");
-  const tx = await tronWeb.trx.sendTransaction(toAddress, amountSun.toString());
-  if (!tx?.result || !tx.txid) throw new Error("TRON n'a pas confirmé le retrait TRX");
+  if (amountSun <= 0n || amountSun > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("Montant TRX invalide ou trop élevé");
+  }
+  const tx = await tronWeb.trx.sendTransaction(toAddress, Number(amountSun));
+  if (!tx?.result || !tx.txid) throw new Error("Le nœud TRON a refusé le broadcast du retrait TRX");
+  try {
+    await prisma.transaction.update({
+      where: { id: job.id },
+      data: {
+        blockchainTx: tx.txid,
+        statusClass: "CONFIRMING_ONCHAIN",
+        metadata: {
+          ...(job.metadata && typeof job.metadata === "object" ? job.metadata : {}),
+          broadcastTx: tx.txid,
+          broadcastedAt: new Date().toISOString(),
+        },
+      },
+    });
+  } catch {
+    throw new TronConfirmationPendingError(tx.txid);
+  }
+  await confirmTronTx(tx.txid);
   return tx.txid;
 }
 
@@ -141,6 +197,9 @@ async function broadcastUsdtTronWithdraw(job: WithdrawJob, toAddress: string): P
   if (!tronWeb.isAddress(user.usdtAddress) || !tronWeb.isAddress(toAddress)) {
     throw new Error("Adresse USDT TRON invalide");
   }
+  if (tronWeb.address.fromPrivateKey(privateKey) !== user.usdtAddress) {
+    throw new Error("La clé privée TRON ne correspond pas à l'adresse source configurée");
+  }
 
   const amount = Number(job.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Montant USDT invalide");
@@ -152,6 +211,23 @@ async function broadcastUsdtTronWithdraw(job: WithdrawJob, toAddress: string): P
     feeLimit: Number(process.env.TRON_USDT_FEE_LIMIT || 150_000_000),
   });
   if (typeof result !== "string" || !result) throw new Error("TRON n'a pas retourné de hash de transaction");
+  try {
+    await prisma.transaction.update({
+      where: { id: job.id },
+      data: {
+        blockchainTx: result,
+        statusClass: "CONFIRMING_ONCHAIN",
+        metadata: {
+          ...(job.metadata && typeof job.metadata === "object" ? job.metadata : {}),
+          broadcastTx: result,
+          broadcastedAt: new Date().toISOString(),
+        },
+      },
+    });
+  } catch {
+    throw new TronConfirmationPendingError(result);
+  }
+  await confirmTronTx(result);
   return result;
 }
 
@@ -165,11 +241,18 @@ async function collectTronWithdrawalFee(job: WithdrawJob): Promise<string | null
   if (!tronWeb.isAddress(centralAddress)) throw new Error('TRON_OPERATOR_ADDRESS invalide');
 
   if (currency === 'TRX') {
-    const tx = await tronWeb.trx.sendTransaction(
-      centralAddress,
-      BigInt(Math.round(Number(job.fee) * 1_000_000)).toString(),
-    );
-    if (!tx?.result || !tx.txid) throw new Error('Collecte des frais TRX non confirmée');
+    const feeSun = BigInt(Math.round(Number(job.fee) * 1_000_000));
+    if (feeSun <= 0n || feeSun > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error("Frais TRX invalide ou trop élevé");
+    }
+    const tx = await tronWeb.trx.sendTransaction(centralAddress, Number(feeSun));
+    if (!tx?.result || !tx.txid) throw new Error('Le nœud TRON a refusé le broadcast des frais TRX');
+    try {
+      await persistTronFeeBroadcast(job, tx.txid);
+    } catch {
+      throw new TronConfirmationPendingError(tx.txid);
+    }
+    await confirmTronTx(tx.txid);
     return tx.txid;
   }
 
@@ -179,7 +262,13 @@ async function collectTronWithdrawalFee(job: WithdrawJob): Promise<string | null
   const txId = await contract.methods.transfer(centralAddress, rawFee.toString()).send({
     feeLimit: Number(process.env.TRON_USDT_FEE_LIMIT || 150_000_000),
   });
-  if (typeof txId !== 'string' || !txId) throw new Error('Collecte des frais USDT non confirmée');
+  if (typeof txId !== "string" || !txId) throw new Error("TRON n'a pas retourné de hash pour la collecte des frais USDT");
+  try {
+    await persistTronFeeBroadcast(job, txId);
+  } catch {
+    throw new TronConfirmationPendingError(txId);
+  }
+  await confirmTronTx(txId);
   return txId;
 }
 
@@ -462,17 +551,30 @@ export async function POST(req: NextRequest) {
         const txHash = await broadcastWithdraw(job);
         let feeTxHash: string | null = null;
         let feeCollectionError: string | null = null;
+        let feeConfirmationPending = false;
         if (["TRX", "USDT", "USDT_TRC20"].includes(job.currency.toUpperCase())) {
           try {
             feeTxHash = await collectTronWithdrawalFee(job);
           } catch (feeError: any) {
-            // Le retrait utilisateur reste confirmé; la collecte sera réessayée
-            // par l'outil de trésorerie sans débiter une seconde fois le retrait.
             feeCollectionError = feeError?.message || "Collecte des frais TRON échouée";
+            if (feeError instanceof TronConfirmationPendingError) {
+              feeTxHash = feeError.txId;
+              feeConfirmationPending = true;
+            }
             console.error("[TRON_FEE_COLLECTION]", feeCollectionError);
           }
         }
 
+        const latestTransaction = await prisma.transaction.findUnique({
+          where: { id: job.id },
+          select: { metadata: true },
+        });
+        const latestMetadata =
+          latestTransaction?.metadata &&
+          typeof latestTransaction.metadata === "object" &&
+          !Array.isArray(latestTransaction.metadata)
+            ? latestTransaction.metadata
+            : {};
         await prisma.transaction.update({
           where: { id: job.id },
           data: {
@@ -480,9 +582,12 @@ export async function POST(req: NextRequest) {
             statusClass: "BROADCASTED",
             metadata: {
               ...(typeof job.metadata === "object" && job.metadata ? job.metadata : {}),
+              ...latestMetadata,
               broadcastedAt: new Date().toISOString(),
               broadcastTx: txHash,
-              ...(feeTxHash ? { feeCollectionTx: feeTxHash } : {}),
+              ...(feeTxHash
+                ? { feeCollectionTx: feeTxHash, feeConfirmationPending }
+                : {}),
               ...(feeCollectionError ? { feeCollectionError } : {}),
               ...(feeTxHash ? { feeCentralAddress: process.env.TRON_OPERATOR_ADDRESS } : {}),
             },
@@ -498,6 +603,31 @@ export async function POST(req: NextRequest) {
         });
       } catch (err: any) {
         const metadata = typeof job.metadata === "object" && job.metadata ? job.metadata : {};
+        if (err instanceof TronConfirmationPendingError) {
+          await prisma.transaction.update({
+            where: { id: job.id },
+            data: {
+              status: TransactionStatus.PENDING,
+              statusClass: "AWAITING_CONFIRMATION",
+              blockchainTx: err.txId,
+              metadata: {
+                ...metadata,
+                confirmationPending: true,
+                broadcastTx: err.txId,
+                broadcastedAt: new Date().toISOString(),
+              },
+            },
+          });
+          results.push({
+            id: job.id,
+            reference: job.reference,
+            claimed: true,
+            ok: false,
+            blockchainTx: err.txId,
+            error: "Broadcast accepté; confirmation solidifiée en attente",
+          });
+          continue;
+        }
         // Les transferts créés par l'admin débitent avant le broadcast : un
         // échec sans hash doit donc recréditer automatiquement le portefeuille.
         const refundOnFail = process.env.REFUND_ON_WITHDRAW_FAIL === "true" || metadata.adminExternalTransfer === true;

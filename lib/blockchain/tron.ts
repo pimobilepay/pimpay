@@ -271,6 +271,111 @@ export interface TronReceiptResult {
  *      - "OUT_OF_TIME" / "OUT_OF_MEMORY" / etc. → échec
  *  - `contractRet` (dans le bloc `ret`) est aussi vérifié en complément.
  */
+export class TronConfirmationPendingError extends Error {
+  readonly txId: string;
+
+  constructor(txId: string) {
+    super(`Transaction TRON diffusée mais pas encore confirmée : ${txId}`);
+    this.name = "TronConfirmationPendingError";
+    this.txId = txId;
+  }
+}
+
+/** Vérifie une transaction et son reçu sur la chaîne solidifiée TRON. */
+export async function verifySolidifiedTronTransaction(
+  txId: string,
+  maxAttempts = 10,
+  delayMs = 2500
+): Promise<TronReceiptResult> {
+  const headers = getTronGridHeaders();
+  const fullHost = (process.env.TRON_FULL_HOST || "https://api.trongrid.io").replace(/\/+$/, "");
+  const post = async (endpoint: string) => {
+    const response = await fetch(`${fullHost}/walletsolidity/${endpoint}`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ value: txId }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`TRON node returned ${response.status}`);
+    return response.json();
+  };
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    try {
+      const transaction = await post("gettransactionbyid");
+      if (!transaction?.txID || transaction.txID.toLowerCase() !== txId.toLowerCase()) continue;
+
+      const contractRet = transaction.ret?.[0]?.contractRet ?? "";
+      const contractType = transaction.raw_data?.contract?.[0]?.type ?? "";
+      const info = await post("gettransactioninfobyid").catch(() => ({}));
+      if (!info?.id || info.id.toLowerCase() !== txId.toLowerCase()) continue;
+      const receiptResult = info?.receipt?.result ?? "";
+      const energyUsed = Number(info?.receipt?.energy_usage_total ?? info?.receipt?.energy_usage ?? 0);
+      const feeSun = Number(info?.fee ?? info?.receipt?.net_fee ?? 0);
+      const netFee = Number.isFinite(feeSun) ? feeSun / 1_000_000 : 0;
+      const errorMessage = info?.resMessage
+        ? Buffer.from(info.resMessage, "hex").toString("utf8")
+        : null;
+
+      if (contractRet && contractRet !== "SUCCESS") {
+        return {
+          confirmed: true,
+          success: false,
+          result: contractRet,
+          contractRet,
+          energyUsed,
+          netFee,
+          errorMessage: errorMessage || `Exécution TRON échouée : ${contractRet}`,
+        };
+      }
+
+      const isSmartContract = contractType === "TriggerSmartContract";
+      if (!contractRet || (isSmartContract && !receiptResult)) continue;
+      if (isSmartContract && receiptResult !== "SUCCESS") {
+        return {
+          confirmed: true,
+          success: false,
+          result: receiptResult,
+          contractRet,
+          energyUsed,
+          netFee,
+          errorMessage: errorMessage || `Exécution du contrat échouée : ${receiptResult}`,
+        };
+      }
+
+      console.info("[TRON] Transaction solidifiée", {
+        txId,
+        contractRet,
+        networkFeeTRX: netFee,
+        energyUsed,
+      });
+      return {
+        confirmed: true,
+        success: true,
+        result: receiptResult || contractRet,
+        contractRet,
+        energyUsed,
+        netFee,
+        errorMessage: null,
+      };
+    } catch (error: any) {
+      console.warn(`[TRON] Solidified verification attempt ${attempt + 1} failed:`, error?.message);
+    }
+  }
+
+  return {
+    confirmed: false,
+    success: false,
+    result: "NOT_CONFIRMED",
+    contractRet: "",
+    energyUsed: 0,
+    netFee: 0,
+    errorMessage: "La transaction TRON n’est pas encore présente dans la chaîne solidifiée.",
+  };
+}
+
 export async function verifyTronTransaction(
   txId: string,
   maxAttempts: number = 10,
