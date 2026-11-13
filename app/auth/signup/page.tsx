@@ -324,7 +324,7 @@ export default function SignupPage() {
     // Validate PIN with Zod
     const validation = pinSchema.safeParse(finalPin);
     if (!validation.success) {
-      setError(validation.error.errors[0].message);
+      setError(validation.error.issues[0].message);
       setShake(true);
       setTimeout(() => setShake(false), 500);
       setPin("");
