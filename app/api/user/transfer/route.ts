@@ -9,7 +9,12 @@ import { TransactionStatus, TransactionType, WalletType } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { ethers } from "ethers";
-import { decrypt } from "@/lib/crypto";
+import { decrypt, readStoredPrivateKey } from "@/lib/crypto";
+import {
+  TronConfirmationPendingError,
+  verifySolidifiedTronTransaction,
+  type TronReceiptResult,
+} from "@/lib/blockchain/tron";
 import { autoConvertFeeToPi } from "@/lib/auto-fee-conversion";
 import { collectFeeOnChain, FEE_COLLECTED_CURRENCIES } from "@/lib/fee-collector";
 import { parseAmount } from "@/lib/amount-guard";
@@ -77,25 +82,47 @@ async function broadcastTronTransfer(opts: {
   fromAddress: string;
   toAddress: string;
   amount: number;
-}): Promise<string> {
-  const { currency, privateKey, fromAddress, toAddress, amount } = opts;
+  onBroadcast: (txId: string) => Promise<void>;
+}): Promise<{ txId: string; verification: TronReceiptResult }> {
+  const { currency, privateKey, fromAddress, toAddress, amount, onBroadcast } = opts;
   const tronWeb = new TronWeb({ fullHost: RPC_URLS.TRON, privateKey });
+  if (!tronWeb.isAddress(fromAddress) || !tronWeb.isAddress(toAddress)) {
+    throw new Error("Adresse TRON invalide");
+  }
+  if (tronWeb.address.fromPrivateKey(privateKey) !== fromAddress) {
+    throw new Error("La clé privée TRON ne correspond pas à l'adresse source configurée");
+  }
+
+  const confirm = async (txId: string): Promise<TronReceiptResult> => {
+    const result = await verifySolidifiedTronTransaction(txId);
+    if (!result.confirmed) throw new TronConfirmationPendingError(txId);
+    if (!result.success) throw new Error(result.errorMessage || `Transaction TRON échouée (${result.contractRet})`);
+    return result;
+  };
 
   // ── TRX natif ──────────────────────────────────────────────────────────
   if (currency === "TRX") {
     const trxBalanceSun = await tronWeb.trx.getBalance(fromAddress);
-    const amountInSun = Math.floor(amount * 1_000_000);
+    const amountInSun = BigInt(Math.round(amount * 1_000_000));
     const estimatedFeeSun = 1_000_000;
 
-    if (trxBalanceSun < amountInSun + estimatedFeeSun) {
+    if (amountInSun <= 0n || BigInt(trxBalanceSun) < amountInSun + BigInt(estimatedFeeSun)) {
       throw new Error(
-        `Solde TRX on-chain insuffisant. Disponible: ${(trxBalanceSun / 1_000_000).toFixed(2)} TRX.`
+        `Solde TRX on-chain insuffisant ou montant invalide. Disponible: ${(trxBalanceSun / 1_000_000).toFixed(6)} TRX.`
       );
     }
 
-    const txResult = await tronWeb.trx.sendTransaction(toAddress, amountInSun);
-    if (txResult.result) return txResult.txid;
-    throw new Error(txResult.message || "Échec de la transaction TRX");
+    const txResult = await tronWeb.trx.sendTransaction(toAddress, amountInSun.toString());
+    if (!txResult?.result || !txResult.txid) {
+      throw new Error(txResult?.message || "Le nœud TRON a refusé le broadcast");
+    }
+    try {
+      await onBroadcast(txResult.txid);
+    } catch {
+      throw new TronConfirmationPendingError(txResult.txid);
+    }
+    const verification = await confirm(txResult.txid);
+    return { txId: txResult.txid, verification };
   }
 
   // ── USDT TRC20 ─────────────────────────────────────────────────────────
@@ -113,10 +140,42 @@ async function broadcastTronTransfer(opts: {
   }
 
   const amountInSun = Math.floor(amount * 1_000_000);
-  const txResult = await contract
-    .transfer(toAddress, amountInSun)
+  const txId = await contract
+    .transfer(toAddress, amountInSun.toString())
     .send({ feeLimit: 100_000_000, callValue: 0 });
-  return txResult;
+  if (typeof txId !== "string" || !txId) {
+    throw new Error("Le nœud TRON n'a pas retourné de hash pour le transfert USDT");
+  }
+  try {
+    await onBroadcast(txId);
+  } catch {
+    throw new TronConfirmationPendingError(txId);
+  }
+  const verification = await confirm(txId);
+  return { txId, verification };
+}
+
+async function persistTronBroadcast(
+  transactionId: string,
+  metadata: unknown,
+  txId: string
+): Promise<void> {
+  const savedMetadata =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? metadata
+      : {};
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: {
+      blockchainTx: txId,
+      statusClass: "CONFIRMING_ONCHAIN",
+      metadata: {
+        ...savedMetadata,
+        broadcastTx: txId,
+        broadcastedAt: new Date().toISOString(),
+      },
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -603,6 +662,9 @@ export async function POST(req: NextRequest) {
       const { senderUser } = result;
       let blockchainTxHash: string | null = null;
       let broadcastError: string | null = null;
+      let confirmationPendingTxId: string | null = null;
+      let onChainNetworkFeeTrx: number | null = null;
+      let onChainEnergyUsed = 0;
 
       try {
         const currency = result.transaction.currency;
@@ -742,34 +804,67 @@ export async function POST(req: NextRequest) {
 
         // ── TRX (TRON natif) ─────────────────────────────────────────────
         if (currency === "TRX" && senderUser?.usdtPrivateKey && senderUser?.usdtAddress) {
-          let privateKey = senderUser.usdtPrivateKey;
-          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+          const privateKey = readStoredPrivateKey(senderUser.usdtPrivateKey);
 
-          blockchainTxHash = await broadcastTronTransfer({
+          const broadcast = await broadcastTronTransfer({
             currency: "TRX",
             privateKey,
             fromAddress: senderUser.usdtAddress,
             toAddress: recipientInput,
             amount: result.transaction.amount,
+            onBroadcast: (txId) =>
+              persistTronBroadcast(result.transaction.id, result.transaction.metadata, txId),
           });
+          blockchainTxHash = broadcast.txId;
+          onChainNetworkFeeTrx = broadcast.verification.netFee;
+          onChainEnergyUsed = broadcast.verification.energyUsed;
         }
 
         // ── USDT TRC20 ───────────────────────────────────────────────────
         if (currency === "USDT" && senderUser?.usdtPrivateKey && senderUser?.usdtAddress) {
-          let privateKey = senderUser.usdtPrivateKey;
-          if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+          const privateKey = readStoredPrivateKey(senderUser.usdtPrivateKey);
 
-          blockchainTxHash = await broadcastTronTransfer({
+          const broadcast = await broadcastTronTransfer({
             currency: "USDT",
             privateKey,
             fromAddress: senderUser.usdtAddress,
             toAddress: recipientInput,
             amount: result.transaction.amount,
+            onBroadcast: (txId) =>
+              persistTronBroadcast(result.transaction.id, result.transaction.metadata, txId),
           });
+          blockchainTxHash = broadcast.txId;
+          onChainNetworkFeeTrx = broadcast.verification.netFee;
+          onChainEnergyUsed = broadcast.verification.energyUsed;
         }
       } catch (e: any) {
         broadcastError = e.message;
+        if (e instanceof TronConfirmationPendingError) confirmationPendingTxId = e.txId;
         console.error("[USER_TRANSFER] Broadcast échoué:", e.message);
+      }
+
+      if (confirmationPendingTxId) {
+        await prisma.transaction.update({
+          where: { id: result.transaction.id },
+          data: {
+            status: TransactionStatus.PENDING,
+            statusClass: "AWAITING_CONFIRMATION",
+            blockchainTx: confirmationPendingTxId,
+            metadata: {
+              ...(result.transaction.metadata as object),
+              confirmationPending: true,
+              broadcastTx: confirmationPendingTxId,
+              broadcastedAt: new Date().toISOString(),
+            },
+          },
+        });
+        return NextResponse.json({
+          success: true,
+          status: "AWAITING_CONFIRMATION",
+          reference: result.transaction.reference,
+          blockchainTx: confirmationPendingTxId,
+          message: "Le broadcast TRON a été accepté. La confirmation sur la chaîne solidifiée est en attente; aucun remboursement ni nouvel envoi n’a été effectué.",
+        }, { status: 202 });
       }
 
       if (blockchainTxHash) {
@@ -783,6 +878,9 @@ export async function POST(req: NextRequest) {
             metadata: {
               ...(result.transaction.metadata as object),
               confirmedAt: new Date().toISOString(),
+              ...(onChainNetworkFeeTrx !== null
+                ? { onChainNetworkFeeTrx, onChainEnergyUsed }
+                : {}),
             },
           },
         });
@@ -871,21 +969,53 @@ export async function POST(req: NextRequest) {
       const currency = result.transaction.currency as "TRX" | "USDT";
       let blockchainTxHash: string | null = null;
       let broadcastError: string | null = null;
+      let confirmationPendingTxId: string | null = null;
+      let onChainNetworkFeeTrx: number | null = null;
+      let onChainEnergyUsed = 0;
 
       try {
-        let privateKey = result.senderUser.usdtPrivateKey;
-        if (privateKey.includes(":")) privateKey = decrypt(privateKey);
+        const privateKey = readStoredPrivateKey(result.senderUser.usdtPrivateKey);
 
-        blockchainTxHash = await broadcastTronTransfer({
+        const broadcast = await broadcastTronTransfer({
           currency,
           privateKey,
           fromAddress: result.senderUser.usdtAddress,
           toAddress: result.recipientTronAddress,
           amount: result.transaction.amount,
+          onBroadcast: (txId) =>
+            persistTronBroadcast(result.transaction.id, result.transaction.metadata, txId),
         });
+        blockchainTxHash = broadcast.txId;
+        onChainNetworkFeeTrx = broadcast.verification.netFee;
+        onChainEnergyUsed = broadcast.verification.energyUsed;
       } catch (e: any) {
         broadcastError = e.message;
+        if (e instanceof TronConfirmationPendingError) confirmationPendingTxId = e.txId;
         console.error("[USER_TRANSFER] Broadcast on-chain interne échoué:", e.message);
+      }
+
+      if (confirmationPendingTxId) {
+        await prisma.transaction.update({
+          where: { id: result.transaction.id },
+          data: {
+            status: TransactionStatus.PENDING,
+            statusClass: "AWAITING_CONFIRMATION",
+            blockchainTx: confirmationPendingTxId,
+            metadata: {
+              ...(result.transaction.metadata as object),
+              confirmationPending: true,
+              broadcastTx: confirmationPendingTxId,
+              broadcastedAt: new Date().toISOString(),
+            },
+          },
+        });
+        return NextResponse.json({
+          success: true,
+          status: "AWAITING_CONFIRMATION",
+          reference: result.transaction.reference,
+          blockchainTx: confirmationPendingTxId,
+          message: "Le broadcast TRON a été accepté. La confirmation sur la chaîne solidifiée est en attente; aucun remboursement ni nouvel envoi n’a été effectué.",
+        }, { status: 202 });
       }
 
       if (blockchainTxHash) {
@@ -914,6 +1044,9 @@ export async function POST(req: NextRequest) {
               ...(result.transaction.metadata as object),
               onChainConfirmed: true,
               confirmedAt: new Date().toISOString(),
+              ...(onChainNetworkFeeTrx !== null
+                ? { onChainNetworkFeeTrx, onChainEnergyUsed }
+                : {}),
             },
           },
         });

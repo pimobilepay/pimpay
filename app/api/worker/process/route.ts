@@ -2,7 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { decrypt } from '@/lib/crypto'; // Assurez-vous que cette fonction existe
+import { decrypt, readStoredPrivateKey } from '@/lib/crypto';
+import { TronConfirmationPendingError, verifySolidifiedTronTransaction } from '@/lib/blockchain/tron';
 import * as xrpl from 'xrpl';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { ethers } from 'ethers'; // Pour Sidra et USDT
@@ -81,7 +82,7 @@ async function sendTRX(tx: any, destination: string, encryptedPrivateKey: string
   const fromAddress = sourceAddress || sender?.usdtAddress;
   if (!fromAddress) throw new Error("Adresse source TRON manquante");
 
-  const privateKey = decrypt(encryptedPrivateKey).replace(/^0x/, "");
+  const privateKey = readStoredPrivateKey(encryptedPrivateKey);
   const tronWeb = new TronWeb({
     fullHost: process.env.TRON_FULL_HOST || "https://api.trongrid.io",
     privateKey,
@@ -89,12 +90,40 @@ async function sendTRX(tx: any, destination: string, encryptedPrivateKey: string
   if (!tronWeb.isAddress(fromAddress) || !tronWeb.isAddress(destination)) {
     throw new Error("Adresse TRON invalide");
   }
+  if (tronWeb.address.fromPrivateKey(privateKey) !== fromAddress) {
+    throw new Error("La clé privée TRON ne correspond pas à l'adresse source configurée");
+  }
 
   const amountSun = BigInt(Math.round(Number(tx.amount) * 1_000_000));
-  if (amountSun <= 0n) throw new Error("Montant TRX invalide");
-  const result = await tronWeb.trx.sendTransaction(destination, amountSun.toString());
+  if (amountSun <= 0n || amountSun > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("Montant TRX invalide ou trop élevé");
+  }
+  const result = await tronWeb.trx.sendTransaction(destination, Number(amountSun));
   if (!result?.result || !result.txid) {
-    throw new Error("TRON n'a pas confirmé le transfert TRX");
+    throw new Error("Le nœud TRON a refusé le broadcast du transfert");
+  }
+
+  try {
+    await prisma.transaction.update({
+      where: { id: tx.id },
+      data: {
+        blockchainTx: result.txid,
+        statusClass: "CONFIRMING_ONCHAIN",
+        metadata: {
+          ...(tx.metadata && typeof tx.metadata === "object" ? tx.metadata : {}),
+          broadcastTx: result.txid,
+          broadcastedAt: new Date().toISOString(),
+        },
+      },
+    });
+  } catch {
+    throw new TronConfirmationPendingError(result.txid);
+  }
+
+  const confirmation = await verifySolidifiedTronTransaction(result.txid);
+  if (!confirmation.confirmed) throw new TronConfirmationPendingError(result.txid);
+  if (!confirmation.success) {
+    throw new Error(confirmation.errorMessage || `Transaction TRON échouée (${confirmation.contractRet})`);
   }
   return result.txid;
 }
@@ -199,18 +228,55 @@ async function processExternalTransfers() {
       }
 
       console.log(`[v0] [WORKER] TX ${tx.reference} ENVOYEE avec hash:`, hash);
-        await prisma.transaction.update({
+      const latestTransaction = tx.currency === "TRX"
+        ? await prisma.transaction.findUnique({ where: { id: tx.id }, select: { metadata: true } })
+        : null;
+      const latestMetadata =
+        latestTransaction?.metadata &&
+        typeof latestTransaction.metadata === "object" &&
+        !Array.isArray(latestTransaction.metadata)
+          ? latestTransaction.metadata
+          : {};
+      await prisma.transaction.update({
           where: { id: tx.id },
-          data: { 
+          data: {
             blockchainTx: hash,
-            status: TransactionStatus.SUCCESS 
-          }
+            status: TransactionStatus.SUCCESS,
+            statusClass: null,
+            ...(tx.currency === "TRX"
+              ? {
+                  metadata: {
+                  ...latestMetadata,
+                  onChainConfirmed: true,
+
+                    confirmedAt: new Date().toISOString(),
+                  },
+                }
+              : {}),
+          },
         });
         console.log(`[v0] [WORKER] TX ${tx.reference} STATUS updated to SUCCESS with blockchain hash`);
         count++;
     } catch (err: any) {
       console.error(`[v0] [WORKER] ERREUR sur TX ${tx.reference}:`, err?.message || JSON.stringify(err));
       console.error(`[v0] [WORKER] Stack:`, err?.stack);
+      if (err instanceof TronConfirmationPendingError) {
+        await prisma.transaction.update({
+          where: { id: tx.id },
+          data: {
+            status: TransactionStatus.PENDING,
+            statusClass: "AWAITING_CONFIRMATION",
+            blockchainTx: err.txId,
+            metadata: {
+              ...(tx.metadata as any),
+              confirmationPending: true,
+              broadcastTx: err.txId,
+              broadcastedAt: new Date().toISOString(),
+            },
+          },
+        });
+        continue;
+      }
       // Marquer la transaction comme FAILED apres une erreur pour eviter les boucles infinies
       await prisma.transaction.update({
         where: { id: tx.id },

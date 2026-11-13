@@ -5,6 +5,7 @@
  * ENCRYPTION_KEY : 32 caractères UTF-8 dans Vercel Env Vars
  */
 import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from 'crypto';
+import { decrypt as decryptV2 } from './encryption';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // GCM recommande 12 bytes
@@ -35,6 +36,9 @@ export function encrypt(text: string): string {
 export function decrypt(text: string): string {
   if (!text) throw new Error('[CRYPTO] Valeur vide');
   
+  // Format v2 uses scrypt-derived keys and is written by lib/encryption.ts.
+  if (text.startsWith('v2:')) return decryptV2(text);
+
   // Handle new GCM format (v1:iv:authTag:data)
   if (text.startsWith('v1:')) {
     const parts = text.split(':');
@@ -104,7 +108,7 @@ export function decryptLegacyCBC(text: string): string {
  * Check if value is encrypted with new GCM format
  */
 export function isEncrypted(value: string): boolean {
-  return value.startsWith('v1:');
+  return value.startsWith('v1:') || value.startsWith('v2:');
 }
 
 /**
@@ -132,8 +136,8 @@ export function safeCompare(a: string, b: string): boolean {
 }
 
 /**
- * Lit une clé privée stockée en base, qu'elle soit chiffrée (v1:iv:tag:data ou
- * iv:data legacy) OU encore en clair (anciens comptes). Même règle que
+ * Lit une clé privée stockée en base, qu'elle soit chiffrée (v2, v1, CBC
+ * legacy) OU encore en clair (anciens comptes). Même règle que
  * app/api/user/transfer : un ":" signale une valeur chiffrée.
  * Retire un éventuel préfixe "0x". Lève une erreur si la valeur est vide.
  */
