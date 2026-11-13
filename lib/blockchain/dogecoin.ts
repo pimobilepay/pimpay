@@ -26,12 +26,15 @@ const TIMEOUT = 10000;
 // Paramètres réseau Dogecoin (mainnet) — compatibles bitcoinjs-lib.
 // Dogecoin ne supporte pas SegWit : uniquement des adresses P2PKH legacy.
 // ─────────────────────────────────────────────────────────────────────────────
+const DOGE_PUBKEY_HASH = 0x1e;
+const DOGE_SCRIPT_HASH = 0x16;
+
 export const DOGECOIN_NETWORK: bitcoin.networks.Network = {
   messagePrefix: "\x19Dogecoin Signed Message:\n",
   bech32: "doge", // inutilisé (pas de SegWit), requis par le typage
   bip32: { public: 0x02facafd, private: 0x02fac398 },
-  pubKeyHash: 0x1e, // adresses commençant par 'D'
-  scriptHash: 0x16, // adresses P2SH commençant par 'A' ou '9'
+  pubKeyHash: DOGE_PUBKEY_HASH, // adresses commençant par 'D'
+  scriptHash: DOGE_SCRIPT_HASH, // adresses P2SH commençant par 'A' ou '9'
   wif: 0x9e, // clés privées WIF commençant par '6' ou 'Q'/'q'
 };
 
@@ -45,7 +48,7 @@ export function generateDogeWallet(): GeneratedDogeWallet {
   const keyPair = ECPair.makeRandom({
     network: DOGECOIN_NETWORK,
     compressed: true,
-    rng: (size) => randomBytes(size),
+    rng: (size) => randomBytes(size ?? 32),
   });
   const { address } = bitcoin.payments.p2pkh({
     pubkey: Buffer.from(keyPair.publicKey),
@@ -60,12 +63,23 @@ export function isValidDogeAddress(address: string): boolean {
   try {
     const decoded = bitcoin.address.fromBase58Check(address);
     return (
-      decoded.version === DOGECOIN_NETWORK.pubKeyHash ||
-      decoded.version === DOGECOIN_NETWORK.scriptHash
+      decoded.version === DOGE_PUBKEY_HASH ||
+      decoded.version === DOGE_SCRIPT_HASH
     );
   } catch {
     return false;
   }
+}
+
+/** Dérive l'adresse P2PKH d'une clé WIF pour valider le wallet source. */
+export function getDogeAddressFromWIF(privateKeyWIF: string): string {
+  const keyPair = ECPair.fromWIF(privateKeyWIF, DOGECOIN_NETWORK);
+  const { address } = bitcoin.payments.p2pkh({
+    pubkey: Buffer.from(keyPair.publicKey),
+    network: DOGECOIN_NETWORK,
+  });
+  if (!address) throw new Error("Impossible de dériver l’adresse Dogecoin de la clé");
+  return address;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
