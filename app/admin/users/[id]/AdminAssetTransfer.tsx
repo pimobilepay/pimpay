@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ADMIN_TRANSFER_ASSETS, type AdminTransferAsset } from "@/lib/admin-transfer";
 
 type Quote = { balance: number; feeRate: number | null; fee: number | null; totalDebit: number | null; sufficient: boolean };
+type KeyedQuote = { key: string; data: Quote };
 
 const ASSETS = Object.keys(ADMIN_TRANSFER_ASSETS) as AdminTransferAsset[];
 
@@ -15,29 +16,35 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quote, setQuote] = useState<KeyedQuote | null>(null);
+  const quoteKey = `${currency}:${amount.trim()}`;
+  const currentQuote = quote?.key === quoteKey ? quote.data : null;
 
   // Aperçu serveur (frais + solde), avec anti-rebond. Mêmes frais que ceux
   // réellement débités : ils viennent de la même config (SystemConfig).
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    setQuote(null);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/admin/users/${userId}/asset-transfer?currency=${currency}&amount=${encodeURIComponent(amount)}`);
+        const res = await fetch(`/api/admin/users/${userId}/asset-transfer?currency=${currency}&amount=${encodeURIComponent(amount)}`, { signal: controller.signal });
         const data = await res.json();
-        if (!cancelled && res.ok) setQuote(data);
-      } catch { if (!cancelled) setQuote(null); }
+        if (res.ok && !controller.signal.aborted) setQuote({ key: quoteKey, data });
+      } catch {
+        if (!controller.signal.aborted) setQuote(null);
+      }
     }, 400);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [userId, currency, amount]);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [userId, currency, amount, quoteKey]);
 
-  const hasQuote = quote?.fee != null && quote.totalDebit != null;
-  const insufficient = hasQuote && !quote!.sufficient;
+  const hasQuote = currentQuote?.fee != null && currentQuote.totalDebit != null;
+  const insufficient = hasQuote && !currentQuote!.sufficient;
 
   async function submit() {
     if (!amount || !address.trim()) return toast.error("Montant et adresse obligatoires");
     if (insufficient) return toast.error(`Solde ${currency} insuffisant (montant + frais)`);
-    const detail = hasQuote ? ` Frais : ${quote!.fee} ${currency} — total débité : ${quote!.totalDebit} ${currency}.` : "";
+    if (!hasQuote) return toast.error("Attendez que l’aperçu des frais et du solde soit disponible");
+    const detail = ` Frais : ${currentQuote!.fee} ${currency} — total débité : ${currentQuote!.totalDebit} ${currency}.`;
     if (!window.confirm(`Confirmer le transfert externe de ${amount} ${currency} ?${detail} Le solde utilisateur sera débité immédiatement.`)) return;
     setSubmitting(true);
     try {
@@ -64,14 +71,14 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
         <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Montant<input value={amount} onChange={e => setAmount(e.target.value.replace(",", "."))} inputMode="decimal" placeholder="0.00" className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-black text-white outline-none focus:border-amber-500" /></label>
       </div>
       <div className="rounded-xl bg-slate-950/60 border border-white/5 p-3 space-y-1 text-[10px] font-bold text-slate-400">
-        <div className="flex justify-between"><span>Solde {currency}</span><span className="text-white">{quote ? quote.balance : "…"}</span></div>
-        <div className="flex justify-between"><span>Frais{quote?.feeRate != null ? ` (${Math.round(quote.feeRate * 10000) / 100}%)` : ""}</span><span className="text-white">{hasQuote ? `${quote!.fee} ${currency}` : "—"}</span></div>
-        <div className="flex justify-between"><span>Total débité</span><span className={insufficient ? "text-rose-400" : "text-amber-400"}>{hasQuote ? `${quote!.totalDebit} ${currency}` : "—"}</span></div>
+        <div className="flex justify-between"><span>Solde {currency}</span><span className="text-white">{currentQuote ? currentQuote.balance : "…"}</span></div>
+        <div className="flex justify-between"><span>Frais{currentQuote?.feeRate != null ? ` (${Math.round(currentQuote.feeRate * 10000) / 100}%)` : ""}</span><span className="text-white">{hasQuote ? `${currentQuote!.fee} ${currency}` : "—"}</span></div>
+        <div className="flex justify-between"><span>Total débité</span><span className={insufficient ? "text-rose-400" : "text-amber-400"}>{hasQuote ? `${currentQuote!.totalDebit} ${currency}` : "—"}</span></div>
         {insufficient && <p className="text-rose-400 pt-1">Solde insuffisant pour couvrir le montant et les frais.</p>}
       </div>
       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse externe<input value={address} onChange={e => setAddress(e.target.value)} placeholder={`Adresse ${currency} (${asset.network})`} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-mono text-white outline-none focus:border-amber-500" /></label>
       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Motif<input value={note} onChange={e => setNote(e.target.value)} maxLength={200} placeholder="Motif interne facultatif" className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-bold text-white outline-none focus:border-amber-500" /></label>
-      <button onClick={submit} disabled={submitting || !!insufficient} className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-950 disabled:opacity-40 hover:bg-amber-400">{submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />} Enregistrer le transfert externe</button>
+      <button onClick={submit} disabled={submitting || !hasQuote || !!insufficient} className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-950 disabled:opacity-40 hover:bg-amber-400">{submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />} Enregistrer le transfert externe</button>
     </section>
   );
 }

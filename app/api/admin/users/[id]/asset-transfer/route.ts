@@ -6,6 +6,7 @@ import { parseAmount } from "@/lib/amount-guard";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { isValidTronAddress, hexToBase58 } from "@/lib/tron-utils";
 import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
+import { getDogeAddressFromWIF } from "@/lib/blockchain/dogecoin";
 import {
   ADMIN_TRANSFER_ASSETS,
   isAdminTransferAsset,
@@ -121,6 +122,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({
         error: `Clé privée ${family} illisible : ${e?.message || "erreur inconnue"}. Vérifiez ENCRYPTION_KEY (même valeur que lors de la création du wallet). Aucun débit effectué.`,
       }, { status: 400 });
+    }
+    if (family === "DOGE") {
+      let derived = "";
+      try {
+        derived = getDogeAddressFromWIF(key);
+      } catch (e: any) {
+        console.error("[ADMIN_TRANSFER] Dérivation DOGE impossible:", e?.message);
+        return NextResponse.json({ error: "Clé privée DOGE invalide pour le réseau principal. Aucun débit effectué." }, { status: 400 });
+      }
+      if (derived !== user.dogeAddress) {
+        return NextResponse.json({ error: "La clé privée DOGE ne correspond pas à l’adresse du portefeuille enregistré. Aucun débit effectué." }, { status: 400 });
+      }
     }
     if (family === "TRON") {
       // Même dérivation que la génération des wallets (secp256k1 → 0x41 + keccak).
@@ -240,16 +253,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // ── 5. Diffusion immédiate de CE transfert précis ─────────────────────────
     // `jobId` évite que le worker traite un autre retrait plus ancien de la file.
     const workerSecret = process.env.WORKER_SECRET;
+    let workerWarning: string | undefined;
     if (workerSecret) {
       try {
-        await fetch(new URL(`/api/worker/withdraw?limit=1&jobId=${encodeURIComponent(result.id)}`, req.url), {
+        const workerResponse = await fetch(new URL(`/api/worker/withdraw?limit=1&jobId=${encodeURIComponent(result.id)}`, req.url), {
           method: "POST",
           headers: { "x-worker-secret": workerSecret },
           cache: "no-store",
         });
+        if (!workerResponse.ok) workerWarning = "Le transfert est enregistré, mais le worker ne l’a pas traité immédiatement. Il reste en file d’attente.";
       } catch (workerError) {
         console.error("[ADMIN_TRANSFER] Worker indisponible", workerError);
+        workerWarning = "Le transfert est enregistré, mais le worker est indisponible. Il reste en file d’attente.";
       }
+    } else {
+      workerWarning = "Le transfert est enregistré, mais le traitement immédiat n’est pas configuré. Il reste en file d’attente.";
     }
 
     // L'état réel est relu en base : c'est la source de vérité (et non la
@@ -271,7 +289,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (final?.statusClass === "FAILED_BROADCAST") {
       return NextResponse.json({
         success: false, status: "FAILED", ...summary,
-        error: `Diffusion ${currency} échouée : ${meta.broadcastError || "erreur inconnue"}. ${
+        error: `Référence ${result.reference} — diffusion ${currency} échouée : ${meta.broadcastError || "erreur inconnue"}. ${
           meta.refunded ? "Le solde (montant + frais) a été recrédité." : "Le débit est conservé : utilisez « Relancer » ou « Annuler et recréditer »."
         }`,
       }, { status: 502 });
@@ -279,6 +297,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({
       success: true, status: "PENDING", ...summary,
       message: "Transfert enregistré et placé en file de traitement.",
+      warning: workerWarning,
     });
   } catch (error: any) {
     if (error instanceof TransferError) return NextResponse.json({ error: error.message }, { status: 400 });
