@@ -53,7 +53,7 @@ overrides:
   proxy-addr: '>=2.0.8'
   '@grpc/grpc-js': '>=1.13.6'
   source-map-js: '>=1.2.2'
-  '@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33': '>=4.0.33'
+  '@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33': ^4.0.33
   dompurify@>=3.4.13 <=3.4.15: '>=3.4.16'
   dompurify@<=3.4.15: '>=3.4.16'
   pbkdf2@<=3.1.6: '>=3.1.7'
@@ -521,9 +521,9 @@ packages:
     peerDependencies:
       zod: '>=4.6.6'
 
-  '@ai-sdk/provider-utils@5.0.81':
-    resolution: {integrity: sha512-pfvvdQ3d1WxdBuug/mnGEP6E48cPokwD8dMBnsFeeAUp0/rb/H2aj0f3mwOiY62gu/Cu5GO44e+SE5nDHyBWMA==}
-    engines: {node: '>=22'}
+  '@ai-sdk/provider-utils@4.0.66':
+    resolution: {integrity: sha512-tITCIYBJlxD4PmDIAI2VXb67yEbWRepvJBJrv2pIY5vMRUta51AFRxLlxm0IexRGdIBGuQ10+ClClZMXtawkbA==}
+    engines: {node: '>=18.17'}
     peerDependencies:
       zod: '>=4.6.6'
 
@@ -531,9 +531,9 @@ packages:
     resolution: {integrity: sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/provider@4.0.38':
-    resolution: {integrity: sha512-GElz70UUCuDFFyD6m6aQJFgRY0HEABQzB5otzgkrisYaF5mnss7o0upAmbBTSD6KWiM9h7lZm1ls2c7xzHR8CA==}
-    engines: {node: '>=22'}
+  '@ai-sdk/provider@3.0.19':
+    resolution: {integrity: sha512-5lWq7zSfRaU5ylDESn3sDQjgGl2AI1vjZKO/6JY3aFW70ct4zcP1kN+ZUYOuTXr28fVsYbyu2YFhddLdIgQFZQ==}
+    engines: {node: '>=18'}
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -3367,9 +3367,6 @@ packages:
     resolution: {integrity: sha512-DduUx5mEv0/7qh4fQF3RBcfg+S5HImXcuVLplug9pSmhiuErDcEwG7jTNiwcik6C6swsiCYcCDpqeaf3cODnmg==}
     cpu: [x64]
     os: [win32]
-
-  '@workflow/serde@4.1.0':
-    resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
 
   '@workflow/serde@4.1.0-beta.2':
     resolution: {integrity: sha512-8kkeoQKLDaKXefjV5dbhBj2aErfKp1Mc4pb6tj8144cF+Em5SPbyMbyLCHp+BVrFfFVCBluCtMx+jjvaFVZGww==}
@@ -7248,23 +7245,23 @@ snapshots:
   '@ai-sdk/gateway@3.0.133(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.7)
+      '@ai-sdk/provider-utils': 4.0.66(zod@4.6.7)
       '@vercel/oidc': 3.2.0
       zod: 4.6.7
 
-  '@ai-sdk/provider-utils@5.0.81(zod@4.6.7)':
+  '@ai-sdk/provider-utils@4.0.66(zod@4.6.7)':
     dependencies:
-      '@ai-sdk/provider': 4.0.38
+      '@ai-sdk/provider': 3.0.19
       '@standard-schema/spec': 1.1.0
-      '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
+      undici: 8.12.4
       zod: 4.6.7
 
   '@ai-sdk/provider@3.0.10':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/provider@4.0.38':
+  '@ai-sdk/provider@3.0.19':
     dependencies:
       json-schema: 0.4.0
 
@@ -10157,8 +10154,6 @@ snapshots:
   '@vercel/vc-native-win32-x64@63.1.2':
     optional: true
 
-  '@workflow/serde@4.1.0': {}
-
   '@workflow/serde@4.1.0-beta.2': {}
 
   '@xmldom/xmldom@0.9.12': {}
@@ -10231,7 +10226,7 @@ snapshots:
     dependencies:
       '@ai-sdk/gateway': 3.0.133(zod@4.6.7)
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.7)
+      '@ai-sdk/provider-utils': 4.0.66(zod@4.6.7)
       '@opentelemetry/api': 1.9.1
       zod: 4.6.7
 
