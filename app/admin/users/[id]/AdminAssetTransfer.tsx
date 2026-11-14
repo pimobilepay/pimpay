@@ -17,6 +17,7 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [quote, setQuote] = useState<KeyedQuote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   const quoteKey = `${currency}:${amount.trim()}`;
   const currentQuote = quote?.key === quoteKey ? quote.data : null;
 
@@ -25,13 +26,22 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
   useEffect(() => {
     const controller = new AbortController();
     setQuote(null);
+    setQuoteError(null);
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/admin/users/${userId}/asset-transfer?currency=${currency}&amount=${encodeURIComponent(amount)}`, { signal: controller.signal });
-        const data = await res.json();
-        if (res.ok && !controller.signal.aborted) setQuote({ key: quoteKey, data });
+        const data = await res.json().catch(() => ({}));
+        if (controller.signal.aborted) return;
+        if (!res.ok) {
+          setQuoteError(data.error || "Impossible de charger le solde et les frais.");
+          return;
+        }
+        setQuote({ key: quoteKey, data });
       } catch {
-        if (!controller.signal.aborted) setQuote(null);
+        if (!controller.signal.aborted) {
+          setQuote(null);
+          setQuoteError("Impossible de joindre le service de solde. Réessayez.");
+        }
       }
     }, 400);
     return () => { controller.abort(); clearTimeout(timer); };
@@ -75,6 +85,7 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
         <div className="flex justify-between"><span>Frais{currentQuote?.feeRate != null ? ` (${Math.round(currentQuote.feeRate * 10000) / 100}%)` : ""}</span><span className="text-white">{hasQuote ? `${currentQuote!.fee} ${currency}` : "—"}</span></div>
         <div className="flex justify-between"><span>Total débité</span><span className={insufficient ? "text-rose-400" : "text-amber-400"}>{hasQuote ? `${currentQuote!.totalDebit} ${currency}` : "—"}</span></div>
         {insufficient && <p className="text-rose-400 pt-1">Solde insuffisant pour couvrir le montant et les frais.</p>}
+        {quoteError && <p role="alert" className="text-rose-400 pt-1">{quoteError}</p>}
       </div>
       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse externe<input value={address} onChange={e => setAddress(e.target.value)} placeholder={`Adresse ${currency} (${asset.network})`} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-mono text-white outline-none focus:border-amber-500" /></label>
       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Motif<input value={note} onChange={e => setNote(e.target.value)} maxLength={200} placeholder="Motif interne facultatif" className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-bold text-white outline-none focus:border-amber-500" /></label>

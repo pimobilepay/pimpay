@@ -108,7 +108,12 @@ const nextConfig = {
   // Sans cette inclusion explicite, le bundler Next/Vercel le laisse hors du
   // output standalone et /api/wallet/sync-all échoue avec ENOENT.
   outputFileTracingIncludes: {
-    "/*": ["./node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+    "/*": ["./node_modules/.pnpm/tiny-secp256k1@*/node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+    "/api/admin/users/[id]/asset-transfer": ["./node_modules/.pnpm/tiny-secp256k1@*/node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+    "/api/worker/withdraw": ["./node_modules/.pnpm/tiny-secp256k1@*/node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+    "/api/wallet/doge/transfer": ["./node_modules/.pnpm/tiny-secp256k1@*/node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+    "/api/wallet/doge/sync": ["./node_modules/.pnpm/tiny-secp256k1@*/node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
+    "/api/wallet/sync-all": ["./node_modules/.pnpm/tiny-secp256k1@*/node_modules/tiny-secp256k1/lib/secp256k1.wasm"],
   },
 
   // 6. Moteur Webpack (Maintenu pour la Crypto/WASM)
