@@ -55,17 +55,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: `Actif ${currency || "?"} non supporté pour le transfert externe` }, { status: 400 });
   }
 
-  const wallet = await prisma.wallet.findUnique({
-    where: { userId_currency: { userId, currency } },
-    select: { balance: true },
-  });
+  const [wallet, user] = await Promise.all([
+    prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency } },
+      select: { balance: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { usdtAddress: true, usdtPrivateKey: true, dogeAddress: true, dogePrivateKey: true },
+    }),
+  ]);
   const balance = wallet?.balance ?? 0;
+  let readinessError: string | null = null;
+  if (ADMIN_TRANSFER_ASSETS[currency].family === "TRON") {
+    if (!user?.usdtAddress) readinessError = "Aucun portefeuille TRON configuré pour cet utilisateur.";
+    else if (!user.usdtPrivateKey) readinessError = "Clé privée TRON absente. Aucun transfert ne sera débité. Restaurez la clé existante depuis une sauvegarde sécurisée; ne régénérez pas ce wallet.";
+  } else if (ADMIN_TRANSFER_ASSETS[currency].family === "DOGE") {
+    if (!user?.dogeAddress) readinessError = "Aucun portefeuille DOGE configuré pour cet utilisateur.";
+    else if (!user.dogePrivateKey) readinessError = "Clé privée DOGE absente. Aucun transfert ne sera débité.";
+  }
 
   const parsed = parseAmount(url.searchParams.get("amount"));
-  if (!parsed.ok) return NextResponse.json({ balance, feeRate: null, fee: null, totalDebit: null, sufficient: false });
+  if (!parsed.ok) return NextResponse.json({ balance, feeRate: null, fee: null, totalDebit: null, sufficient: false, transferReady: !readinessError, readinessError });
 
   const { feeRate, fee, totalDebit } = await quoteFee(parsed.value);
-  return NextResponse.json({ balance, feeRate, fee, totalDebit, sufficient: balance >= totalDebit });
+  return NextResponse.json({ balance, feeRate, fee, totalDebit, sufficient: balance >= totalDebit, transferReady: !readinessError, readinessError });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

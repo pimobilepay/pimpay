@@ -129,6 +129,7 @@ export async function POST(req: Request) {
 
     const updates: Record<string, string> = {};
     const generated: string[] = [];
+    const warnings: string[] = [];
 
     // 2. Générer les clés manquantes — chiffrer en AES-256-GCM
     if (!user.sidraAddress || !user.sidraPrivateKey) {
@@ -140,11 +141,15 @@ export async function POST(req: Request) {
       generated.push("EVM (Sidra)");
     }
 
-    if (!user.usdtAddress || !user.usdtPrivateKey) {
+    if (!user.usdtAddress && !user.usdtPrivateKey) {
       const tron = generateTronWallet();
       updates.usdtAddress    = tron.address;
       updates.usdtPrivateKey = encrypt(tron.privateKey);   // ✅ GCM
-      generated.push("USDT (TRC-20)");
+      generated.push("TRON (TRX / USDT TRC-20)");
+    } else if (!user.usdtAddress || !user.usdtPrivateKey) {
+      // Ne jamais remplacer une adresse existante : elle peut déjà détenir des fonds.
+      // Une clé absente ne peut pas être recalculée à partir de l'adresse publique.
+      warnings.push("Wallet TRON incomplet : adresse/clé conservée sans modification. Restaurez la clé privée correspondante depuis une sauvegarde sécurisée avant tout transfert.");
     }
 
     if (!user.xlmAddress || !user.stellarPrivateKey) {
@@ -195,9 +200,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: generated.length > 0
-        ? `Nouveaux wallets créés: ${generated.join(", ")}`
-        : "Wallets déjà provisionnés",
+      message: warnings.length > 0
+        ? "Certains wallets existants nécessitent une vérification manuelle."
+        : generated.length > 0
+          ? `Nouveaux wallets créés: ${generated.join(", ")}`
+          : "Wallets déjà provisionnés",
+      warnings,
       data: {
         evmAddress:   updates.sidraAddress || user.sidraAddress,
         usdtAddress:  updates.usdtAddress  || user.usdtAddress,
