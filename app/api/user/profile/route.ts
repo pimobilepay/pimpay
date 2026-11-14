@@ -28,8 +28,9 @@ import { hexToBase58 } from "@/lib/tron-utils";
 // et ne sont JAMAIS retournées au client.
 const generateBlockchainIdentities = () => {
   const sidraWallet = EthersWallet.createRandom();
-  const usdtPrivKey = crypto.randomBytes(32).toString("hex");
-  const usdtAddr = hexToBase58(`41${crypto.randomBytes(20).toString("hex")}`);
+  const usdtWallet = EthersWallet.createRandom();
+  const usdtPrivKey = usdtWallet.privateKey.slice(2);
+  const usdtAddr = hexToBase58(`41${usdtWallet.address.slice(2)}`);
   const piPrivKey = crypto.randomBytes(32).toString("hex");
   const piAddr = `P${crypto.randomBytes(20).toString("hex").toUpperCase()}`;
 
@@ -190,7 +191,12 @@ export async function GET(request: Request) {
     // Les clés privées sont générées et stockées en DB mais NE SONT PAS
     // retournées dans la réponse (non présentes dans SAFE_USER_SELECT).
     if (!user.sidraAddress || !user.usdtAddress || !user.walletAddress) {
+      const tronKeyState = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { usdtPrivateKey: true },
+      });
       const ids = generateBlockchainIdentities();
+      const newTronIdentity = !user.usdtAddress && !tronKeyState?.usdtPrivateKey ? ids.usdt : null;
 
       // ✅ FIX: chiffrement AES-256-GCM avant stockage en DB
       await prisma.user.update({
@@ -199,8 +205,10 @@ export async function GET(request: Request) {
           sidraAddress:     user.sidraAddress  || ids.sidra.address,
           sidraPrivateKey:  encrypt(ids.sidra.privateKey), // ✅ Chiffré GCM
           walletPrivateKey: encrypt(ids.sidra.privateKey), // ✅ Chiffré GCM
-          usdtAddress:      user.usdtAddress   || ids.usdt.address,
-          usdtPrivateKey:   encrypt(ids.usdt.privateKey),  // ✅ Chiffré GCM
+          ...(newTronIdentity ? {
+            usdtAddress: newTronIdentity.address,
+            usdtPrivateKey: encrypt(newTronIdentity.privateKey), // ✅ Chiffré GCM
+          } : {}),
           walletAddress:    user.walletAddress  || ids.pi.address,
         },
       });
