@@ -6,7 +6,6 @@ import { parseAmount } from "@/lib/amount-guard";
 import { getFeeConfig, calculateFee } from "@/lib/fees";
 import { isValidTronAddress, hexToBase58 } from "@/lib/tron-utils";
 import { getTrxBalance, getUsdtBalance } from "@/lib/blockchain/tron";
-import { getDogeAddressFromWIF } from "@/lib/blockchain/dogecoin";
 import {
   ADMIN_TRANSFER_ASSETS,
   isAdminTransferAsset,
@@ -124,6 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }, { status: 400 });
     }
     if (family === "DOGE") {
+      const { getDogeAddressFromWIF } = await import("@/lib/blockchain/dogecoin");
       let derived = "";
       try {
         derived = getDogeAddressFromWIF(key);
