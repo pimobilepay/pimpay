@@ -74,6 +74,8 @@ model User {
   xlmAddress           String?          @unique
   xrpAddress           String?          @unique
   xrpPrivateKey        String?
+  // Shared TRON wallet for native TRX and USDT TRC-20; key is encrypted at rest.
+  // Nullable for legacy/incomplete accounts; never replace an existing address when its key is missing.
   usdtAddress          String?          @unique
   usdtPrivateKey       String?
   solAddress           String?          @unique

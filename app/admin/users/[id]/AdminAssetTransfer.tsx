@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowUpRight, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { ADMIN_TRANSFER_ASSETS, type AdminTransferAsset } from "@/lib/admin-transfer";
 
-type Quote = { balance: number; feeRate: number | null; fee: number | null; totalDebit: number | null; sufficient: boolean };
+type Quote = { balance: number; feeRate: number | null; fee: number | null; totalDebit: number | null; sufficient: boolean; transferReady?: boolean; readinessError?: string | null };
 type KeyedQuote = { key: string; data: Quote };
 
 const ASSETS = Object.keys(ADMIN_TRANSFER_ASSETS) as AdminTransferAsset[];
@@ -54,6 +54,7 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
     if (!amount || !address.trim()) return toast.error("Montant et adresse obligatoires");
     if (insufficient) return toast.error(`Solde ${currency} insuffisant (montant + frais)`);
     if (!hasQuote) return toast.error("Attendez que l’aperçu des frais et du solde soit disponible");
+    if (currentQuote?.transferReady === false) return toast.error(currentQuote.readinessError || "Wallet non prêt pour le transfert");
     const detail = ` Frais : ${currentQuote!.fee} ${currency} — total débité : ${currentQuote!.totalDebit} ${currency}.`;
     if (!window.confirm(`Confirmer le transfert externe de ${amount} ${currency} ?${detail} Le solde utilisateur sera débité immédiatement.`)) return;
     setSubmitting(true);
@@ -86,10 +87,11 @@ export function AdminAssetTransfer({ userId }: { userId: string }) {
         <div className="flex justify-between"><span>Total débité</span><span className={insufficient ? "text-rose-400" : "text-amber-400"}>{hasQuote ? `${currentQuote!.totalDebit} ${currency}` : "—"}</span></div>
         {insufficient && <p className="text-rose-400 pt-1">Solde insuffisant pour couvrir le montant et les frais.</p>}
         {quoteError && <p role="alert" className="text-rose-400 pt-1">{quoteError}</p>}
+        {currentQuote?.readinessError && <p role="alert" className="text-rose-400 pt-1">{currentQuote.readinessError}</p>}
       </div>
       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Adresse externe<input value={address} onChange={e => setAddress(e.target.value)} placeholder={`Adresse ${currency} (${asset.network})`} className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-[11px] font-mono text-white outline-none focus:border-amber-500" /></label>
       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Motif<input value={note} onChange={e => setNote(e.target.value)} maxLength={200} placeholder="Motif interne facultatif" className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-3 text-xs font-bold text-white outline-none focus:border-amber-500" /></label>
-      <button onClick={submit} disabled={submitting || !hasQuote || !!insufficient} className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-950 disabled:opacity-40 hover:bg-amber-400">{submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />} Enregistrer le transfert externe</button>
+      <button onClick={submit} disabled={submitting || !hasQuote || !!insufficient || currentQuote?.transferReady === false} className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-950 disabled:opacity-40 hover:bg-amber-400">{submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />} Enregistrer le transfert externe</button>
     </section>
   );
 }
