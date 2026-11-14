@@ -216,7 +216,7 @@
       "proxy-addr": ">=2.0.8",
       "@grpc/grpc-js": ">=1.13.6",
       "source-map-js": ">=1.2.2",
-      "@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33": ">=4.0.33",
+      "@ai-sdk/provider-utils@>=4.0.0-beta.10 <4.0.33": "^4.0.33",
       "dompurify@>=3.4.13 <=3.4.15": ">=3.4.16",
       "dompurify@<=3.4.15": ">=3.4.16",
       "pbkdf2@<=3.1.6": ">=3.1.7",
